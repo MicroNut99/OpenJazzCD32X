@@ -38,6 +38,11 @@ EXT_SRCS := argparse/argparse.c miniz/miniz.c stb/stb_rect_pack.c
 XMP_SRCS := $(notdir $(wildcard $(EXT)/xmp/src/*.c)) $(addprefix loaders/,$(notdir $(wildcard $(EXT)/xmp/src/loaders/*.c)))
 PORT_CXX := sdl_oj.cpp
 PORT_C   := mixer.c
+# newlib system calls for the SH2 (keeps libc.a's simulator syscalls out: `errno' clash).
+# Not in a PC dry run (TC=), where they would clash with the PC's C library.
+ifneq ($(TC),)
+PORT_C   += mars_syscalls.c
+endif
 
 OBJDIR := obj
 OPT    := $(ARCH) -Os -ffunction-sections -fdata-sections
@@ -72,7 +77,7 @@ report.txt: $(OBJS) $(OBJDIR)/trial_stub.o
 	   echo "== trial link, unused code removed, with libstdc++/newlib (text data bss dec hex)"; \
 	   $(SIZE) trial.elf | tail -1; } > $@
 
-undefined.txt: report.txt
+undefined.txt: $(OBJS) $(OBJDIR)/trial_stub.o
 	$(CXX) $(ARCH) -nostdlib -r -o partial.o $(OBJS)
 	$(NM) -u -C partial.o | awk '{$$1=""; print substr($$0,2)}' | sort > all_undefined.txt
 	@# what the libraries do not cover = what the 32X platform layer must provide

@@ -123,12 +123,16 @@ read: 761 KB (menus, fonts, level object).
    `tools/prep_openlara_cd.py` (the uploaded `APP.BIN` is Kobo's).
 3. The target decision (RAM cart, proposed).
 
-## J3a (sent, waiting for Micronut99's log)
+## J3a (SH2 compile: all files compile after one fix; link fix J3b sent)
 Toolchain (Micronut99's check): sh-elf-g++ 12.1 with libstdc++/libsupc++ for SH2 (`!m2`);
 a test with exceptions, unique_ptr and std::list compiles and links (~100 KB with the
 libraries). `mars/Makefile` compiles the game for the SH2 (-m2 -mb -Os) and trial-links it.
 Dry run with the PC compiler: game 174 KB, ext 30 KB, xmp 98 KB, port 5 KB; trial link
 282 KB text; missing = only the 6 plat_* functions. The SH2 numbers come from his log.
+J3a log: only `jj1save.cpp` failed (`<time.h>` missing; glibc includes it through other
+headers, newlib does not) - fixed. Trial link then failed: libc.a's own SH simulator
+syscalls (lib_a-syscalls.o) clash with reent.o over `errno`. J3b: our own system calls
+(`port/mars_syscalls.c`, from Tyrian's port/mars/syscalls.c + _stat, _rename, mkdir).
 To check later: GCC 12's emergency exception pool (malloc'd at start-up), and that the
 32X start-up runs the C++ initialisers (the unwinder registers its tables there).
 
