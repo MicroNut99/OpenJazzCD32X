@@ -25,6 +25,7 @@ build does not fit (memory table below).
 | `tools/heap_peak.sh`, `tools/heap_group.py` | who holds the heap at its peak (J2) |
 | `tools/level_mem.sh` | heap per level, all 79 levels → `tests/level_mem.txt` (J2) |
 | `port/host_new.cpp` | PC build: C++ `new`/`delete` through the counted heap (J2) |
+| `mars/Makefile`, `mars/trial_stub.c` | J3a: first SH2 compile + trial link (sizes, list of missing platform functions); nothing runs yet |
 | `JazzJackRabbitGame/` | Micronut99's Jazz 1 CD data (GOG collection), **not in git** |
 | `cd32x/ref/` | uploaded references, **unchanged**: `cdloader_sh2.c` (OpenLara loader), `cdl_crt0.s` (its CD boot table start-up), `subcpu_crt0.s`, `APP.BIN` (**Kobo's** Sub-CPU program, not OpenLara's) |
 
@@ -121,6 +122,15 @@ read: 761 KB (menus, fonts, level object).
    `subcpu/make_mixed_cd2.py`, the loader's `cdloader.ld` + `Makefile.cdloader`, and
    `tools/prep_openlara_cd.py` (the uploaded `APP.BIN` is Kobo's).
 3. The target decision (RAM cart, proposed).
+
+## J3a (sent, waiting for Micronut99's log)
+Toolchain (Micronut99's check): sh-elf-g++ 12.1 with libstdc++/libsupc++ for SH2 (`!m2`);
+a test with exceptions, unique_ptr and std::list compiles and links (~100 KB with the
+libraries). `mars/Makefile` compiles the game for the SH2 (-m2 -mb -Os) and trial-links it.
+Dry run with the PC compiler: game 174 KB, ext 30 KB, xmp 98 KB, port 5 KB; trial link
+282 KB text; missing = only the 6 plat_* functions. The SH2 numbers come from his log.
+To check later: GCC 12's emergency exception pool (malloc'd at start-up), and that the
+32X start-up runs the C++ initialisers (the unwinder registers its tables there).
 
 ## Next round (J3)
 Graphics into the cart, tested on the PC: a cart image in the host build (4 MB, written only

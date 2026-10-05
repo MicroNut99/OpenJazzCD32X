@@ -5,3 +5,11 @@ frames/
 build/
 *.cfg
 frames_*/
+mars/obj/
+mars/trial.elf
+mars/trial.map
+mars/partial.o
+mars/report.txt
+mars/undefined.txt
+mars/all_undefined.txt
+mars_log.txt
