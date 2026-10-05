@@ -28,6 +28,9 @@
 
 
 #include "level.h"
+#ifdef OJ32X
+#include "oj32x.h"
+#endif
 
 #include "game/game.h"
 #include "io/controls.h"
@@ -428,6 +431,10 @@ int Level::loop (bool& menu, int& option, bool& message) {
 
 
 	// Main loop
+#ifdef OJ32X
+	// PORT32X: the pad's play layout while playing, the menu layout in the level menu
+	oj32xPlayLayout = !menu;
+#endif
 	if (::loop(NORMAL_LOOP, paletteEffects, paused) == E_QUIT) return E_QUIT;
 
 

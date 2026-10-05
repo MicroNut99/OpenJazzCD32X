@@ -293,7 +293,13 @@ void openAudio () {
  */
 void closeAudio () {
 	stopMusic();
+#ifdef OJ32X
+	// PORT32X: audio may never have opened (no context then); upstream frees a null context
+	if (xmpC) xmp_free_context(xmpC);
+	xmpC = nullptr;
+#else
 	xmp_free_context(xmpC);
+#endif
 
 #if OJ_SDL3
 	SDL_CloseAudioDevice(SDL_GetAudioStreamDevice(audioStream));

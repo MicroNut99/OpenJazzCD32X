@@ -1,0 +1,6 @@
+host/obj*/
+host/openjazz32x_host*
+host/test_sdl_oj
+frames/
+build/
+*.cfg

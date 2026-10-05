@@ -30,6 +30,10 @@
 #define EXTERN
 
 #include "SDL_wrapper.h"
+#ifdef OJ32X
+#include "oj32x.h"
+bool oj32xPlayLayout = false;
+#endif
 #if OJ_SDL3
 #include <SDL3/SDL_main.h>
 #endif
@@ -532,6 +536,11 @@ int loop (LoopType type, PaletteEffect* paletteEffects, bool effectsStopped) {
 
 
 	// Process system events
+#ifdef OJ32X
+	// PORT32X: pad layout for this frame (Level::loop asks for the play layout)
+	oj32x_pad_mode(oj32xPlayLayout ? OJ32X_PAD_PLAY : OJ32X_PAD_MENU);
+	oj32xPlayLayout = false;
+#endif
 	while (SDL_PollEvent(&event)) {
 
 		if (event.type == SDL_EVENT_QUIT) return E_QUIT;

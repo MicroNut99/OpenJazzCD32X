@@ -1,5 +1,5 @@
 /*
- * Tyrian 32X - PC test platform.
+ * Tyrian 32X - PC test platform (copied for OpenJazz CD32X from tyrian32x T3j).
  *
  * Runs the full game + port layer on a PC with no SDL at all:
  *   - ROM file system: loads the romfs image named by T32X_ROMFS
@@ -13,7 +13,8 @@
  *     1 ms per idle poll, so runs are fast and repeatable
  *
  * Environment:
- *   T32X_ROMFS          path of the image (required)
+ *   T32X_ROMFS          path of the image (OpenJazz J1: optional - the PC build
+ *                       reads the game folder directly until the ROM file system exists)
  *   T32X_ROMFS_OFFSET   byte offset of the romfs inside that file (default 0)
  *   T32X_FRAMES_DIR     where to write frames (default "frames")
  *   T32X_SAVE_EVERY     save every Nth frame (default 30; 0 = none)
@@ -81,8 +82,9 @@ void plat_init(void)
 	audio_start();
 	const char *path = getenv("T32X_ROMFS");
 	if (path == NULL)
-		plat_fatal("T32X_ROMFS is not set");
+		goto no_romfs;  /* PORT32X (OpenJazz J1): no ROM file system yet */
 
+	{
 	FILE *f = fopen(path, "rb");
 	if (f == NULL)
 		plat_fatal("cannot open T32X_ROMFS");
@@ -99,6 +101,8 @@ void plat_init(void)
 		plat_fatal("cannot read T32X_ROMFS");
 	fclose(f);
 	romfs_image = all + off;
+	}
+no_romfs:
 
 	max_frames = env_ul("T32X_MAX_FRAMES", max_frames);
 	max_ms = (uint32_t)env_ul("T32X_MAX_SECONDS", max_ms / 1000) * 1000;
