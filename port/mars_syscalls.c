@@ -58,8 +58,10 @@ int _getpid(void) { return 1; }
 int _unlink(const char *name) { (void)name; errno = ENOENT; return -1; }
 int _link(const char *a, const char *b) { (void)a; (void)b; errno = EMLINK; return -1; }
 int _rename(const char *a, const char *b) { (void)a; (void)b; errno = ENOENT; return -1; }
-int _access(const char *name, int mode) { (void)name; (void)mode; errno = ENOENT; return -1; }
-char *_getcwd(char *buf, size_t size) { if (buf && size > 1) { buf[0] = '/'; buf[1] = 0; return buf; } errno = ERANGE; return NULL; }
+/* access/getcwd: plain C names (newlib for sh-elf has none; the SH linker shows them as
+ * _access/_getcwd because it puts an underscore before every C name) */
+int access(const char *name, int mode) { (void)name; (void)mode; errno = ENOENT; return -1; }
+char *getcwd(char *buf, size_t size) { if (buf && size > 1) { buf[0] = '/'; buf[1] = 0; return buf; } errno = ERANGE; return NULL; }
 int mkdir(const char *name, mode_t mode) { (void)name; (void)mode; errno = EROFS; return -1; }
 
 int _gettimeofday(struct timeval *tv, void *tz)

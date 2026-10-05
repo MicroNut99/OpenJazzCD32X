@@ -3,7 +3,8 @@
 # every 15th frame with the references in tests/<scenario>.ref (md5 of each saved frame).
 #   tools/regress.sh <Jazz 1 data folder>            compare  -> "0 different" per scenario
 #   tools/regress.sh <Jazz 1 data folder> --renew    write new references (after looking!)
-# Frames of each run stay in frames_<scenario>/ for a look.
+# Frames of each run stay in /tmp/openjazz32x_regress/frames_<scenario>/ for a look
+# (REGRESS_DIR=<folder> to put them elsewhere).
 set -e
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 DATA="${1:?usage: tools/regress.sh <Jazz 1 data folder> [--renew]}"
@@ -22,7 +23,8 @@ SCENARIOS=(
 fail=0
 for s in "${SCENARIOS[@]}"; do
   IFS='|' read -r name frames pad <<< "$s"
-  out="$HERE/frames_$name"
+  # frames in Linux's own /tmp: writing ~130 MB of pictures to a Windows drive (/mnt/s) is slow
+  out="${REGRESS_DIR:-/tmp/openjazz32x_regress}/frames_$name"
   rm -rf "$out" && mkdir -p "$out"
   ( cd "$out" && T32X_FRAMES_DIR="$out" T32X_SAVE_EVERY=15 T32X_MAX_FRAMES="$frames" \
     T32X_MAX_SECONDS=100000 T32X_PAD="$pad" "$HERE/host/openjazz32x_host" "$DATA" > log.txt 2>&1 ) || true
