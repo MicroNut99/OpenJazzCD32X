@@ -1,0 +1,70 @@
+diff --git a/oj/src/io/sound.cpp b/oj/src/io/sound.cpp
+index 9f5be2d..d7a5b92 100644
+--- a/oj/src/io/sound.cpp
++++ b/oj/src/io/sound.cpp
+@@ -293,7 +293,13 @@ void openAudio () {
+  */
+ void closeAudio () {
+ 	stopMusic();
++#ifdef OJ32X
++	// PORT32X: audio may never have opened (no context then); upstream frees a null context
++	if (xmpC) xmp_free_context(xmpC);
++	xmpC = nullptr;
++#else
+ 	xmp_free_context(xmpC);
++#endif
+ 
+ #if OJ_SDL3
+ 	SDL_CloseAudioDevice(SDL_GetAudioStreamDevice(audioStream));
+diff --git a/oj/src/level/level.cpp b/oj/src/level/level.cpp
+index 1ab7284..d058e71 100644
+--- a/oj/src/level/level.cpp
++++ b/oj/src/level/level.cpp
+@@ -28,6 +28,9 @@
+ 
+ 
+ #include "level.h"
++#ifdef OJ32X
++#include "oj32x.h"
++#endif
+ 
+ #include "game/game.h"
+ #include "io/controls.h"
+@@ -428,6 +431,10 @@ int Level::loop (bool& menu, int& option, bool& message) {
+ 
+ 
+ 	// Main loop
++#ifdef OJ32X
++	// PORT32X: the pad's play layout while playing, the menu layout in the level menu
++	oj32xPlayLayout = !menu;
++#endif
+ 	if (::loop(NORMAL_LOOP, paletteEffects, paused) == E_QUIT) return E_QUIT;
+ 
+ 
+diff --git a/oj/src/main.cpp b/oj/src/main.cpp
+index 71b7fff..a5ab271 100644
+--- a/oj/src/main.cpp
++++ b/oj/src/main.cpp
+@@ -30,6 +30,10 @@
+ #define EXTERN
+ 
+ #include "SDL_wrapper.h"
++#ifdef OJ32X
++#include "oj32x.h"
++bool oj32xPlayLayout = false;
++#endif
+ #if OJ_SDL3
+ #include <SDL3/SDL_main.h>
+ #endif
+@@ -532,6 +536,11 @@ int loop (LoopType type, PaletteEffect* paletteEffects, bool effectsStopped) {
+ 
+ 
+ 	// Process system events
++#ifdef OJ32X
++	// PORT32X: pad layout for this frame (Level::loop asks for the play layout)
++	oj32x_pad_mode(oj32xPlayLayout ? OJ32X_PAD_PLAY : OJ32X_PAD_MENU);
++	oj32xPlayLayout = false;
++#endif
+ 	while (SDL_PollEvent(&event)) {
+ 
+ 		if (event.type == SDL_EVENT_QUIT) return E_QUIT;
