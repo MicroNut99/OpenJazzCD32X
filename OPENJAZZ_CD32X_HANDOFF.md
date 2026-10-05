@@ -163,6 +163,25 @@ Cart layout (proposed): 0x000000 engine (≤ 512 KB), 0x080000-0x3EFFFF graphics
 `cd32x/ref/APP_openlara.BIN`: a second APP.BIN from Micronut99 - an early OpenLara loader
 build (marker SH2-OPENLARA-CD-OL1-LOADER; files D32XR.32X, IMAGE.RAW, Kobo's names), binary only.
 
+## OpenLara sources (received; key files kept in `cd32x/ref/openlara/`, unchanged)
+`subcpu/` (Sub-CPU main.c + 68000 listener hw_md.s + disc Makefile), `sh2/` (loader:
+cdloader_sh2.c, cdl_crt0.s, cdloader.ld, Makefile.cdloader), `tools/prep_openlara_cd.py`,
+`build.sh`, the latest OpenLara handoff. What OpenJazz reuses:
+- **Boot, unchanged:** disc → APP.BIN → CDLOADER.BIN copies the engine ROM (a normal 32X
+  cartridge image, file 20) into the cart and starts both SH2s. Engine ROM rules
+  (prep_openlara_cd.py): 'SEGA' at 0x100, 32X header at 0x3C0, SDRAM image ≤ 0x30000 bytes
+  to ≤ SDRAM+0x38000, SH2 entries in SDRAM, marker 'CDB2' at 0x3BC.
+- **Commands as they are:** 38 open file, 46 file chunk → cart, 48 pad, 45/54 CD audio,
+  51 file → frame buffer, 52 Genesis display, 58/61 saves.
+- **New for OpenJazz (J4): SH2-made data → cart.** The SH2 decodes graphics; only the
+  68000 writes the cart. Plan: the SH2 puts up to ~60 KB in the frame buffer it is not
+  showing, a new Sub-CPU command has the 68000 copy it into the cart with its existing
+  `chilly_rv_memcpy` (68000 command 33, already used for saves: Word RAM → cart).
+  Untested: the 68000 reading the 32X frame buffer while RV = 1 - first console test.
+- Engine start-up: OpenLara's engine uses its own 32x crt0 (not in this zip); OpenJazz will
+  use Tyrian's cartridge crt0 (`port/mars/crt0_tyrian.s` + linker script), which already
+  has the stack guard, slave start and error screens.
+
 ## Next round (J3)
 Graphics into the cart, tested on the PC: a cart image in the host build (4 MB, written only
 by a "68000" copy routine, read-only for the game), the decoded tile set, sprites, fonts and
