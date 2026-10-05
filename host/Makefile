@@ -35,7 +35,8 @@ DEFS   := -DOJ32X -DOJ_SDL1 -DPORTABLE -DNDEBUG \
           -DOJ_URL=\"http://alister.eu/jazz/oj/\" -DOJ_BUGREPORT=\"https://github.com/AlisterT/openjazz/issues\" \
           -DLIBXMP_CORE_PLAYER -DLIBXMP_STATIC -DXMP_SYM_VISIBILITY
 INCS   := -I$(PORT)/include -I$(PORT) -I$(SRC) -I$(EXT)/argparse -I$(EXT)/miniz -I$(EXT)/xmp -I$(EXT)/xmp/src -I$(EXT)/stb
-CXXFLAGS := -std=gnu++14 $(OPT) $(DEFS) $(INCS) -Wall -Wno-unused-result -MMD -MP
+# -Wno-narrowing: SDL 1.2 rectangles are 16-bit, font.cpp fills them from ints (as with real SDL 1.2)
+CXXFLAGS := -std=gnu++14 $(OPT) $(DEFS) $(INCS) -Wall -Wno-unused-result -Wno-narrowing -MMD -MP
 CFLAGS   := -std=gnu11 $(OPT) $(DEFS) $(INCS) -w -MMD -MP
 
 OBJS := $(addprefix $(OBJDIR)/game/,$(GAME_SRCS:.cpp=.o)) \

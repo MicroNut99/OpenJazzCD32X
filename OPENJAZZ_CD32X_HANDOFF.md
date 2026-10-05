@@ -62,7 +62,7 @@ it is let go (otherwise Start, held while the menu opens, would select at once).
 | J1 | `level/level.cpp`, `main.cpp` | pad layout per frame (play while playing, menu otherwise) |
 
 ## Tested (PC sandbox, no game data yet)
-- Host build: compiles, links, no warnings.
+- Host build: compiles and links from a fresh clone; no warnings (`-Wno-narrowing`: SDL 1.2 rectangles are 16-bit, font.cpp fills them from ints).
 - `make -C host test`: SDL shim checks against SDL 1.2 behaviour (plain/keyed/recoloured
   blits, the key tested before recolouring, clipping and the returned rectangle, fill, MapRGB) – all pass.
 - Without data: starts, reports "Unable to find game data files", exits cleanly (heap 64 KB).
