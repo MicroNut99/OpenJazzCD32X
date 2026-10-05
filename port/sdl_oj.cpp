@@ -37,40 +37,50 @@ void SDL_Delay(Uint32 ms)
 
 /* ------------------------------------------------------------------ surfaces */
 
-/* What a surface carries besides the SDL fields: its own palette storage, and
- * the remap table (logical palette -> index) with a flag for "identity". */
+/* What a surface carries besides the SDL fields. Most surfaces never change their
+ * palette, so they share one grey ramp and have no table (J2: a palette + table per
+ * surface cost ~1.3 KB each, 450 KB over a level's 345 surfaces). A surface gets its own
+ * colours and remap table (256 + 1024 bytes) only when it is recoloured. */
 struct Surf {
 	SDL_Surface s;
 	SDL_PixelFormat fmt;
 	SDL_Palette pal;
-	SDL_Color colors[256];
-	Uint8 remap[256];
-	bool identity;
+	SDL_Color *own_colors;  /* nullptr: the shared grey ramp */
+	Uint8 *remap;           /* nullptr: identity */
 	bool owns_pixels;
 };
+
+static SDL_Color grey_ramp[256];
 
 static Surf *surf_of(SDL_Surface *s) { return reinterpret_cast<Surf *>(s); }
 
 static void update_remap(Surf *u)
 {
-	u->identity = true;
+	bool identity = true;
 	for (int i = 0; i < 256; ++i) {
-		u->remap[i] = u->colors[i].r;  /* the logical palette is a grey ramp: r is the index */
-		if (u->remap[i] != i) u->identity = false;
+		u->remap[i] = u->own_colors[i].r;  /* the logical palette is a grey ramp: r is the index */
+		if (u->remap[i] != i) identity = false;
+	}
+	if (identity) {  /* back to normal (restorePalette): drop the copy */
+		delete[] u->own_colors;
+		delete[] u->remap;
+		u->own_colors = nullptr;
+		u->remap = nullptr;
+		u->pal.colors = grey_ramp;
 	}
 }
 
 static Surf *new_surface(int w, int h, void *pixels)
 {
+	if (grey_ramp[255].r != 255)
+		for (int i = 0; i < 256; ++i) grey_ramp[i].r = grey_ramp[i].g = grey_ramp[i].b = (Uint8)i;
 	Surf *u = new Surf();
 	u->s.format = &u->fmt;
 	u->fmt.palette = &u->pal;
 	u->fmt.BitsPerPixel = 8;
 	u->fmt.BytesPerPixel = 1;
 	u->pal.ncolors = 256;
-	u->pal.colors = u->colors;
-	for (int i = 0; i < 256; ++i) u->colors[i].r = u->colors[i].g = u->colors[i].b = (Uint8)i;
-	update_remap(u);
+	u->pal.colors = grey_ramp;
 	u->s.w = w;
 	u->s.h = h;
 	u->s.pitch = (Uint16)w;
@@ -102,6 +112,8 @@ void SDL_FreeSurface(SDL_Surface *s)
 	if (!s) return;
 	Surf *u = surf_of(s);
 	if (u->owns_pixels) free(u->s.pixels);
+	delete[] u->own_colors;
+	delete[] u->remap;
 	delete u;
 }
 
@@ -139,8 +151,19 @@ int SDL_SetPalette(SDL_Surface *s, int flags, const SDL_Color *colors, int first
 	if (first < 0 || first + n > 256) return 0;
 	if (flags & SDL_LOGPAL) {
 		Surf *u = surf_of(s);
-		for (int i = 0; i < n; ++i) u->colors[first + i] = colors[i];
-		update_remap(u);
+		bool same = true;
+		for (int i = 0; i < n && same; ++i)
+			same = memcmp(&u->pal.colors[first + i], &colors[i], 3) == 0;
+		if (!same) {
+			if (!u->own_colors) {
+				u->own_colors = new SDL_Color[256];
+				u->remap = new Uint8[256];
+				memcpy(u->own_colors, grey_ramp, sizeof grey_ramp);
+				u->pal.colors = u->own_colors;
+			}
+			for (int i = 0; i < n; ++i) u->own_colors[first + i] = colors[i];
+			update_remap(u);
+		}
 	}
 	if ((flags & SDL_PHYSPAL) && s == screen_surface) {
 		for (int i = 0; i < n; ++i) {
@@ -207,7 +230,7 @@ int SDL_UpperBlit(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rec
 	const Surf *du = surf_of(dst);
 	/* the destination's logical palette is always the grey ramp in OpenJazz; if a
 	 * game path ever changes that, the colours here would be wrong - say so once */
-	if (!du->identity) {
+	if (du->remap) {
 		static bool warned;
 		if (!warned) { warned = true; plat_log("SDL_BlitSurface: destination palette is not the grey ramp"); }
 	}
@@ -216,12 +239,13 @@ int SDL_UpperBlit(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rec
 	const bool keyed = (src->flags & SDL_SRCCOLORKEY) != 0;
 	const Uint8 key = (Uint8)src->format->colorkey;
 	const Uint8 *map = su->remap;
+	const bool identity = map == nullptr;
 
 	for (int y = 0; y < h; ++y, sp += src->pitch, dp += dst->pitch) {
 		if (!keyed) {
-			if (su->identity) memcpy(dp, sp, (size_t)w);
+			if (identity) memcpy(dp, sp, (size_t)w);
 			else for (int x = 0; x < w; ++x) dp[x] = map[sp[x]];
-		} else if (su->identity) {
+		} else if (identity) {
 			for (int x = 0; x < w; ++x) { Uint8 v = sp[x]; if (v != key) dp[x] = v; }
 		} else {
 			for (int x = 0; x < w; ++x) { Uint8 v = sp[x]; if (v != key) dp[x] = map[v]; }
@@ -377,3 +401,6 @@ void SDL_MixAudio(Uint8 *dst, const Uint8 *src, Uint32 len, int volume)
 {
 	(void)dst; (void)src; (void)len; (void)volume;
 }
+
+/* ------------------------------------------------------------------ misc */
+void oj32x_mem_mark(const char *label) { plat_mem_mark(label); }

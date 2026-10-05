@@ -619,11 +619,80 @@ void __real_free(void *p);
 typedef struct { size_t size; size_t pad; } HeapHeader;  /* keeps 16-byte alignment */
 static size_t heap_now, heap_peak, heap_blocks;
 
+/* OpenJazz J2: T32X_HEAP_LOG=<bytes> - remember who allocated every live block of at least
+ * that size (6 return addresses), and print the list as it stood at the heap's peak when the
+ * program ends; tools/heap_peak.sh turns the addresses into function names. */
+#include <execinfo.h>
+#define HEAP_TRACK 1024
+#define HEAP_DEPTH 8
+typedef struct { void *p; size_t size; void *bt[HEAP_DEPTH]; int n; } BigBlock;
+static BigBlock big_live[HEAP_TRACK], big_peak[HEAP_TRACK];
+static int big_count, big_peak_count;
+static long heap_log_min = -1;  /* -1: not read yet, 0: off */
+static size_t big_peak_total;
+
 static void heap_add(long delta)
 {
 	heap_now += delta;
 	if (heap_now > heap_peak)
+	{
 		heap_peak = heap_now;
+		if (heap_log_min > 0)
+		{
+			memcpy(big_peak, big_live, sizeof big_live[0] * big_count);
+			big_peak_count = big_count;
+		}
+	}
+}
+
+static void big_add(void *p, size_t size)
+{
+	if (heap_log_min < 0)
+	{
+		const char *v = getenv("T32X_HEAP_LOG");
+		heap_log_min = v ? atol(v) : 0;
+	}
+	if (heap_log_min <= 0 || (long)size < heap_log_min || big_count >= HEAP_TRACK)
+		return;
+	BigBlock *b = &big_live[big_count++];
+	b->p = p;
+	b->size = size;
+	b->n = backtrace(b->bt, HEAP_DEPTH);
+}
+
+static void big_remove(void *p)
+{
+	for (int i = 0; i < big_count; ++i)
+		if (big_live[i].p == p)
+		{
+			big_live[i] = big_live[--big_count];
+			return;
+		}
+}
+
+static int big_cmp(const void *a, const void *b)
+{
+	size_t x = ((const BigBlock *)a)->size, y = ((const BigBlock *)b)->size;
+	return x < y ? 1 : x > y ? -1 : 0;
+}
+
+static void big_report(void)
+{
+	if (heap_log_min <= 0)
+		return;
+	qsort(big_peak, big_peak_count, sizeof big_peak[0], big_cmp);
+	big_peak_total = 0;
+	for (int i = 0; i < big_peak_count; ++i)
+		big_peak_total += big_peak[i].size + 8;
+	fprintf(stderr, "[heap-peak] %zu bytes at the peak; %d blocks >= %ld bytes hold %zu, smaller blocks %zu\n",
+	        heap_peak, big_peak_count, heap_log_min, big_peak_total, heap_peak - big_peak_total);
+	for (int i = 0; i < big_peak_count; ++i)
+	{
+		fprintf(stderr, "[heap-peak] %8zu", big_peak[i].size);
+		for (int j = 1; j < big_peak[i].n; ++j)
+			fprintf(stderr, " %p", big_peak[i].bt[j]);
+		fputc('\n', stderr);
+	}
 }
 
 void *__wrap_malloc(size_t size)
@@ -632,6 +701,7 @@ void *__wrap_malloc(size_t size)
 	if (h == NULL)
 		return NULL;
 	h->size = size;
+	big_add(h + 1, size);
 	heap_add((long)size + 8);
 	heap_blocks++;
 	return h + 1;
@@ -650,6 +720,8 @@ void __wrap_free(void *p)
 	if (p == NULL)
 		return;
 	HeapHeader *h = (HeapHeader *)p - 1;
+	if (heap_log_min > 0)
+		big_remove(p);
 	heap_add(-((long)h->size + 8));
 	heap_blocks--;
 	__real_free(h);
@@ -677,6 +749,7 @@ void plat_mem_mark(const char *label)
 
 static void heap_report(void)
 {
+	big_report();
 	fprintf(stderr, "[host] heap: peak %zu bytes, now %zu bytes in %zu blocks\n",
 	        heap_peak, heap_now, heap_blocks);
 }

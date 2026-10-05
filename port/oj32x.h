@@ -13,6 +13,9 @@ extern "C" {
 #define OJ32X_PAD_PLAY 1
 void oj32x_pad_mode(int mode);
 
+/* memory report at a point of interest (PC build: heap now/peak; 32X: nothing) */
+void oj32x_mem_mark(const char *label);
+
 #ifdef __cplusplus
 }
 /* set by Level::loop just before ::loop (main.cpp), which applies and clears it */

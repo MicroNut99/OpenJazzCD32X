@@ -25,11 +25,12 @@ GAME_SRCS := \
 	jj1/planet/jj1planet.cpp jj1/save/jj1save.cpp jj1/scene/jj1scene.cpp jj1/scene/jj1sceneload.cpp
 EXT_SRCS := argparse/argparse.c miniz/miniz.c stb/stb_rect_pack.c
 XMP_SRCS := $(notdir $(wildcard $(EXT)/xmp/src/*.c)) $(addprefix loaders/,$(notdir $(wildcard $(EXT)/xmp/src/loaders/*.c)))
-PORT_CXX := sdl_oj.cpp
+PORT_CXX := sdl_oj.cpp host_new.cpp
 PORT_C   := plat_host.c mixer.c
 
 OBJDIR := obj$(if $(ASAN),_asan)
 OPT    := $(if $(ASAN),-O1 -g -fsanitize=address -fno-omit-frame-pointer,-O2 -g)
+OPT    += -fno-pie
 DEFS   := -DOJ32X -DOJ_SDL1 -DPORTABLE -DNDEBUG \
           -DOJ_VERSION=\"git-oj32x\" -DOJ_DATE=\"2026-10-05\" \
           -DOJ_URL=\"http://alister.eu/jazz/oj/\" -DOJ_BUGREPORT=\"https://github.com/AlisterT/openjazz/issues\" \
@@ -46,7 +47,7 @@ OBJS := $(addprefix $(OBJDIR)/game/,$(GAME_SRCS:.cpp=.o)) \
 
 BIN := openjazz32x_host$(if $(ASAN),_asan)
 $(BIN): $(OBJS)
-	$(CXX) $(OPT) -o $@ $^ -lm -Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc,--wrap=free
+	$(CXX) $(OPT) -no-pie -o $@ $^ -lm -Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc,--wrap=free
 
 $(OBJDIR)/game/%.o: $(SRC)/%.cpp
 	@mkdir -p $(dir $@)
@@ -73,6 +74,6 @@ clean:
 # shim checks (no game data needed)
 test: test_sdl_oj
 	./test_sdl_oj
-test_sdl_oj: test_sdl_oj.cpp $(OBJDIR)/port/sdl_oj.o $(OBJDIR)/port/plat_host.o $(OBJDIR)/port/mixer.o
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lm -Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc,--wrap=free
+test_sdl_oj: test_sdl_oj.cpp $(OBJDIR)/port/sdl_oj.o $(OBJDIR)/port/host_new.o $(OBJDIR)/port/plat_host.o $(OBJDIR)/port/mixer.o
+	$(CXX) $(CXXFLAGS) -no-pie -o $@ $^ -lm -Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc,--wrap=free
 .PHONY: test

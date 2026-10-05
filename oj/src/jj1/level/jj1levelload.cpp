@@ -41,6 +41,9 @@
 #include "loop.h"
 #include "util.h"
 #include "io/log.h"
+#ifdef OJ32X
+#include "oj32x.h"
+#endif
 
 #include <string.h>
 
@@ -585,7 +588,13 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
 
 	delete[] ext;
 
+#ifdef OJ32X
+	oj32x_mem_mark("level: before tiles");
+#endif
 	int tiles = loadTiles(string);
+#ifdef OJ32X
+	oj32x_mem_mark("level: tiles loaded");
+#endif
 
 	delete[] string;
 
@@ -603,6 +612,9 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
 
 	string = createFileName("SPRITES", worldNum);
 	res = loadSprites(string);
+#ifdef OJ32X
+	oj32x_mem_mark("level: sprites loaded");
+#endif
 
 	delete[] string;
 
@@ -1091,6 +1103,9 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
 	ammoType = 0;
 	ammoOffset = -1;
 
+#ifdef OJ32X
+	oj32x_mem_mark("level: loaded");
+#endif
 	return E_NONE;
 
 }

@@ -1,7 +1,7 @@
 #!/bin/bash
 # OpenJazz CD32X - run the game on the PC with the 32X port layer (no SDL, no window).
 #   ./run_host.sh <Jazz 1 data folder> [pad script]
-# Frames go to frames/ as PNG (frames/frame_99999.png = the latest one).
+# Frames go to frames/ as PNG (frames/last.png = the latest one).
 # Pad script (frame:buttons, '+' combines, '-' = nothing; 't' = milliseconds):
 #   ./run_host.sh ~/jazz1 "t5000:START,t5100:-,t6000:C,t6100:-"
 # Buttons: UP DOWN LEFT RIGHT A B C START X Y Z MODE.

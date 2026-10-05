@@ -4,3 +4,4 @@ host/test_sdl_oj
 frames/
 build/
 *.cfg
+frames_*/

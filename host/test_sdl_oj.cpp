@@ -67,6 +67,15 @@ int main()
 	SDL_FillRect(dst, &fr, 3);
 	CHECK(px(dst, 3, 3) == 7 && px(dst, 4, 4) == 3 && px(dst, 6, 6) == 7);
 
+	/* restoring the grey ramp makes the blit a plain copy again */
+	SDL_Color g = {14, 14, 14, 0};
+	SDL_SetPalette(src, SDL_LOGPAL, &g, 14, 1);
+	SDL_SetClipRect(dst, nullptr);
+	SDL_Rect r4 = {0, 0, 0, 0};
+	SDL_BlitSurface(src, nullptr, dst, &r4);
+	CHECK(px(dst, 0, 1) == 14);
+	CHECK(src->format->palette->colors[14].r == 14);
+
 	/* MapRGB on the grey ramp */
 	CHECK(SDL_MapRGB(dst->format, 0, 0, 0) == 0);
 	CHECK(SDL_MapRGB(dst->format, 50, 50, 50) == 50);

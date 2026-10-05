@@ -21,6 +21,11 @@ build does not fit (memory table below).
 | `tools/make_boot_image.py` | `Splash.png` → `IMAGE.RAW` for the loader (320×224 + palette, 72,192 bytes) |
 | `tools/make_music_tracks.py` | from OpenLara (CD audio track numbering) – for later |
 | `tools/check_toolchain.sh` | asks the Sega toolchain about C++ (sh-elf-g++, libstdc++, exceptions) |
+| `tools/regress.sh` | regression: scripted runs, every 15th frame against `tests/*.ref` (J2) |
+| `tools/heap_peak.sh`, `tools/heap_group.py` | who holds the heap at its peak (J2) |
+| `tools/level_mem.sh` | heap per level, all 79 levels → `tests/level_mem.txt` (J2) |
+| `port/host_new.cpp` | PC build: C++ `new`/`delete` through the counted heap (J2) |
+| `JazzJackRabbitGame/` | Micronut99's Jazz 1 CD data (GOG collection), **not in git** |
 | `cd32x/ref/` | uploaded references, **unchanged**: `cdloader_sh2.c` (OpenLara loader), `cdl_crt0.s` (its CD boot table start-up), `subcpu_crt0.s`, `APP.BIN` (**Kobo's** Sub-CPU program, not OpenLara's) |
 
 ## Measurements (J1)
@@ -60,28 +65,65 @@ it is let go (otherwise Start, held while the menu opens, would select at once).
 |---|---|---|
 | J1 | `io/sound.cpp` | `closeAudio` frees the xmp context only if audio opened (upstream frees a null context: crash when audio is unavailable) |
 | J1 | `level/level.cpp`, `main.cpp` | pad layout per frame (play while playing, menu otherwise) |
+| J2 | `jj1/level/jj1levelload.cpp` | memory marks (before tiles / tiles / sprites / loaded) |
 
-## Tested (PC sandbox, no game data yet)
-- Host build: compiles and links from a fresh clone; no warnings (`-Wno-narrowing`: SDL 1.2 rectangles are 16-bit, font.cpp fills them from ints).
-- `make -C host test`: SDL shim checks against SDL 1.2 behaviour (plain/keyed/recoloured
-  blits, the key tested before recolouring, clipping and the returned rectangle, fill, MapRGB) – all pass.
-- Without data: starts, reports "Unable to find game data files", exits cleanly (heap 64 KB).
-- `IMAGE.RAW` from `Splash.png`: 135 colours, exact (no quantising), 12 black lines top and bottom.
+## J2 results (PC build with the game data)
+**Reproducible across machines:** Micronut99's `last.png` (his PC) and the sandbox's are
+pixel-identical.
+
+**What runs:** intro cutscene → title → main menu → demo 1 (all of episode 1 level 1,
+~95 s) → demo 2 (Tubelectric). Scripted new game: New game → Episodes → Turtle Terror →
+Medium → planet screen (Start skips) → level 1; walk, jump (C), fire (B), a kill, score;
+Start opens the level menu (paused), B closes it, C picks Continue. All 79 `LEVELn.www`
+files load and play 300 frames without an error (`-w`/`-l` start).
+
+**Regression** (`tools/regress.sh <data>`, ~22 s): `attract` (no input, 9,200 frames,
+614 compared) and `newgame` (1,380 frames, 92 compared): 0 different.
+
+**Heap - two fixes in the measuring/port layer:**
+1. C++ `new` was not counted (only our own objects' malloc calls are wrapped; libstdc++'s
+   `operator new` calls the real malloc). `port/host_new.cpp` fixes it: the real peak of
+   level 1 was **1.61 MB**, not 1.0 MB.
+2. Every surface had its own 1.3 KB palette + remap table in the SDL stand-in (~345 surfaces
+   in a level). Now shared until a surface is recoloured: peak **1.27 MB**, frames identical.
+
+**At the peak (level 1, before fix 2; `tools/heap_peak.sh`):**
+| What | Size | 32X plan |
+|---|---|---|
+| Level sprites (~320 surfaces) | ~440 KB | cart |
+| Tile set | 247 KB | cart |
+| Game menu's episode pictures | 178 KB | cart |
+| Main + game menu backgrounds | 196 KB | cart |
+| Level object (grid 128 KB, masks 15 KB) | 159 KB | split: static part cart, changing part SDRAM |
+| Fonts | ~116 KB | cart |
+| Screen | 65 KB | 32X frame buffer |
+The menus stay alive while a level plays (level inside game menu inside main menu): their
+pictures must go to the cart too.
+
+**Per level (all 79, `tests/level_mem.txt`):** tile set 123–246 KB, sprites 200–358 KB,
+heap after loading 1.09–1.32 MB, peak up to 1.34 MB (`LEVEL0.023`). Before any level file is
+read: 761 KB (menus, fonts, level object).
+
+**Game data on disc:** 17.5 MB of game files (cutscenes 5.6 MB, tile sets 4.1 MB, music
+3.3 MB, levels 1.8 MB, sprites 1.3 MB …): a data track, not the 4 MB cart.
+
+## Tested (PC sandbox)
+- Host build from a fresh clone: 0 warnings; `make -C host test`: all pass.
+- `tools/regress.sh`: 0 different (twice).
 
 ## Not tested / not done
-- Nothing with the game data (title, menus, levels, demos): data not uploaded yet.
 - No sound (the shim's audio does not open; OpenJazz carries on silently).
 - No 32X build: waits for the toolchain answer and the OpenLara Sub-CPU sources.
 
 ## Waiting for (Micronut99)
-1. The Jazz 1 data folder (the GOG collection folder), zipped.
-2. Output of `bash tools/check_toolchain.sh`.
-3. From `OpenLaraCD32X`: `subcpu/main.c`, `subcpu/hw_md.s`, `subcpu/Makefile`,
+1. Output of `bash tools/check_toolchain.sh` (still open).
+2. From `OpenLaraCD32X`: `subcpu/main.c`, `subcpu/hw_md.s`, `subcpu/Makefile`,
    `subcpu/make_mixed_cd2.py`, the loader's `cdloader.ld` + `Makefile.cdloader`, and
    `tools/prep_openlara_cd.py` (the uploaded `APP.BIN` is Kobo's).
-4. The target decision (RAM cart, proposed).
+3. The target decision (RAM cart, proposed).
 
-## Next round (J2, with the data)
-Run title → menus → episode 1 level 1 on the PC; the JJ1 demo files as regression (every
-15th frame against a reference); heap peak per level; the real sprite and level sizes for
-the memory plan.
+## Next round (J3)
+Graphics into the cart, tested on the PC: a cart image in the host build (4 MB, written only
+by a "68000" copy routine, read-only for the game), the decoded tile set, sprites, fonts and
+menu pictures placed there, the level grid split. Goal: SDRAM heap under ~150 KB in every
+level, regression still 0 different.
