@@ -1,12 +1,13 @@
 #!/bin/bash
 # OpenJazz CD32X - who holds the heap at its peak (PC build).
 #   tools/heap_peak.sh <Jazz 1 data folder> [pad script] [min block bytes, default 2048]
+# HEAP_SNAP=<mark text> lists the live blocks at that memory mark instead (e.g. "level: loaded").
 # Runs the game like run_host.sh with T32X_HEAP_LOG and names the allocating functions.
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 BIN="$HERE/host/openjazz32x_host"
 make -C "$HERE/host" -j"${JOBS:-1}" >/dev/null || exit 1
 mkdir -p "$HERE/frames" && cd "$HERE/frames"
-T32X_HEAP_LOG="${3:-2048}" T32X_SAVE_EVERY=0 T32X_MAX_FRAMES="${T32X_MAX_FRAMES:-1800}" \
+T32X_HEAP_LOG="${3:-2048}" T32X_HEAP_SNAP="${HEAP_SNAP:-}" T32X_SAVE_EVERY=0 T32X_MAX_FRAMES="${T32X_MAX_FRAMES:-1800}" \
 T32X_FRAMES_DIR="$HERE/frames" T32X_PAD="${2:-}" "$BIN" "$1" 2>&1 >/dev/null | grep '^\[heap-peak\]' |
 while read -r tag size rest; do
   if [[ "$size" =~ ^[0-9]+$ && "$rest" != *bytes* ]]; then

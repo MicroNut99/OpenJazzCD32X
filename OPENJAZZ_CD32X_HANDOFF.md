@@ -147,6 +147,22 @@ _getcwd (added to mars_syscalls.c in my tree, ships with J3).
 To check later: GCC 12's emergency exception pool (malloc'd at start-up), and that the
 32X start-up runs the C++ initialisers (the unwinder registers its tables there).
 
+## J3 step 1 (PC): read-only graphics in the RAM cart
+`port/cart.c` (allocator, block table 1,024 entries in SDRAM) + `plat_cart_data`/`plat_cart_write`
+(PC: a read-only mapping, opened only for the copy - any other write crashes = a test).
+Surfaces created from pixels go to the cart (`Video::createSurface`), finished font atlases
+move there (`oj32x_freeze`). Exception: the HUD panel is drawn into (ammo) - stays in SDRAM.
+Results: regression 0 different; all 79 levels play 300 frames with no write into the cart.
+Heap after a level has loaded: **321-335 KB** (was 1.09-1.32 MB). Cart: ~0.9 MB in level 1.
+Left in SDRAM after loading: level object 159 KB (grid), screen 64 KB (-> frame buffer on
+the 32X), HUD panel 10 KB, ~65 KB small blocks. Loading still peaks at up to 777 KB
+(the tile set is held twice while it is assembled) -> next: decode straight into the cart.
+Cart layout (proposed): 0x000000 engine (≤ 512 KB), 0x080000-0x3EFFFF graphics,
+0x3F0000 settings and saves.
+
+`cd32x/ref/APP_openlara.BIN`: a second APP.BIN from Micronut99 - an early OpenLara loader
+build (marker SH2-OPENLARA-CD-OL1-LOADER; files D32XR.32X, IMAGE.RAW, Kobo's names), binary only.
+
 ## Next round (J3)
 Graphics into the cart, tested on the PC: a cart image in the host build (4 MB, written only
 by a "68000" copy routine, read-only for the game), the decoded tile set, sprites, fonts and

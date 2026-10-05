@@ -73,7 +73,13 @@ int JJ1Level::loadPanel () {
 
 
 	// Create the panel background
+#ifdef OJ32X
+	// PORT32X: the panel is drawn into (ammo display) - it stays in SDRAM, not the cart
+	panel = video.createSurface(nullptr, SW, TTOI(1));
+	memcpy(panel->pixels, pixels, SW * TTOI(1));
+#else
 	panel = video.createSurface(pixels, SW, TTOI(1));
+#endif
 
 
 	// De-scramble the panel's ammo graphics

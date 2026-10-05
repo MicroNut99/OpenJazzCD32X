@@ -27,6 +27,9 @@
 
 #include "paletteeffects.h"
 #include "video.h"
+#ifdef OJ32X
+#include "oj32x.h"
+#endif
 
 #ifdef SCALE
 	#include <scalebit.h>
@@ -53,6 +56,18 @@ SDL_Surface* Video::createSurface (const unsigned char * pixels, int width, int 
 
 	// Create the surface
 	SDL_Surface *ret = nullptr;
+#ifdef OJ32X
+	// PORT32X: pixels that are given here never change afterwards: into the RAM cart
+	if (pixels) {
+		ret = oj32x_cart_surface(pixels, width, height);
+		if (!ret) {
+			LOG_FATAL("Could not create surface: %s", SDL_GetError());
+			return nullptr;
+		}
+		video.restoreSurfacePalette(ret);
+		return ret;
+	}
+#endif
 #if OJ_SDL3
 	ret = SDL_CreateSurface(width, height, SDL_PIXELFORMAT_INDEX8);
 	if(ret) {

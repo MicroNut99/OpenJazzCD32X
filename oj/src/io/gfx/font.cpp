@@ -22,6 +22,9 @@
 
 #include "io/file.h"
 #include "font.h"
+#ifdef OJ32X
+#include "oj32x.h"
+#endif
 #include "video.h"
 #include "io/log.h"
 
@@ -144,6 +147,15 @@ Font::Font (const char* fileName) {
 	} else
 		LOG_WARN("Could not pack font atlas!");
 
+#ifdef OJ32X
+	// PORT32X: the atlas is finished - move it to the RAM cart
+	characterAtlas = oj32x_freeze(characterAtlas);
+#endif
+
+#ifdef OJ32X
+	// PORT32X: the atlas is finished and only read from now on: into the RAM cart
+	characterAtlas = oj32x_move_to_cart(characterAtlas);
+#endif
 	// Delete single char surfaces
 	for (int i = 0; i < nCharacters; i++) {
 		if(rects[i].w > 0 && rects[i].h > 0)
@@ -253,6 +265,15 @@ Font::Font (unsigned char* pixels, bool big) {
 	} else
 		LOG_WARN("Could not pack font atlas!");
 
+#ifdef OJ32X
+	// PORT32X: the atlas is finished - move it to the RAM cart
+	characterAtlas = oj32x_freeze(characterAtlas);
+#endif
+
+#ifdef OJ32X
+	// PORT32X: the atlas is finished and only read from now on: into the RAM cart
+	characterAtlas = oj32x_move_to_cart(characterAtlas);
+#endif
 	// Delete single char surfaces
 	for (int i = 0; i < nCharacters; i++)
 		video.destroySurface(chars[i]);
@@ -374,6 +395,15 @@ Font::Font (bool bonus) {
 	} else
 		LOG_WARN("Could not pack font atlas!");
 
+#ifdef OJ32X
+	// PORT32X: the atlas is finished - move it to the RAM cart
+	characterAtlas = oj32x_freeze(characterAtlas);
+#endif
+
+#ifdef OJ32X
+	// PORT32X: the atlas is finished and only read from now on: into the RAM cart
+	characterAtlas = oj32x_move_to_cart(characterAtlas);
+#endif
 	// Delete single char surfaces
 	for (int i = 0; i < nCharacters; i++)
 		video.destroySurface(chars[i]);

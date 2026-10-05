@@ -37,7 +37,7 @@ GAME_SRCS := \
 EXT_SRCS := argparse/argparse.c miniz/miniz.c stb/stb_rect_pack.c
 XMP_SRCS := $(notdir $(wildcard $(EXT)/xmp/src/*.c)) $(addprefix loaders/,$(notdir $(wildcard $(EXT)/xmp/src/loaders/*.c)))
 PORT_CXX := sdl_oj.cpp
-PORT_C   := mixer.c
+PORT_C   := mixer.c cart.c
 # newlib system calls for the SH2 (keeps libc.a's simulator syscalls out: `errno' clash).
 # Not in a PC dry run (TC=), where they would clash with the PC's C library.
 ifneq ($(TC),)

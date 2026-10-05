@@ -47,6 +47,7 @@
 #include <time.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 
 void *__real_malloc(size_t size);  /* the ROM image is not SDRAM: keep it out of the heap count */
 
@@ -580,6 +581,35 @@ void plat_present_hud(const uint8_t *pixels, int pitch, const uint16_t *palette5
 	present_common(pixels, pitch, palette555, true);
 }
 
+/* OpenJazz J3: the cart data area, read-only except during plat_cart_write */
+static uint8_t *cart_mem;
+static const uint32_t cart_len = PLAT_CART_DATA_END - PLAT_CART_DATA_OFFSET;
+
+uint8_t *plat_cart_data(uint32_t *size)
+{
+	if (cart_mem == NULL)
+	{
+		void *m = mmap(NULL, cart_len, PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+		if (m == MAP_FAILED)
+			plat_fatal("cannot map the cart");
+		cart_mem = m;
+	}
+	*size = cart_len;
+	return cart_mem;
+}
+
+void plat_cart_write(uint32_t offset, const void *src, size_t bytes)
+{
+	if (offset + bytes > cart_len)
+		plat_fatal("plat_cart_write: past the end of the cart");
+	uintptr_t page = 4096;
+	uintptr_t a = ((uintptr_t)cart_mem + offset) & ~(page - 1);
+	uintptr_t e = ((uintptr_t)cart_mem + offset + bytes + page - 1) & ~(page - 1);
+	mprotect((void *)a, e - a, PROT_READ | PROT_WRITE);
+	memcpy(cart_mem + offset, src, bytes);
+	mprotect((void *)a, e - a, PROT_READ);
+}
+
 const uint8_t *plat_romfs_base(void)
 {
 	return romfs_image;
@@ -676,23 +706,28 @@ static int big_cmp(const void *a, const void *b)
 	return x < y ? 1 : x > y ? -1 : 0;
 }
 
+static void big_print(BigBlock *list, int count, size_t total_heap, const char *what)
+{
+	qsort(list, count, sizeof list[0], big_cmp);
+	size_t total = 0;
+	for (int i = 0; i < count; ++i)
+		total += list[i].size + 8;
+	fprintf(stderr, "[heap-peak] %zu bytes at %s; %d blocks >= %ld bytes hold %zu, smaller blocks %zu\n",
+	        total_heap, what, count, heap_log_min, total, total_heap - total);
+	for (int i = 0; i < count; ++i)
+	{
+		fprintf(stderr, "[heap-peak] %8zu", list[i].size);
+		for (int j = 1; j < list[i].n; ++j)
+			fprintf(stderr, " %p", list[i].bt[j]);
+		fputc('\n', stderr);
+	}
+}
+
 static void big_report(void)
 {
 	if (heap_log_min <= 0)
 		return;
-	qsort(big_peak, big_peak_count, sizeof big_peak[0], big_cmp);
-	big_peak_total = 0;
-	for (int i = 0; i < big_peak_count; ++i)
-		big_peak_total += big_peak[i].size + 8;
-	fprintf(stderr, "[heap-peak] %zu bytes at the peak; %d blocks >= %ld bytes hold %zu, smaller blocks %zu\n",
-	        heap_peak, big_peak_count, heap_log_min, big_peak_total, heap_peak - big_peak_total);
-	for (int i = 0; i < big_peak_count; ++i)
-	{
-		fprintf(stderr, "[heap-peak] %8zu", big_peak[i].size);
-		for (int j = 1; j < big_peak[i].n; ++j)
-			fprintf(stderr, " %p", big_peak[i].bt[j]);
-		fputc('\n', stderr);
-	}
+	big_print(big_peak, big_peak_count, heap_peak, "the peak");
 }
 
 void *__wrap_malloc(size_t size)
@@ -741,8 +776,22 @@ void *__wrap_realloc(void *p, size_t size)
 	return q;
 }
 
+static void big_print(BigBlock *list, int count, size_t total_heap, const char *what);
+
 void plat_mem_mark(const char *label)
 {
+	/* J3: T32X_HEAP_SNAP=<text>: at the first mark whose label contains it, list the live
+	 * blocks (needs T32X_HEAP_LOG) instead of the ones at the peak */
+	static int snapped;
+	const char *snap = getenv("T32X_HEAP_SNAP");
+	if (snap && !snapped && heap_log_min > 0 && strstr(label, snap))
+	{
+		snapped = 1;
+		BigBlock tmp[HEAP_TRACK];
+		memcpy(tmp, big_live, sizeof big_live[0] * big_count);
+		big_print(tmp, big_count, heap_now, label);
+		heap_log_min = 0;  /* no peak list at the end */
+	}
 	fprintf(stderr, "[host] heap at '%s' (frame %lu, %u ms): now %zu bytes, peak so far %zu bytes\n",
 	        label, frame, (unsigned)now_ms, heap_now, heap_peak);
 }
