@@ -133,6 +133,17 @@ J3a log: only `jj1save.cpp` failed (`<time.h>` missing; glibc includes it throug
 headers, newlib does not) - fixed. Trial link then failed: libc.a's own SH simulator
 syscalls (lib_a-syscalls.o) clash with reent.o over `errno`. J3b: our own system calls
 (`port/mars_syscalls.c`, from Tyrian's port/mars/syscalls.c + _stat, _rename, mkdir).
+**J3b result (Micronut99's build): the whole game compiles and links for the SH2.**
+| Part (-Os, before unused code is removed) | text | data | bss |
+|---|---|---|---|
+| game | 165,941 | 520 | 7,739 |
+| ext (argparse, miniz, stb) | 23,108 | 0 | 0 |
+| xmp (music player) | 84,896 | 4 | 8 |
+| port | 5,199 | 24 | 3,465 |
+| **trial link** (unused code removed, + libstdc++/newlib) | **395,412** | **3,112** | **10,400** |
+Code runs from the cart (4 MB; 0.4 MB engine). SDRAM: data + bss 13.5 KB + stacks + heap.
+Still missing: 7 plat_* functions, __heap_start/__heap_end (linker script), _access and
+_getcwd (added to mars_syscalls.c in my tree, ships with J3).
 To check later: GCC 12's emergency exception pool (malloc'd at start-up), and that the
 32X start-up runs the C++ initialisers (the unwinder registers its tables there).
 
