@@ -173,11 +173,13 @@ cdloader_sh2.c, cdl_crt0.s, cdloader.ld, Makefile.cdloader), `tools/prep_openlar
   to ≤ SDRAM+0x38000, SH2 entries in SDRAM, marker 'CDB2' at 0x3BC.
 - **Commands as they are:** 38 open file, 46 file chunk → cart, 48 pad, 45/54 CD audio,
   51 file → frame buffer, 52 Genesis display, 58/61 saves.
-- **New for OpenJazz (J4): SH2-made data → cart.** The SH2 decodes graphics; only the
-  68000 writes the cart. Plan: the SH2 puts up to ~60 KB in the frame buffer it is not
-  showing, a new Sub-CPU command has the 68000 copy it into the cart with its existing
-  `chilly_rv_memcpy` (68000 command 33, already used for saves: Word RAM → cart).
-  Untested: the 68000 reading the 32X frame buffer while RV = 1 - first console test.
+- **Decision (Micronut99): only proven paths, nothing invented.** The SH2 never writes the
+  cart. Graphics are decoded on the PC at build time into disc files and copied into the
+  cart with the proven CMD 38 + CMD 46, exactly like OpenLara's levels. (A frame buffer →
+  68000 → cart path was considered and dropped: no proof it works on the console.)
+- **Testing:** an emulator shows whether a disc has a chance to boot; only the console
+  (Sega CD + 32X + RAM cart) is the real test, reported with phone photos. Every stage of
+  start-up therefore shows something readable on screen.
 - Engine start-up: OpenLara's engine uses its own 32x crt0 (not in this zip); OpenJazz will
   use Tyrian's cartridge crt0 (`port/mars/crt0_tyrian.s` + linker script), which already
   has the stack guard, slave start and error screens.
