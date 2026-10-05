@@ -19,6 +19,7 @@
 #include "jj1save.h"
 #include "util.h"
 #include "io/log.h"
+#include <time.h> // PORT32X: time()/localtime(); newlib does not include it through other headers
 
 /* This algorithm has been found out by CYBERDEViL by analysing the Assembly in
  * DoxBox-X. For more information see: https://codeberg.org/CYBERDEV/JJSave/

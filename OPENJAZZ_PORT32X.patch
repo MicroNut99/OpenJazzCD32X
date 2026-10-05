@@ -64,6 +64,18 @@ index cfc4d66..63c20d5 100644
  	return E_NONE;
  
  }
+diff --git a/oj/src/jj1/save/jj1save.cpp b/oj/src/jj1/save/jj1save.cpp
+index 440977b..510ca95 100644
+--- a/oj/src/jj1/save/jj1save.cpp
++++ b/oj/src/jj1/save/jj1save.cpp
+@@ -19,6 +19,7 @@
+ #include "jj1save.h"
+ #include "util.h"
+ #include "io/log.h"
++#include <time.h> // PORT32X: time()/localtime(); newlib does not include it through other headers
+ 
+ /* This algorithm has been found out by CYBERDEViL by analysing the Assembly in
+  * DoxBox-X. For more information see: https://codeberg.org/CYBERDEV/JJSave/
 diff --git a/oj/src/level/level.cpp b/oj/src/level/level.cpp
 index 1ab7284..d058e71 100644
 --- a/oj/src/level/level.cpp
