@@ -80,7 +80,7 @@ $(OBJDIR)/game/%.o: $(SRC)/%.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 $(OBJDIR)/ext/%.o: $(EXT)/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(if $(findstring stb_rect_pack,$<),-include $(PORT)/oj32x_sort.h -DSTBRP_SORT=oj32x_stable_sort) -c $< -o $@
 $(OBJDIR)/xmp/%.o: $(EXT)/xmp/src/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
