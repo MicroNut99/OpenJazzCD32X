@@ -53,12 +53,26 @@ bool pack_file(const char *name, const uint8_t **data, uint32_t *size)
 	{
 		const uint8_t *e = packs[k].base + 24;
 		for (uint32_t i = 0; i < packs[k].files; ++i, e += 24)
-			if (memcmp(e, want, 16) == 0)
+			if (memcmp(e, want, 16) == 0 && be32(e + 16) != 0)   /* offset 0: listed only */
 			{
 				*data = packs[k].base + be32(e + 16);
 				*size = be32(e + 20);
 				return true;
 			}
+	}
+	return false;
+}
+
+bool pack_exists(const char *name)
+{
+	char want[16];
+	norm_name(name, want);
+	for (int k = npacks - 1; k >= 0; --k)
+	{
+		const uint8_t *e = packs[k].base + 24;
+		for (uint32_t i = 0; i < packs[k].files; ++i, e += 24)
+			if (memcmp(e, want, 16) == 0)
+				return true;
 	}
 	return false;
 }

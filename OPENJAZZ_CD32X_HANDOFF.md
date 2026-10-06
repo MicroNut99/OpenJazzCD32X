@@ -341,3 +341,21 @@ freeing its single-character surfaces), last log "PICTURE 56X48 NOT IN THE PACK"
 - J4c3b (Micronut99): `OJ32X_BOOT_TEST 0` in port/plat_mars.c - the boot test checks still
   run, but its screen (and the wait for Start) only appears when a check fails; otherwise the
   game starts straight after the splash. 1 = the screen as before.
+
+## J4c3b console result (video 1006261330) and J4d
+The game runs on the 32X: splash/bar -> (intro: vertical stripes, every line the same - to
+investigate) -> "Epic MegaGames presents", "A game by", title, main menu; the cursor moves.
+Selecting did nothing; ~20 s idle -> blue screen EXIT CODE 1, last log "OPEN MACRO.4".
+- Exit code 1 = abort(): the demo starts (MACRO.4), `new JJ1DemoLevel` needs ~160 KB, the
+  SDRAM heap has ~63 KB left -> std::bad_alloc, which OpenJazz never catches. Levels need the
+  memory work (grid split etc.) - next. Until then the pack leaves MACRO.1-4 out (no demo).
+- "Nothing starts": the episode menu greys out episodes whose files it cannot find; the pack
+  only had the files of the intro/menu. J4d: the pack lists every file of the data folder
+  (catalog entries, offset 0 = "on the disc, not in this pack"; File::exists sees them).
+- J4d bake = a tour of every menu (Instructions, Setup, Order info, New game -> episode ->
+  difficulty -> planet screen); build.sh checks the tour from the pack alone gives the same
+  70 pictures as from the data folder. Pack 1,861,172 bytes (57 chunks).
+- One progress bar for the whole boot: the loader fills it to the half (engine), the engine's
+  pack load fills the second half (cdloader_sh2.c one line, OJ-J4D).
+- Expected next stop on the console: after the planet screen, the level -> blue screen
+  EXIT CODE 1 (no memory for the level yet).

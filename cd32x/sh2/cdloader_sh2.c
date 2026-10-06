@@ -345,7 +345,8 @@ int main(void) {
         /* progress in the green text: STATE:4C00 .. 4C3F (chunk number; 64 chunks = 2 MB) */
         show_status((uint16_t)(0x4C00 | (c & 0xFF)));
 #if CDL_TARGET_OPENLARA
-        splash_progress(c + 1, nchunks);  /* OJ-J4B: the bar grows with every chunk (OL-7 had it off) */
+        splash_progress(c + 1, 2 * nchunks);  /* OJ-J4B: the bar grows with every chunk (OL-7 had it off);
+                                                 OJ-J4D: to the half - the engine's data pack fills the rest */
 #endif
     }
     if (bad) halt(0x4DE2);

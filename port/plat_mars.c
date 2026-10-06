@@ -258,14 +258,16 @@ static void pack_load(void)
 	if (len > PLAT_CART_DATA_END - PLAT_CART_DATA_OFFSET) { plat_log("PACK: TOO BIG FOR THE CART"); return; }
 	MARS_COMM8_32 = len;                   /* main.c CMD 46 reads the length from COMM8 */
 	const uint32_t chunks = (len + 32767) >> 15;
-	splash_progress(0, chunks);
+	/* J4d: one bar for the whole boot - the loader filled the first half (the engine), the pack
+	 * fills the second */
+	splash_progress(chunks, 2 * chunks);
 	for (uint32_t c = 0; c < chunks; c++)
 	{
 		MARS_COMM2 = (uint16_t)(c | 0x8000);   /* OL-13: no read-back (level loads) */
 		MARS_COMM12 = 0;
 		if (!send_cmd(CMD_CHUNK_TO_CART, 2000000UL) || MARS_COMM12 != 0)
 			pack_bad_chunks++;
-		splash_progress(c + 1, chunks);
+		splash_progress(chunks + c + 1, 2 * chunks);
 	}
 	/* the 68000 wrote the cart behind the SH2's cache: purge it (as the loader's hand-over) */
 	*(volatile uint8_t *)0xFFFFFE92 = 0x11;
@@ -663,7 +665,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J4C3 " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J4D  " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&

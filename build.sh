@@ -22,12 +22,23 @@ DATA="${DATA:-$HERE/JazzJackRabbitGame}"
 [ -f "$DATA/PANEL.000" ] || { echo "*** no Jazz data in $DATA (set DATA=<folder>) - stopping"; exit 1; }
 make -C "$HERE/host" -j"${JOBS:-1}" >/dev/null
 BAKE_TMP="$(mktemp -d)"
-( cd "$BAKE_TMP" && T32X_BAKE="$ROMS/IMAGE8.RAW" T32X_SAVE_EVERY=0 T32X_FRAMES_DIR="$BAKE_TMP" \
-  T32X_MAX_FRAMES=940 "$HERE/host/openjazz32x_host" "$DATA" 2>&1 | grep "\[bake\]" )
-# check: the same run from the pack alone (no data folder) must reach the menu
-( cd "$BAKE_TMP" && T32X_PACK="$ROMS/IMAGE8.RAW" T32X_SAVE_EVERY=0 T32X_FRAMES_DIR="$BAKE_TMP" \
-  T32X_MAX_FRAMES=940 "$HERE/host/openjazz32x_host" /nonexistent > "$BAKE_TMP/check.txt" 2>&1 ) || true
-grep -q "reached 940 frames" "$BAKE_TMP/check.txt" || { echo "*** the pack alone does not reach the menu on the PC:"; tail -5 "$BAKE_TMP/check.txt"; exit 1; }
+# J4d: the bake run tours every menu: intro, main menu, Instructions, Setup, Order info,
+# New game -> episode 1 -> difficulty -> planet screen (stops before the level). The pack also
+# lists every file of the data folder (catalog: the episode menu then knows the game is
+# complete). MACRO.1-4 (the demos) are left out: no level fits in SDRAM yet (J4d).
+TOUR="560:DOWN,563:-,580:DOWN,583:-,600:START,603:-,700:B,703:-,760:DOWN,763:-,780:START,783:-,880:B,883:-,940:DOWN,943:-,960:START,963:-,1060:B,1063:-,1120:UP,1123:-,1140:UP,1143:-,1160:UP,1163:-,1180:UP,1183:-,1200:START,1203:-,1300:START,1303:-"
+( cd "$BAKE_TMP" && T32X_BAKE="$ROMS/IMAGE8.RAW" T32X_BAKE_CATALOG="$DATA" T32X_BAKE_SKIP=MACRO.1,MACRO.2,MACRO.3,MACRO.4 \
+  T32X_SAVE_EVERY=0 T32X_FRAMES_DIR="$BAKE_TMP" T32X_MAX_FRAMES=1480 T32X_MAX_SECONDS=100000 T32X_PAD="$TOUR" \
+  "$HERE/host/openjazz32x_host" "$DATA" 2>&1 | grep "\[bake\]" )
+# check: the same tour from the pack alone (no data folder) must give the same pictures
+( cd "$BAKE_TMP" && mkdir a b && \
+  T32X_SAVE_EVERY=20 T32X_FRAMES_DIR="$BAKE_TMP/a" T32X_MAX_FRAMES=1380 T32X_MAX_SECONDS=100000 T32X_PAD="$TOUR" \
+  "$HERE/host/openjazz32x_host" "$DATA" > /dev/null 2>&1; \
+  T32X_PACK="$ROMS/IMAGE8.RAW" T32X_SAVE_EVERY=20 T32X_FRAMES_DIR="$BAKE_TMP/b" T32X_MAX_FRAMES=1380 T32X_MAX_SECONDS=100000 \
+  T32X_PAD="$TOUR" "$HERE/host/openjazz32x_host" /nonexistent > "$BAKE_TMP/check.txt" 2>&1 ) || true
+grep -q "reached 1380 frames" "$BAKE_TMP/check.txt" || { echo "*** the pack alone does not get through the menus on the PC:"; tail -5 "$BAKE_TMP/check.txt"; exit 1; }
+NDIFF=0; for f in "$BAKE_TMP"/a/frame_0*.png; do cmp -s "$f" "$BAKE_TMP/b/$(basename "$f")" || NDIFF=$((NDIFF + 1)); done
+[ "$NDIFF" = 0 ] || { echo "*** from the pack alone, $NDIFF frames of the menu tour differ on the PC - stopping"; exit 1; }
 echo "    pack checked on the PC: $(grep -o 'peak [0-9]* bytes' "$BAKE_TMP/check.txt" | head -1) of heap (32X: ~207,000 free)"
 rm -rf "$BAKE_TMP"
 echo "==> engine";      make -C "$HERE/mars"

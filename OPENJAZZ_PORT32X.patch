@@ -1,5 +1,5 @@
 diff --git a/oj/src/io/file.cpp b/oj/src/io/file.cpp
-index 9791b29..2340006 100644
+index 9791b29..8ed6c5d 100644
 --- a/oj/src/io/file.cpp
 +++ b/oj/src/io/file.cpp
 @@ -25,6 +25,10 @@
@@ -56,23 +56,19 @@ index 9791b29..2340006 100644
  
  		return true;
  	}
-@@ -148,6 +181,15 @@ bool File::exists (const char * fileName, int pathType) {
+@@ -148,6 +181,11 @@ bool File::exists (const char * fileName, int pathType) {
  
  	bool exists = false;
  
 +#ifdef OJ32X
 +	// PORT32X: files in a cart pack exist
-+	{
-+		const uint8_t* data;
-+		uint32_t size;
-+		if (pack_file(fileName, &data, &size)) return true;
-+	}
++	if (pack_exists(fileName)) return true;  // in a pack, or listed as on the disc (J4d)
 +#endif
 +
  	Path* path = gamePaths.paths;
  	while (path) {
  		// skip other paths
-@@ -392,6 +434,46 @@ void File::storeData (const void* data, int length) {
+@@ -392,6 +430,46 @@ void File::storeData (const void* data, int length) {
   *
   * @return Buffer containing the block of data
   */
@@ -119,7 +115,7 @@ index 9791b29..2340006 100644
  unsigned char * File::loadBlock (int length) {
  
  	unsigned char *buffer;
-@@ -581,8 +663,26 @@ SDL_Surface* File::loadSurface (int width, int height, bool checkSize) {
+@@ -581,8 +659,26 @@ SDL_Surface* File::loadSurface (int width, int height, bool checkSize) {
  	SDL_Surface* surface;
  	unsigned char* pixels;
  

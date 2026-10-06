@@ -183,11 +183,7 @@ bool File::exists (const char * fileName, int pathType) {
 
 #ifdef OJ32X
 	// PORT32X: files in a cart pack exist
-	{
-		const uint8_t* data;
-		uint32_t size;
-		if (pack_file(fileName, &data, &size)) return true;
-	}
+	if (pack_exists(fileName)) return true;  // in a pack, or listed as on the disc (J4d)
 #endif
 
 	Path* path = gamePaths.paths;

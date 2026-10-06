@@ -49,6 +49,7 @@ int  pack_count(void);
 /* Game files: name without directories, any case. */
 bool pack_file(const char *name, const uint8_t **data, uint32_t *size);
 FILE *pack_fopen(const char *name);               /* read-only stream over the cart copy */
+bool pack_exists(const char *name);               /* in a pack, or listed as on the disc */
 
 /* Pictures: the cart copy of these exact pixels, or NULL. */
 uint32_t pack_hash(const uint8_t *pixels, int w, int h);
