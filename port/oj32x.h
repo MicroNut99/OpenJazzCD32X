@@ -20,8 +20,6 @@ struct SDL_Surface;
 SDL_Surface *oj32x_cart_surface(const unsigned char *pixels, int w, int h);
 /* J3: a finished surface moves to the cart (returns the new one; the old one is freed) */
 SDL_Surface *oj32x_freeze(SDL_Surface *s);
-/* J3: a finished surface (built in SDRAM) moved into the cart; returns the new one */
-SDL_Surface *oj32x_move_to_cart(SDL_Surface *s);
 extern "C" {
 #endif
 

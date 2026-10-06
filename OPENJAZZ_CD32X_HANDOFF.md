@@ -283,3 +283,27 @@ level, regression still 0 different.
 - The boot test was drawn OVER the splash: text_screen cleared with byte writes of 0, which did
   not land in the frame buffer; J4a's clean screens came from clear_back_buffer's 32-bit
   writes. text_screen now clears with 32-bit writes.
+
+## J4c: game data in the cart (data pack IMAGE8.RAW)
+Only proven commands: main.c's CMD 38 opens `IMAGE<n>.RAW` for cart slot n (n * 128 KB),
+CMD 46 copies 32 KB chunks into the cart (bit 15: no read-back, OL-13). One edit in the boot
+path: `cd32x/subcpu/Makefile` IMAGE_FILES gets IMAGE8.RAW (marked OJ-J4C).
+- `port/pack.h/.c`: pack format (game files + pictures already decoded on the PC + "file
+  pictures" = decoded RLE pictures keyed by file + position, so the game skips the decoding).
+- PC build: `T32X_BAKE=<file>` records every file opened and every picture built, writes the
+  pack at exit (`port/pack_bake.c`); `T32X_PACK=<file>` loads a pack into the write-protected
+  cart and runs from it. build.sh bakes boot -> intro -> main menu (940 frames) from
+  JazzJackRabbitGame/, then checks that the pack ALONE (no data folder) reaches the menu.
+- Game hooks (OJ32X): File opens pack files first (fmemopen over the cart copy); scene frames
+  are used in place (mapBlock, not freed when in a pack); Video::createSurface uses the pack's
+  copy of a picture; File::loadSurface / scene backgrounds skip decoding when the pack has
+  the file picture.
+- 32X: after C++ start-up the engine loads IMAGE8.RAW with CMD 38/46 into cart 0x100000,
+  the loader's bar (same place/colours) filling on the splash, purges the cache, mounts it.
+  A picture not in the pack stays in SDRAM (log "PICTURE WxH NOT IN THE PACK"); the SH2
+  never writes the cart. Boot test shows "PACK: OK <bytes>".
+- Measured on the PC (pack only, no data folder): frames identical to the normal run;
+  pack 1,240,268 bytes (13 files, 411 pictures, 16 file pictures) = 38 chunks; heap peak
+  152,722 bytes (was 463,417 without the pack; 32X has ~207,000 free after start-up).
+  Without the demo level in the pack, the demo does not start and the menu stays.
+- Untested on the SH2: fmemopen from newlib (link will tell), the pack copy from the engine.

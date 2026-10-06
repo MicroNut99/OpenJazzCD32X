@@ -7,7 +7,7 @@ HERE="$(cd "$(dirname "$0")/.." && pwd)"
 BIN="$HERE/host/openjazz32x_host"
 make -C "$HERE/host" -j"${JOBS:-1}" >/dev/null || exit 1
 mkdir -p "$HERE/frames" && cd "$HERE/frames"
-T32X_HEAP_LOG="${3:-2048}" T32X_HEAP_SNAP="${HEAP_SNAP:-}" T32X_SAVE_EVERY=0 T32X_MAX_FRAMES="${T32X_MAX_FRAMES:-1800}" \
+T32X_HEAP_LOG="${3:-2048}" T32X_HEAP_SNAP="${HEAP_SNAP:-}" T32X_PACK="${PACK:-}" T32X_SAVE_EVERY=0 T32X_MAX_FRAMES="${T32X_MAX_FRAMES:-1800}" \
 T32X_FRAMES_DIR="$HERE/frames" T32X_PAD="${2:-}" "$BIN" "$1" 2>&1 >/dev/null | grep '^\[heap-peak\]' |
 while read -r tag size rest; do
   if [[ "$size" =~ ^[0-9]+$ && "$rest" != *bytes* ]]; then

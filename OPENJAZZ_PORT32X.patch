@@ -1,5 +1,176 @@
+diff --git a/oj/src/io/file.cpp b/oj/src/io/file.cpp
+index 9791b29..6ca63b9 100644
+--- a/oj/src/io/file.cpp
++++ b/oj/src/io/file.cpp
+@@ -25,6 +25,9 @@
+ 
+ 
+ #include "file.h"
++#ifdef OJ32X
++#include "pack.h"
++#endif
+ 
+ #include "io/gfx/video.h"
+ #include "util.h"
+@@ -51,6 +54,24 @@
+ File::File (const char* name, int pathType, bool write) :
+ 	file(nullptr), filePath(nullptr), forWriting(write) {
+ 
++#ifdef OJ32X
++	// PORT32X: game files come from the data packs in the RAM cart when one holds them
++	packData = nullptr;
++	if (!write) {
++		const uint8_t* data;
++		uint32_t size;
++		if (pack_file(name, &data, &size)) {
++			file = pack_fopen(name);
++			if (file) {
++				packData = data;
++				filePath = createString("pack/", name);
++				LOG_DEBUG("Opened file: %s", filePath);
++				return;
++			}
++		}
++	}
++#endif
++
+ 	Path* path = gamePaths.paths;
+ 
+ 	while (path) {
+@@ -123,6 +144,10 @@ bool File::open (const char* path, const char* name, bool write) {
+ 
+ 	if (file) {
+ 		LOG_DEBUG("Opened file: %s", filePath);
++#ifdef OJ32X
++		// PORT32X: the PC build records the file for the cart pack (T32X_BAKE)
++		if (!write) pack_bake_file(name, filePath);
++#endif
+ 
+ 		return true;
+ 	}
+@@ -148,6 +173,15 @@ bool File::exists (const char * fileName, int pathType) {
+ 
+ 	bool exists = false;
+ 
++#ifdef OJ32X
++	// PORT32X: files in a cart pack exist
++	{
++		const uint8_t* data;
++		uint32_t size;
++		if (pack_file(fileName, &data, &size)) return true;
++	}
++#endif
++
+ 	Path* path = gamePaths.paths;
+ 	while (path) {
+ 		// skip other paths
+@@ -392,6 +426,46 @@ void File::storeData (const void* data, int length) {
+  *
+  * @return Buffer containing the block of data
+  */
++#ifdef OJ32X
++/**
++ * PORT32X: a block of the file in place when the file is in a cart pack (no copy in SDRAM),
++ * otherwise a copy as loadBlock makes it.
++ */
++unsigned char * File::mapBlock (int length) {
++
++	if (packData) {
++		unsigned char* p = const_cast<unsigned char*>(packData) + ftell(file);
++		fseek(file, length, SEEK_CUR);
++		return p;
++	}
++
++	return loadBlock(length);
++
++}
++#endif
++
++
++#ifdef OJ32X
++const unsigned char* File::packPicture (int width, int height, int length) {
++
++	if (!packData) return nullptr;
++	uint32_t end;
++	const uint8_t* pic = pack_file_picture(filePath, tell(), width, height, &end);
++	if (!pic || (int)end != tell() + length) return nullptr;
++	seek(end, true);
++	return pic;
++
++}
++
++
++void File::bakePicture (int start, const unsigned char* pixels, int width, int height) {
++
++	pack_bake_file_picture(filePath, start, tell(), pixels, width, height);
++
++}
++#endif
++
++
+ unsigned char * File::loadBlock (int length) {
+ 
+ 	unsigned char *buffer;
+@@ -581,8 +655,26 @@ SDL_Surface* File::loadSurface (int width, int height, bool checkSize) {
+ 	SDL_Surface* surface;
+ 	unsigned char* pixels;
+ 
++#ifdef OJ32X
++	// PORT32X: a picture the pack already holds decoded is not decoded again (that took
++	// width x height bytes of SDRAM for a moment: 64 KB for a full screen)
++	const int start = tell();
++	if (packData) {
++		uint32_t end;
++		const uint8_t* pic = pack_file_picture(filePath, start, width, height, &end);
++		if (pic) {
++			seek(end, true);
++			return video.createSurface(pic, width, height);
++		}
++	}
++#endif
++
+ 	pixels = loadRLE(width * height, checkSize);
+ 
++#ifdef OJ32X
++	pack_bake_file_picture(filePath, start, tell(), pixels, width, height);  // PC build, T32X_BAKE
++#endif
++
+ 	surface = video.createSurface(pixels, width, height);
+ 
+ 	delete[] pixels;
+diff --git a/oj/src/io/file.h b/oj/src/io/file.h
+index cf009ca..d6148da 100644
+--- a/oj/src/io/file.h
++++ b/oj/src/io/file.h
+@@ -52,6 +52,9 @@ class File {
+ 		FILE* file;
+ 		char* filePath;
+ 		bool  forWriting;
++#ifdef OJ32X
++		const unsigned char* packData; ///< PORT32X: start of the file in a cart pack, or null
++#endif
+ 
+ 		bool open (const char* path, const char* name, bool write);
+ 
+@@ -77,6 +80,16 @@ class File {
+ 		void               storeString (const char *string);
+ 		void               storeData   (const void* data, int length);
+ 		unsigned char*     loadBlock   (int length);
++#ifdef OJ32X
++		/// PORT32X: like loadBlock, but a file from a cart pack gives a pointer into the cart
++		/// (read-only, never freed: check with oj32xIsPackData before delete[])
++		unsigned char*     mapBlock    (int length);
++		/// PORT32X: the picture at the current position, already decoded in a cart pack
++		/// (the file then continues after its <length> bytes); null if not there
++		const unsigned char* packPicture (int width, int height, int length);
++		/// PORT32X: PC build - record the picture decoded from <start>..now (T32X_BAKE)
++		void               bakePicture (int start, const unsigned char* pixels, int width, int height);
++#endif
+ 		unsigned char*     loadRLE     (int length, bool checkSize = true);
+ 		void               skipRLE     ();
+ 		unsigned char*     loadLZ      (int compressedLength, int length);
 diff --git a/oj/src/io/gfx/font.cpp b/oj/src/io/gfx/font.cpp
-index 9c7cd7a..5643901 100644
+index 9c7cd7a..3a0de7c 100644
 --- a/oj/src/io/gfx/font.cpp
 +++ b/oj/src/io/gfx/font.cpp
 @@ -22,6 +22,9 @@
@@ -12,50 +183,35 @@ index 9c7cd7a..5643901 100644
  #include "video.h"
  #include "io/log.h"
  
-@@ -144,6 +147,15 @@ Font::Font (const char* fileName) {
+@@ -144,6 +147,10 @@ Font::Font (const char* fileName) {
  	} else
  		LOG_WARN("Could not pack font atlas!");
  
 +#ifdef OJ32X
 +	// PORT32X: the atlas is finished - move it to the RAM cart
 +	characterAtlas = oj32x_freeze(characterAtlas);
-+#endif
-+
-+#ifdef OJ32X
-+	// PORT32X: the atlas is finished and only read from now on: into the RAM cart
-+	characterAtlas = oj32x_move_to_cart(characterAtlas);
 +#endif
  	// Delete single char surfaces
  	for (int i = 0; i < nCharacters; i++) {
  		if(rects[i].w > 0 && rects[i].h > 0)
-@@ -253,6 +265,15 @@ Font::Font (unsigned char* pixels, bool big) {
+@@ -253,6 +260,10 @@ Font::Font (unsigned char* pixels, bool big) {
  	} else
  		LOG_WARN("Could not pack font atlas!");
  
 +#ifdef OJ32X
 +	// PORT32X: the atlas is finished - move it to the RAM cart
 +	characterAtlas = oj32x_freeze(characterAtlas);
-+#endif
-+
-+#ifdef OJ32X
-+	// PORT32X: the atlas is finished and only read from now on: into the RAM cart
-+	characterAtlas = oj32x_move_to_cart(characterAtlas);
 +#endif
  	// Delete single char surfaces
  	for (int i = 0; i < nCharacters; i++)
  		video.destroySurface(chars[i]);
-@@ -374,6 +395,15 @@ Font::Font (bool bonus) {
+@@ -374,6 +385,10 @@ Font::Font (bool bonus) {
  	} else
  		LOG_WARN("Could not pack font atlas!");
  
 +#ifdef OJ32X
 +	// PORT32X: the atlas is finished - move it to the RAM cart
 +	characterAtlas = oj32x_freeze(characterAtlas);
-+#endif
-+
-+#ifdef OJ32X
-+	// PORT32X: the atlas is finished and only read from now on: into the RAM cart
-+	characterAtlas = oj32x_move_to_cart(characterAtlas);
 +#endif
  	// Delete single char surfaces
  	for (int i = 0; i < nCharacters; i++)
@@ -217,6 +373,96 @@ index 440977b..510ca95 100644
  
  /* This algorithm has been found out by CYBERDEViL by analysing the Assembly in
   * DoxBox-X. For more information see: https://codeberg.org/CYBERDEV/JJSave/
+diff --git a/oj/src/jj1/scene/jj1scene.cpp b/oj/src/jj1/scene/jj1scene.cpp
+index 2fd1a3f..617fcfe 100644
+--- a/oj/src/jj1/scene/jj1scene.cpp
++++ b/oj/src/jj1/scene/jj1scene.cpp
+@@ -26,6 +26,9 @@
+ 
+ 
+ #include "jj1scene.h"
++#ifdef OJ32X
++#include "pack.h"
++#endif
+ 
+ #include "io/controls.h"
+ #include "io/gfx/font.h"
+@@ -58,6 +61,10 @@ JJ1SceneFrame::JJ1SceneFrame(int newFrameType, unsigned char* newFrameData, int
+  * Delete the JJ1 cutscene frame.
+  */
+ JJ1SceneFrame::~JJ1SceneFrame() {
++#ifdef OJ32X
++	// PORT32X: frame data mapped from a cart pack is not ours to free
++	if (pack_contains(frameData)) return;
++#endif
+ 	delete[] frameData;
+ }
+ 
+diff --git a/oj/src/jj1/scene/jj1sceneload.cpp b/oj/src/jj1/scene/jj1sceneload.cpp
+index 306b9e9..64fd834 100644
+--- a/oj/src/jj1/scene/jj1sceneload.cpp
++++ b/oj/src/jj1/scene/jj1sceneload.cpp
+@@ -326,11 +326,25 @@ void JJ1Scene::loadAni (JJ1SceneAnimation &scene, File *f, int dataIndex) {
+ 					case E1LAniHeader:
+ 						{
+ 							LOG_ANIM("PL 1L Background Type: 0");
++#ifdef OJ32X
++							// PORT32X: the background decoded by the PC build (cart pack): skip the
++							// block instead of decoding it in 64 KB of SDRAM
++							const uint8_t* baked = f->packPicture(SW, SH, size);
++							if (baked) {
++								scene.background = video.createSurface(baked, SW, SH);
++								video.setPalette(scenePalette.palette);
++								break;
++							}
++							const int bgStart = f->tell();
++#endif
+ 							unsigned char* pixels = new unsigned char[SW* SH];
+ 							memset(pixels, 0, SW*SH);
+ 							unsigned char* frameData = f->loadBlock(size);
+ 							loadCompactedMem(size, frameData, pixels);
+ 							delete[] frameData;
++#ifdef OJ32X
++							f->bakePicture(bgStart, pixels, SW, SH);  // PC build, T32X_BAKE
++#endif
+ 							scene.background = video.createSurface(pixels, SW, SH);
+ 							delete[] pixels;
+ 
+@@ -341,7 +355,11 @@ void JJ1Scene::loadAni (JJ1SceneAnimation &scene, File *f, int dataIndex) {
+ 
+ 					case EFullFrameAniHeader:
+ 						{
++							#ifdef OJ32X
++							unsigned char* blockData = f->mapBlock(size); // PORT32X: in place from a cart pack
++#else
+ 							unsigned char* blockData = f->loadBlock(size);
++#endif
+ 							scene.addFrame(EFullFrameAniHeader, blockData, size);
+ 						}
+ 						break;
+@@ -359,14 +377,22 @@ void JJ1Scene::loadAni (JJ1SceneAnimation &scene, File *f, int dataIndex) {
+ 
+ 					case ERCAniHeader:
+ 						{
++							#ifdef OJ32X
++							unsigned char* blockData = f->mapBlock(size); // PORT32X: in place from a cart pack
++#else
+ 							unsigned char* blockData = f->loadBlock(size);
++#endif
+ 							scene.addFrame(ERCAniHeader, blockData, size);
+ 						}
+ 						break;
+ 
+ 					case ECompactedAniHeader:
+ 						{
++							#ifdef OJ32X
++							unsigned char* blockData = f->mapBlock(size); // PORT32X: in place from a cart pack
++#else
+ 							unsigned char* blockData = f->loadBlock(size);
++#endif
+ 							scene.addFrame(ECompactedAniHeader, blockData, size);
+ 						}
+ 						break;
 diff --git a/oj/src/level/level.cpp b/oj/src/level/level.cpp
 index 1ab7284..d058e71 100644
 --- a/oj/src/level/level.cpp

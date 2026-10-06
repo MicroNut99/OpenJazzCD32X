@@ -326,11 +326,25 @@ void JJ1Scene::loadAni (JJ1SceneAnimation &scene, File *f, int dataIndex) {
 					case E1LAniHeader:
 						{
 							LOG_ANIM("PL 1L Background Type: 0");
+#ifdef OJ32X
+							// PORT32X: the background decoded by the PC build (cart pack): skip the
+							// block instead of decoding it in 64 KB of SDRAM
+							const uint8_t* baked = f->packPicture(SW, SH, size);
+							if (baked) {
+								scene.background = video.createSurface(baked, SW, SH);
+								video.setPalette(scenePalette.palette);
+								break;
+							}
+							const int bgStart = f->tell();
+#endif
 							unsigned char* pixels = new unsigned char[SW* SH];
 							memset(pixels, 0, SW*SH);
 							unsigned char* frameData = f->loadBlock(size);
 							loadCompactedMem(size, frameData, pixels);
 							delete[] frameData;
+#ifdef OJ32X
+							f->bakePicture(bgStart, pixels, SW, SH);  // PC build, T32X_BAKE
+#endif
 							scene.background = video.createSurface(pixels, SW, SH);
 							delete[] pixels;
 
@@ -341,7 +355,11 @@ void JJ1Scene::loadAni (JJ1SceneAnimation &scene, File *f, int dataIndex) {
 
 					case EFullFrameAniHeader:
 						{
+							#ifdef OJ32X
+							unsigned char* blockData = f->mapBlock(size); // PORT32X: in place from a cart pack
+#else
 							unsigned char* blockData = f->loadBlock(size);
+#endif
 							scene.addFrame(EFullFrameAniHeader, blockData, size);
 						}
 						break;
@@ -359,14 +377,22 @@ void JJ1Scene::loadAni (JJ1SceneAnimation &scene, File *f, int dataIndex) {
 
 					case ERCAniHeader:
 						{
+							#ifdef OJ32X
+							unsigned char* blockData = f->mapBlock(size); // PORT32X: in place from a cart pack
+#else
 							unsigned char* blockData = f->loadBlock(size);
+#endif
 							scene.addFrame(ERCAniHeader, blockData, size);
 						}
 						break;
 
 					case ECompactedAniHeader:
 						{
+							#ifdef OJ32X
+							unsigned char* blockData = f->mapBlock(size); // PORT32X: in place from a cart pack
+#else
 							unsigned char* blockData = f->loadBlock(size);
+#endif
 							scene.addFrame(ECompactedAniHeader, blockData, size);
 						}
 						break;

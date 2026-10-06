@@ -52,6 +52,9 @@ class File {
 		FILE* file;
 		char* filePath;
 		bool  forWriting;
+#ifdef OJ32X
+		const unsigned char* packData; ///< PORT32X: start of the file in a cart pack, or null
+#endif
 
 		bool open (const char* path, const char* name, bool write);
 
@@ -77,6 +80,16 @@ class File {
 		void               storeString (const char *string);
 		void               storeData   (const void* data, int length);
 		unsigned char*     loadBlock   (int length);
+#ifdef OJ32X
+		/// PORT32X: like loadBlock, but a file from a cart pack gives a pointer into the cart
+		/// (read-only, never freed: check with oj32xIsPackData before delete[])
+		unsigned char*     mapBlock    (int length);
+		/// PORT32X: the picture at the current position, already decoded in a cart pack
+		/// (the file then continues after its <length> bytes); null if not there
+		const unsigned char* packPicture (int width, int height, int length);
+		/// PORT32X: PC build - record the picture decoded from <start>..now (T32X_BAKE)
+		void               bakePicture (int start, const unsigned char* pixels, int width, int height);
+#endif
 		unsigned char*     loadRLE     (int length, bool checkSize = true);
 		void               skipRLE     ();
 		unsigned char*     loadLZ      (int compressedLength, int length);

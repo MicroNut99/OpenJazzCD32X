@@ -26,6 +26,9 @@
 
 
 #include "jj1scene.h"
+#ifdef OJ32X
+#include "pack.h"
+#endif
 
 #include "io/controls.h"
 #include "io/gfx/font.h"
@@ -58,6 +61,10 @@ JJ1SceneFrame::JJ1SceneFrame(int newFrameType, unsigned char* newFrameData, int 
  * Delete the JJ1 cutscene frame.
  */
 JJ1SceneFrame::~JJ1SceneFrame() {
+#ifdef OJ32X
+	// PORT32X: frame data mapped from a cart pack is not ours to free
+	if (pack_contains(frameData)) return;
+#endif
 	delete[] frameData;
 }
 

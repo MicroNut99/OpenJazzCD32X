@@ -16,6 +16,7 @@ extern "C" {
 #include "oj32x.h"
 extern "C" {
 #include "cart.h"
+#include "pack.h"
 }
 
 #include <stdlib.h>
@@ -52,6 +53,7 @@ struct Surf {
 	Uint8 *remap;           /* nullptr: identity */
 	bool owns_pixels;
 	bool in_cart;           /* pixels in the RAM cart (read-only) */
+	bool in_pack;           /* J4c: pixels are a picture in a cart pack (read-only, shared) */
 };
 
 static SDL_Color grey_ramp[256];
@@ -126,6 +128,26 @@ void SDL_FreeSurface(SDL_Surface *s)
  * Falls back to an ordinary surface when the cart is full. */
 SDL_Surface *oj32x_cart_surface(const unsigned char *pixels, int w, int h)
 {
+	/* J4c: the PC build records the picture for the pack (T32X_BAKE); a picture that is in a
+	 * mounted pack is used in place */
+	pack_bake_picture(pixels, w, h);
+	const uint8_t *baked = pack_picture(pixels, w, h);
+	if (baked) {
+		Surf *u = new_surface(w, h, const_cast<uint8_t *>(baked));
+		u->in_pack = true;
+		return &u->s;
+	}
+#ifdef OJ32X_MARS
+	/* the SH2 cannot write the cart: a picture the pack does not have stays in SDRAM */
+	{
+		char msg[64];
+		snprintf(msg, sizeof msg, "PICTURE %dX%d NOT IN THE PACK", w, h);
+		plat_log(msg);
+	}
+	SDL_Surface *s = SDL_CreateRGBSurface(0, w, h, 8, 0, 0, 0, 0);
+	if (s) memcpy(s->pixels, pixels, (size_t)w * h);
+	return s;
+#else
 	void *p = cart_alloc((size_t)w * h);
 	if (p == nullptr) {
 		SDL_Surface *s = SDL_CreateRGBSurface(0, w, h, 8, 0, 0, 0, 0);
@@ -136,26 +158,7 @@ SDL_Surface *oj32x_cart_surface(const unsigned char *pixels, int w, int h)
 	Surf *u = new_surface(w, h, p);
 	u->in_cart = true;
 	return &u->s;
-}
-
-/* J3: a surface that was built in SDRAM and is finished (a font atlas): move its pixels
- * into the RAM cart. Keeps the colour key and any recolouring. */
-SDL_Surface *oj32x_move_to_cart(SDL_Surface *s)
-{
-	if (s == nullptr || surf_of(s)->in_cart || s->pitch != s->w) return s;
-	SDL_Surface *c = oj32x_cart_surface(static_cast<const unsigned char *>(s->pixels), s->w, s->h);
-	if (c == nullptr || !surf_of(c)->in_cart) { if (c) SDL_FreeSurface(c); return s; }
-	c->flags = s->flags;
-	c->format->colorkey = s->format->colorkey;
-	c->clip_rect = s->clip_rect;
-	Surf *from = surf_of(s), *to = surf_of(c);
-	if (from->own_colors) {   /* hand the recolouring over */
-		to->own_colors = from->own_colors; to->remap = from->remap;
-		to->pal.colors = to->own_colors;
-		from->own_colors = nullptr; from->remap = nullptr;
-	}
-	SDL_FreeSurface(s);
-	return c;
+#endif
 }
 
 /* J3: a surface that is finished (e.g. a font atlas, built by blitting) moves to the cart;
@@ -163,9 +166,9 @@ SDL_Surface *oj32x_move_to_cart(SDL_Surface *s)
 SDL_Surface *oj32x_freeze(SDL_Surface *s)
 {
 	Surf *u = surf_of(s);
-	if (u->in_cart || s->pitch != s->w) return s;
+	if (u->in_cart || u->in_pack || s->pitch != s->w) return s;
 	SDL_Surface *c = oj32x_cart_surface(static_cast<const unsigned char *>(s->pixels), s->w, s->h);
-	if (!c || !surf_of(c)->in_cart) { if (c) SDL_FreeSurface(c); return s; }
+	if (!c || !(surf_of(c)->in_cart || surf_of(c)->in_pack)) { if (c) SDL_FreeSurface(c); return s; }
 	c->flags = s->flags;
 	c->format->colorkey = s->format->colorkey;
 	if (u->own_colors) SDL_SetPalette(c, SDL_LOGPAL, u->own_colors, 0, 256);

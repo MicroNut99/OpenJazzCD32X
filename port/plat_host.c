@@ -39,6 +39,7 @@
  *                       "t9000:DOWN,t9100:-" (menus that wait for input draw no frames)
  */
 #include "plat.h"
+#include "pack.h"
 
 #include <ctype.h>
 #include <fcntl.h>
@@ -77,6 +78,8 @@ static unsigned long env_ul(const char *name, unsigned long dflt)
 }
 
 static void audio_start(void);  /* sound, below */
+static void cart_load_pack(void);  /* J4c, below */
+void __real_free(void *p);
 
 void plat_init(void)
 {
@@ -104,6 +107,7 @@ void plat_init(void)
 	romfs_image = all + off;
 	}
 no_romfs:
+	cart_load_pack();
 
 	max_frames = env_ul("T32X_MAX_FRAMES", max_frames);
 	max_ms = (uint32_t)env_ul("T32X_MAX_SECONDS", max_ms / 1000) * 1000;
@@ -585,7 +589,9 @@ void plat_present_hud(const uint8_t *pixels, int pitch, const uint16_t *palette5
 static uint8_t *cart_mem;
 static const uint32_t cart_len = PLAT_CART_DATA_END - PLAT_CART_DATA_OFFSET;
 
-uint8_t *plat_cart_data(uint32_t *size)
+static uint32_t cart_pack_len;   /* J4c: a pack (T32X_PACK) sits at the start of the data area */
+
+static void cart_map(void)
 {
 	if (cart_mem == NULL)
 	{
@@ -594,8 +600,41 @@ uint8_t *plat_cart_data(uint32_t *size)
 			plat_fatal("cannot map the cart");
 		cart_mem = m;
 	}
-	*size = cart_len;
-	return cart_mem;
+}
+
+uint8_t *plat_cart_data(uint32_t *size)
+{
+	cart_map();
+	*size = cart_len - cart_pack_len;
+	return cart_mem + cart_pack_len;
+}
+
+/* J4c: T32X_PACK=<file>: the pack goes into the cart (like command 46 on the 32X) and is
+ * mounted; the cart allocator gets the space after it */
+static void cart_load_pack(void)
+{
+	const char *path = getenv("T32X_PACK");
+	if (!path || !*path)
+		return;
+	FILE *f = fopen(path, "rb");
+	if (!f)
+		plat_fatal("cannot open T32X_PACK");
+	fseek(f, 0, SEEK_END);
+	long len = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	if (len <= 0 || (uint32_t)len > cart_len)
+		plat_fatal("T32X_PACK: empty or bigger than the cart data area");
+	uint8_t *tmp = __real_malloc((size_t)len);
+	if (fread(tmp, 1, (size_t)len, f) != (size_t)len)
+		plat_fatal("cannot read T32X_PACK");
+	fclose(f);
+	cart_map();
+	plat_cart_write(0, tmp, (size_t)len);
+	__real_free(tmp);
+	if (!pack_mount(cart_mem))
+		plat_fatal("T32X_PACK is not a pack");
+	cart_pack_len = ((uint32_t)len + 0xFFF) & ~0xFFFu;
+	fprintf(stderr, "[host] pack %s mounted: %ld bytes\n", path, len);
 }
 
 void plat_cart_write(uint32_t offset, const void *src, size_t bytes)

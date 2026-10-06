@@ -20,6 +20,7 @@
  */
 #include "plat.h"
 #include "cart.h"
+#include "pack.h"
 
 #include <malloc.h>
 #include <stdint.h>
@@ -72,6 +73,10 @@
 #define OJ32X_SPLASH_HOLD 120   /* frames at 60 Hz = 2 s */
 
 #define CMD_GET_PAD      48
+#define CMD_OPEN_FILE    38      /* main.c: COMM2 = n opens IMAGE<n>.RAW for cart slot n; length -> COMM8 (32 bit) */
+#define CMD_CHUNK_TO_CART 46     /* main.c: COMM2 = chunk (bit 15: no read-back, OL-13); reply COMM12 = bad */
+#define PACK_SLOT        8       /* IMAGE8.RAW -> cart 8 * 128 KB = 0x100000 = PLAT_CART_DATA_OFFSET */
+#define MARS_COMM8_32    (*(volatile uint32_t *)0x20004028)
 #define CMD_TEXT_ONOFF   52
 
 #define PPHI_HZ          23011364u
@@ -206,6 +211,62 @@ int main(int argc, char *argv[]);
 void plat_exit(int code) __attribute__((noreturn));
 static void boot_test(void);
 
+/* ---- J4c: the data pack, with the loader's progress bar on the splash -------------------
+ * The bar is the loader's (cdloader_sh2.c splash_bar: same place, same colours 253-255 from
+ * IMAGE.RAW's palette), drawn in both frame buffers like the loader's splash_progress. */
+#define BAR_X0 56
+#define BAR_X1 236
+#define BAR_Y0 186
+#define BAR_Y1 198
+static uint8_t bar_c(int x, int y, int fill)
+{
+	if (y < BAR_Y0 + 2 || y >= BAR_Y1 - 2 || x < BAR_X0 + 2 || x >= BAR_X1 - 2) return 255;
+	return (x - (BAR_X0 + 2) < fill) ? 254 : 253;
+}
+static void splash_bar(uint32_t done, uint32_t total)
+{
+	volatile uint16_t *fb = FB16 + 0x100;
+	uint32_t inner = (uint32_t)((BAR_X1 - 2) - (BAR_X0 + 2));
+	int fill = total ? (int)(inner * done / total) : 0;
+	for (int y = BAR_Y0; y < BAR_Y1; y++)
+		for (int x = BAR_X0; x < BAR_X1; x += 2)
+			fb[y * (PLAT_SCREEN_W / 2) + (x >> 1)] = (uint16_t)((bar_c(x, y, fill) << 8) | bar_c(x + 1, y, fill));
+}
+static void splash_progress(uint32_t done, uint32_t total)
+{
+	if (!OJ32X_SPLASH) return;
+	for (int i = 0; i < 2; i++) { splash_bar(done, total); flip_wait(); }
+}
+
+static uint32_t pack_bytes;
+static int pack_bad_chunks;
+
+static void pack_load(void)
+{
+	MARS_COMM2 = PACK_SLOT;
+	MARS_COMM8_32 = 0;
+	if (!send_cmd(CMD_OPEN_FILE, 2000000UL)) { plat_log("PACK: OPEN TIMED OUT"); return; }
+	uint32_t len = MARS_COMM8_32;
+	if ((int32_t)len <= 0) { plat_log("PACK: IMAGE8.RAW NOT ON THE DISC"); return; }
+	if (len > PLAT_CART_DATA_END - PLAT_CART_DATA_OFFSET) { plat_log("PACK: TOO BIG FOR THE CART"); return; }
+	MARS_COMM8_32 = len;                   /* main.c CMD 46 reads the length from COMM8 */
+	const uint32_t chunks = (len + 32767) >> 15;
+	splash_progress(0, chunks);
+	for (uint32_t c = 0; c < chunks; c++)
+	{
+		MARS_COMM2 = (uint16_t)(c | 0x8000);   /* OL-13: no read-back (level loads) */
+		MARS_COMM12 = 0;
+		if (!send_cmd(CMD_CHUNK_TO_CART, 2000000UL) || MARS_COMM12 != 0)
+			pack_bad_chunks++;
+		splash_progress(c + 1, chunks);
+	}
+	/* the 68000 wrote the cart behind the SH2's cache: purge it (as the loader's hand-over) */
+	*(volatile uint8_t *)0xFFFFFE92 = 0x11;
+	pack_bytes = len;
+	if (!pack_mount((const uint8_t *)(0x02000000u + PLAT_CART_DATA_OFFSET)))
+		plat_log("PACK: COPIED BUT NOT A PACK (OJPK)");
+}
+
 void plat_mars_entry(void)
 {
 	/* Tyrian's start-up minus the 68000 handshake (see the top of this file). */
@@ -240,6 +301,8 @@ void plat_mars_entry(void)
 
 	plat_log("C++ START-UP");
 	cxx_start();
+	plat_log("PACK LOADING");
+	pack_load();
 	if (OJ32X_SPLASH)
 		while (vblank_count - splash_from < OJ32X_SPLASH_HOLD) { }
 	set_genesis_text(0);
@@ -556,10 +619,10 @@ static void line_add(char *line, const char *label, int ok, const char *detail)
 static void boot_test(void)
 {
 	static char l_build[64], l_cart[64], l_ctor[64], l_new[64], l_throw[64], l_heap[64];
-	static char l_pad[64], l_time[64];
+	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J4B  " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J4C  " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&
@@ -580,6 +643,20 @@ static void boot_test(void)
 
 	strcpy(l_heap, heap_line());
 
+	/* J4c: the data pack */
+	if (pack_count() > 0)
+	{
+		strcpy(l_pack, "PACK: OK  ");
+		dec(l_pack + strlen(l_pack), pack_bytes);
+		strcat(l_pack, " BYTES");
+		if (pack_bad_chunks) { strcat(l_pack, "  BAD CHUNKS "); dec(l_pack + strlen(l_pack), (uint32_t)pack_bad_chunks); }
+	}
+	else
+	{
+		strcpy(l_pack, "PACK: FAILED  ");
+		strncat(l_pack, last_log, 40);
+	}
+
 	/* live screen: pad + clock, until Start */
 	uint16_t pad = 0;
 	uint32_t frames = 0;
@@ -596,8 +673,8 @@ static void boot_test(void)
 		strcat(l_time, "  FR ");
 		dec(l_time + strlen(l_time), frames++);
 		const char *lines[] = { "OPENJAZZ 32X - BOOT TEST", l_build, "", l_cart, l_ctor, l_new, l_throw,
-		                        "", l_heap, "", l_pad, l_time };
-		text_screen(0x0000, 0x7FFF, lines, 12);
+		                        l_pack, "", l_heap, "", l_pad, l_time };
+		text_screen(0x0000, 0x7FFF, lines, 13);
 	} while (!(pad & PAD_START));
 
 	/* wait for Start to be let go, so the game does not see it */

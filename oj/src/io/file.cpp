@@ -25,6 +25,9 @@
 
 
 #include "file.h"
+#ifdef OJ32X
+#include "pack.h"
+#endif
 
 #include "io/gfx/video.h"
 #include "util.h"
@@ -50,6 +53,24 @@
  */
 File::File (const char* name, int pathType, bool write) :
 	file(nullptr), filePath(nullptr), forWriting(write) {
+
+#ifdef OJ32X
+	// PORT32X: game files come from the data packs in the RAM cart when one holds them
+	packData = nullptr;
+	if (!write) {
+		const uint8_t* data;
+		uint32_t size;
+		if (pack_file(name, &data, &size)) {
+			file = pack_fopen(name);
+			if (file) {
+				packData = data;
+				filePath = createString("pack/", name);
+				LOG_DEBUG("Opened file: %s", filePath);
+				return;
+			}
+		}
+	}
+#endif
 
 	Path* path = gamePaths.paths;
 
@@ -123,6 +144,10 @@ bool File::open (const char* path, const char* name, bool write) {
 
 	if (file) {
 		LOG_DEBUG("Opened file: %s", filePath);
+#ifdef OJ32X
+		// PORT32X: the PC build records the file for the cart pack (T32X_BAKE)
+		if (!write) pack_bake_file(name, filePath);
+#endif
 
 		return true;
 	}
@@ -147,6 +172,15 @@ bool File::exists (const char * fileName, int pathType) {
 	 */
 
 	bool exists = false;
+
+#ifdef OJ32X
+	// PORT32X: files in a cart pack exist
+	{
+		const uint8_t* data;
+		uint32_t size;
+		if (pack_file(fileName, &data, &size)) return true;
+	}
+#endif
 
 	Path* path = gamePaths.paths;
 	while (path) {
@@ -392,6 +426,46 @@ void File::storeData (const void* data, int length) {
  *
  * @return Buffer containing the block of data
  */
+#ifdef OJ32X
+/**
+ * PORT32X: a block of the file in place when the file is in a cart pack (no copy in SDRAM),
+ * otherwise a copy as loadBlock makes it.
+ */
+unsigned char * File::mapBlock (int length) {
+
+	if (packData) {
+		unsigned char* p = const_cast<unsigned char*>(packData) + ftell(file);
+		fseek(file, length, SEEK_CUR);
+		return p;
+	}
+
+	return loadBlock(length);
+
+}
+#endif
+
+
+#ifdef OJ32X
+const unsigned char* File::packPicture (int width, int height, int length) {
+
+	if (!packData) return nullptr;
+	uint32_t end;
+	const uint8_t* pic = pack_file_picture(filePath, tell(), width, height, &end);
+	if (!pic || (int)end != tell() + length) return nullptr;
+	seek(end, true);
+	return pic;
+
+}
+
+
+void File::bakePicture (int start, const unsigned char* pixels, int width, int height) {
+
+	pack_bake_file_picture(filePath, start, tell(), pixels, width, height);
+
+}
+#endif
+
+
 unsigned char * File::loadBlock (int length) {
 
 	unsigned char *buffer;
@@ -581,7 +655,25 @@ SDL_Surface* File::loadSurface (int width, int height, bool checkSize) {
 	SDL_Surface* surface;
 	unsigned char* pixels;
 
+#ifdef OJ32X
+	// PORT32X: a picture the pack already holds decoded is not decoded again (that took
+	// width x height bytes of SDRAM for a moment: 64 KB for a full screen)
+	const int start = tell();
+	if (packData) {
+		uint32_t end;
+		const uint8_t* pic = pack_file_picture(filePath, start, width, height, &end);
+		if (pic) {
+			seek(end, true);
+			return video.createSurface(pic, width, height);
+		}
+	}
+#endif
+
 	pixels = loadRLE(width * height, checkSize);
+
+#ifdef OJ32X
+	pack_bake_file_picture(filePath, start, tell(), pixels, width, height);  // PC build, T32X_BAKE
+#endif
 
 	surface = video.createSurface(pixels, width, height);
 

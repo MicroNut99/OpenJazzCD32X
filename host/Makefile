@@ -26,7 +26,7 @@ GAME_SRCS := \
 EXT_SRCS := argparse/argparse.c miniz/miniz.c stb/stb_rect_pack.c
 XMP_SRCS := $(notdir $(wildcard $(EXT)/xmp/src/*.c)) $(addprefix loaders/,$(notdir $(wildcard $(EXT)/xmp/src/loaders/*.c)))
 PORT_CXX := sdl_oj.cpp host_new.cpp
-PORT_C   := plat_host.c mixer.c cart.c
+PORT_C   := plat_host.c mixer.c cart.c pack.c pack_bake.c
 
 OBJDIR := obj$(if $(ASAN),_asan)
 OPT    := $(if $(ASAN),-O1 -g -fsanitize=address -fno-omit-frame-pointer,-O2 -g)
@@ -74,6 +74,6 @@ clean:
 # shim checks (no game data needed)
 test: test_sdl_oj
 	./test_sdl_oj
-test_sdl_oj: test_sdl_oj.cpp $(OBJDIR)/port/sdl_oj.o $(OBJDIR)/port/host_new.o $(OBJDIR)/port/plat_host.o $(OBJDIR)/port/mixer.o $(OBJDIR)/port/cart.o
+test_sdl_oj: test_sdl_oj.cpp $(OBJDIR)/port/sdl_oj.o $(OBJDIR)/port/host_new.o $(OBJDIR)/port/plat_host.o $(OBJDIR)/port/mixer.o $(OBJDIR)/port/cart.o $(OBJDIR)/port/pack.o $(OBJDIR)/port/pack_bake.o
 	$(CXX) $(CXXFLAGS) -no-pie -o $@ $^ -lm -Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc,--wrap=free
 .PHONY: test

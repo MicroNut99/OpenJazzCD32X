@@ -151,11 +151,6 @@ Font::Font (const char* fileName) {
 	// PORT32X: the atlas is finished - move it to the RAM cart
 	characterAtlas = oj32x_freeze(characterAtlas);
 #endif
-
-#ifdef OJ32X
-	// PORT32X: the atlas is finished and only read from now on: into the RAM cart
-	characterAtlas = oj32x_move_to_cart(characterAtlas);
-#endif
 	// Delete single char surfaces
 	for (int i = 0; i < nCharacters; i++) {
 		if(rects[i].w > 0 && rects[i].h > 0)
@@ -268,11 +263,6 @@ Font::Font (unsigned char* pixels, bool big) {
 #ifdef OJ32X
 	// PORT32X: the atlas is finished - move it to the RAM cart
 	characterAtlas = oj32x_freeze(characterAtlas);
-#endif
-
-#ifdef OJ32X
-	// PORT32X: the atlas is finished and only read from now on: into the RAM cart
-	characterAtlas = oj32x_move_to_cart(characterAtlas);
 #endif
 	// Delete single char surfaces
 	for (int i = 0; i < nCharacters; i++)
@@ -398,11 +388,6 @@ Font::Font (bool bonus) {
 #ifdef OJ32X
 	// PORT32X: the atlas is finished - move it to the RAM cart
 	characterAtlas = oj32x_freeze(characterAtlas);
-#endif
-
-#ifdef OJ32X
-	// PORT32X: the atlas is finished and only read from now on: into the RAM cart
-	characterAtlas = oj32x_move_to_cart(characterAtlas);
 #endif
 	// Delete single char surfaces
 	for (int i = 0; i < nCharacters; i++)

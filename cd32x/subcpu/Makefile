@@ -31,6 +31,7 @@ FLAGSZ80 = -vb2
 DD = dd
 RM = rm -rf
 
+# OJ-J4C: IMAGE8.RAW = OpenJazz's data pack (cart slot 8 = 0x100000, see OPENJAZZ_CD32X_HANDOFF.md)
 TARGET = CDROMPlayer
 # ---------------------------------------------------------------------------------------------
 # KOBO: the SH2 program is built in ../sh2 as D32XR.32x.  It is copied (renamed) to
@@ -41,7 +42,7 @@ TARGET = CDROMPlayer
 # ---------------------------------------------------------------------------------------------
 SH2_BUILD   = ../sh2/CDLOADER.32x
 SH2_PAYLOAD = CDLOADER.BIN
-IMAGE_FILES = OPENLARA.32X IMAGE.RAW $(SH2_PAYLOAD) $(notdir $(wildcard ROMS/*.PKD)) $(notdir $(wildcard ROMS/SFX*.BIN))      # D32X M1: the CD-boot-patched D32XR ROM image      # IMAGE.RAW = splash (KOBO_SPLASH 1); if missing: harmless note
+IMAGE_FILES = OPENLARA.32X IMAGE.RAW IMAGE8.RAW $(SH2_PAYLOAD) $(notdir $(wildcard ROMS/*.PKD)) $(notdir $(wildcard ROMS/SFX*.BIN))      # D32X M1: the CD-boot-patched D32XR ROM image      # IMAGE.RAW = splash (KOBO_SPLASH 1); if missing: harmless note
 LIBS = $(LIBPATH) -lc -lgcc -lnosys
 OBJS = crt0.o main.o hw_md.o scd.o scd_fs.o cd.o kos.o cdfs.o sub_stubs.o
 FILES = files.o
