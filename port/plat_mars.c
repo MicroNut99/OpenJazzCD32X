@@ -576,3 +576,7 @@ static void boot_test(void)
 	for (int i = 0; i < 256; ++i)
 		VDP_CRAM[i] = 0;
 }
+
+/* What crtbegin.o normally provides (we link with -nostartfiles): the handle C++ uses to
+   register static destructors (__cxa_atexit). Same fix as the J3a trial link. */
+void *__dso_handle = 0;
