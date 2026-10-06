@@ -100,7 +100,7 @@ extern int do_md_cmd3(int cmd, int arg1, int arg2, int arg3);
                                                    the 68K; it only writes its heartbeat twice a second. */
 static int sub_quiet = 0;
 static int ol_game_running = 0;   /* OL-2b: STATE 4B10 seen - no more per-pass text */
-#define KOBO_BOOT_TEXT        0          /* OJ-J4B: on - white start-up messages (diagnostics = 1). K31: on - Chilly's white 32X start-up messages show
+#define KOBO_BOOT_TEXT        1          /* OJ-J4B: on - white start-up messages (diagnostics = 1). K31: on - Chilly's white 32X start-up messages show
                                                    (green text stays off: KOBO_DIAG_TEXT 0) */
 
 #define LEGACY_68K_CART 0

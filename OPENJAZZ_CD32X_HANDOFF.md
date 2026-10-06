@@ -249,7 +249,9 @@ Boot path edits, each marked `OJ-J4B`, only switching back what the docs/ commen
 |---|---|---|---|
 | `OJ_DIAG_TEXT` | `cd32x/sh2/cdloader_sh2.c` | 1 (text on, in front of the splash) | 0 |
 
-**Now set: all four = 0 (text hidden, Micronut99 J4b4).**
+**Now set (J4b5, Micronut99): only Chilly's white text** - KOBO_BOOT_TEXT 1, KOBO_DIAG_TEXT 0 (green off);
+OJ_DIAG_TEXT 1 and OJ32X_DIAG_TEXT 1 keep the Genesis display on so the white text can show
+(with 0 the loader's CMD 52 would switch the whole Genesis display off).
 | `KOBO_DIAG_TEXT` | `cd32x/subcpu/main.c` | 1 (green STATE text) | 0 |
 | `KOBO_BOOT_TEXT` | `cd32x/subcpu/main.c` | 1 (white start-up messages) | 0 |
 | `OJ32X_DIAG_TEXT` | `port/plat_mars.c` | 1 (text kept until C++ start-up) | 0 |
