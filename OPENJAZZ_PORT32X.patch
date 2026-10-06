@@ -93,6 +93,38 @@ index 18cf378..1bd5daa 100644
  #if OJ_SDL3
  	ret = SDL_CreateSurface(width, height, SDL_PIXELFORMAT_INDEX8);
  	if(ret) {
+diff --git a/oj/src/io/log.cpp b/oj/src/io/log.cpp
+index 9d2ea85..a0f1198 100644
+--- a/oj/src/io/log.cpp
++++ b/oj/src/io/log.cpp
+@@ -17,6 +17,9 @@
+  */
+ 
+ #include "log.h"
++#ifdef OJ32X_MARS
++#include "oj32x.h"
++#endif
+ #include "file.h"
+ #include "util.h"
+ #include <cstdarg>
+@@ -270,6 +273,17 @@ void Log::log(int lvl, const char *file, int line, const char *fmt, ...) {
+ 		(lvl == LL_WARN) ? ANDROID_LOG_WARN :
+ 		(lvl == LL_INFO) ? ANDROID_LOG_INFO : ANDROID_LOG_DEBUG,
+ 		"OpenJazz", outbuffer);
++#elif defined(OJ32X_MARS)
++	// PORT32X: no console or files on the 32X - warnings and errors become the "last log"
++	// line of the platform's error screens; the HTML queue would only cost SDRAM
++	if (lvl < LL_WARN) return;
++	char outbuffer[96];
++	va_list args;
++	va_start(args, fmt);
++	vsnprintf(outbuffer, sizeof(outbuffer), fmt, args);
++	va_end(args);
++	(void)file; (void)line;
++	oj32x_log(outbuffer);
+ #else
+ 	// get current time
+ 	time_t t = time(nullptr);
 diff --git a/oj/src/io/sound.cpp b/oj/src/io/sound.cpp
 index 9f5be2d..d7a5b92 100644
 --- a/oj/src/io/sound.cpp

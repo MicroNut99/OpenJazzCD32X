@@ -204,6 +204,27 @@ cdloader_sh2.c, cdl_crt0.s, cdloader.ld, Makefile.cdloader), `tools/prep_openlar
   end on the blue screen "THE GAME STOPPED WITH AN ERROR", last log about the data files.
 - Untested: everything SH2-side (no SH2 compiler in the sandbox); expect a fix round.
 
+## J4a: the first disc (boot test) - sent
+**One boot path (Micronut99): the CD32X boot is OpenLara's, unchanged; the game is attached
+at its end** as the payload the loader copies into the cart and starts (file 20).
+- `cd32x/sh2/`, `cd32x/subcpu/`: OpenLara's loader and Sub-CPU program, byte-identical copies
+  (cdl_crt0.s differs only in line endings). The engine goes on the disc as `OPENLARA.32X`,
+  the name the Sub-CPU opens for file 20 - nothing in the boot path is edited.
+- Engine image: `mars/Makefile` links the game with `port/mars/crt0_oj.s` (Tyrian's crt0,
+  unchanged) and `port/mars/oj.ld` (Tyrian's + .eh_frame/.init_array kept for C++);
+  `tools/make_oj_rom.py` (Tyrian's make_tyrian_cart.py without 68000 program/romfs) writes
+  the header the loader reads; build.sh runs OpenLara's own `prep_openlara_cd.py` on it as
+  the check. Tested here with a made-up ELF: header accepted by prep_openlara_cd.py.
+- `port/plat_mars.c`: Tyrian's plat_mars.c (display, pacing, clock, pad 48, Genesis text 52,
+  error screens) minus the 0x0AAA handshake (the loader did it), minus sound/CD/mouse/net.
+  The SH2 never writes the cart: plat_cart_write = red screen.
+- Boot test screen before the game: cart readable, C++ constructors, new/delete, exception
+  throw/catch, heap, live pad + clock. Start runs the game; expected end for J4a: blue screen
+  "THE GAME STOPPED WITH AN ERROR", last log "Unable to find game data files" (no files yet).
+- Cart: engine area 1 MB (0x000000-0x0FFFFF), graphics from 0x100000.
+- Untested on SH2 here (no compiler in the sandbox): plat_mars.c, crt0/oj.ld link, C++
+  start-up. Expect one fix round from the build log.
+
 ## Next round (J3)
 Graphics into the cart, tested on the PC: a cart image in the host build (4 MB, written only
 by a "68000" copy routine, read-only for the game), the decoded tile set, sprites, fonts and
