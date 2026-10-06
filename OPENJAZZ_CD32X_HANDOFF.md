@@ -421,3 +421,13 @@ J7 diagnostics: std::set_terminate -> red screen "C++ TERMINATE: UNCAUGHT EXCEPT
 operator new on the 32X -> red screen "OUT OF MEMORY: NEW OF n BYTES (HEAP TOP ...)"; the blue
 end screen shows the last three log lines; the level hook logs "LEVEL FILE <name>: PACK OJ<k>"
 before loading. Packs unchanged: LEVEL_PACKS=keep ./build.sh.
+
+## J7 console result and J8
+Red screen: OUT OF MEMORY: NEW OF 156,736 BYTES (heap top 89,104 of 226,320). 156,736 is the
+OLD size of JJ1Level (8-byte grid cells). Cause: mars/Makefile had no header dependencies
+(-MMD), so files that include a changed header were not rebuilt - game.cpp still allocated the
+old JJ1Level while jj1level*.cpp used the new layout. The same thing explains the J4c/J4c2
+free() crash: J4c added a member to File (file.h), and objects compiled before kept the old
+size of File (heap damage); it vanished when J4c3's Makefile change rebuilt everything.
+J8: -MMD -MP and `-include $(OBJS:.o=.d)` in mars/Makefile (the Makefile change itself
+rebuilds every object once).

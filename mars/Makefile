@@ -44,8 +44,8 @@ DEFS   := -DOJ32X -DOJ32X_MARS -DOJ_SDL1 -DPORTABLE -DNDEBUG \
           -DOJ_URL=\"http://alister.eu/jazz/oj/\" -DOJ_BUGREPORT=\"https://github.com/AlisterT/openjazz/issues\" \
           -DLIBXMP_CORE_PLAYER -DLIBXMP_STATIC -DXMP_SYM_VISIBILITY
 INCS   := -I$(PORT)/include -I$(PORT) -I$(SRC) -I$(EXT)/argparse -I$(EXT)/miniz -I$(EXT)/xmp -I$(EXT)/xmp/src -I$(EXT)/stb
-CXXFLAGS := -std=gnu++14 $(OPT) $(DEFS) $(INCS) -fno-threadsafe-statics -Wall -Wno-unused-result -Wno-narrowing
-CFLAGS   := -std=gnu11 $(OPT) $(DEFS) $(INCS) -w
+CXXFLAGS := -std=gnu++14 $(OPT) $(DEFS) $(INCS) -fno-threadsafe-statics -Wall -Wno-unused-result -Wno-narrowing -MMD -MP
+CFLAGS   := -std=gnu11 $(OPT) $(DEFS) $(INCS) -w -MMD -MP
 
 GAME_OBJS := $(addprefix $(OBJDIR)/game/,$(GAME_SRCS:.cpp=.o))
 EXT_OBJS  := $(addprefix $(OBJDIR)/ext/,$(EXT_SRCS:.c=.o))
@@ -97,3 +97,8 @@ clean:
 
 # J4c3: a changed Makefile (compiler settings) rebuilds every object
 $(OBJS) $(OBJDIR)/crt0_oj.o: Makefile
+
+# J7: header dependencies. Without them a changed header (e.g. jj1level.h, file.h) did not
+# rebuild the files that include it: objects with different ideas of a class's size were
+# linked together (J7: `new JJ1Level` still asked for the old 156,736 bytes).
+-include $(OBJS:.o=.d)
