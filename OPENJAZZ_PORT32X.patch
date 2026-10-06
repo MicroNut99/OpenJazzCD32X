@@ -1,18 +1,19 @@
 diff --git a/oj/src/io/file.cpp b/oj/src/io/file.cpp
-index 9791b29..6ca63b9 100644
+index 9791b29..2340006 100644
 --- a/oj/src/io/file.cpp
 +++ b/oj/src/io/file.cpp
-@@ -25,6 +25,9 @@
+@@ -25,6 +25,10 @@
  
  
  #include "file.h"
 +#ifdef OJ32X
 +#include "pack.h"
++#include "oj32x.h"
 +#endif
  
  #include "io/gfx/video.h"
  #include "util.h"
-@@ -51,6 +54,24 @@
+@@ -51,6 +55,31 @@
  File::File (const char* name, int pathType, bool write) :
  	file(nullptr), filePath(nullptr), forWriting(write) {
  
@@ -27,6 +28,13 @@ index 9791b29..6ca63b9 100644
 +			if (file) {
 +				packData = data;
 +				filePath = createString("pack/", name);
++#ifdef OJ32X_MARS
++				{	// PORT32X: the 32X red screen shows the last log lines - which file was read
++					char msg[32];
++					snprintf(msg, sizeof msg, "OPEN %s", name);
++					oj32x_log(msg);
++				}
++#endif
 +				LOG_DEBUG("Opened file: %s", filePath);
 +				return;
 +			}
@@ -37,7 +45,7 @@ index 9791b29..6ca63b9 100644
  	Path* path = gamePaths.paths;
  
  	while (path) {
-@@ -123,6 +144,10 @@ bool File::open (const char* path, const char* name, bool write) {
+@@ -123,6 +152,10 @@ bool File::open (const char* path, const char* name, bool write) {
  
  	if (file) {
  		LOG_DEBUG("Opened file: %s", filePath);
@@ -48,7 +56,7 @@ index 9791b29..6ca63b9 100644
  
  		return true;
  	}
-@@ -148,6 +173,15 @@ bool File::exists (const char * fileName, int pathType) {
+@@ -148,6 +181,15 @@ bool File::exists (const char * fileName, int pathType) {
  
  	bool exists = false;
  
@@ -64,7 +72,7 @@ index 9791b29..6ca63b9 100644
  	Path* path = gamePaths.paths;
  	while (path) {
  		// skip other paths
-@@ -392,6 +426,46 @@ void File::storeData (const void* data, int length) {
+@@ -392,6 +434,46 @@ void File::storeData (const void* data, int length) {
   *
   * @return Buffer containing the block of data
   */
@@ -111,7 +119,7 @@ index 9791b29..6ca63b9 100644
  unsigned char * File::loadBlock (int length) {
  
  	unsigned char *buffer;
-@@ -581,8 +655,26 @@ SDL_Surface* File::loadSurface (int width, int height, bool checkSize) {
+@@ -581,8 +663,26 @@ SDL_Surface* File::loadSurface (int width, int height, bool checkSize) {
  	SDL_Surface* surface;
  	unsigned char* pixels;
  

@@ -475,9 +475,13 @@ void plat_mem_mark(const char *label)
 
 /* ------------------------------------------------------------- messages */
 static char last_log[80];
+static char prev_log[2][80];   /* J4c2: the two lines before the last one */
 
 void plat_log(const char *msg)
 {
+	/* Kept for the error screens: the last three lines */
+	strcpy(prev_log[0], prev_log[1]);
+	strcpy(prev_log[1], last_log);
 	strncpy(last_log, msg, sizeof last_log - 1);
 	last_log[sizeof last_log - 1] = '\0';
 	for (char *p = last_log; *p; ++p)
@@ -572,22 +576,49 @@ static const char *heap_line(void)
 void plat_fatal(const char *msg)
 {
 	set_sr(0xF0);
-	const char *lines[] = { "OPENJAZZ 32X - FATAL ERROR", "", msg, "", "LAST LOG:", last_log, "", heap_line() };
-	text_screen(0x0010 /* dark red */, 0x7FFF, lines, 8);
+	const char *lines[] = { "OPENJAZZ 32X - FATAL ERROR", "", msg, "", "LAST LOG:", prev_log[0], prev_log[1], last_log, "", heap_line() };
+	text_screen(0x0010 /* dark red */, 0x7FFF, lines, 10);
 	for (;;) { }
 }
 
-void plat_exception(uint32_t kind, uint32_t pc)
+/* J4c2: crt0 passes the old stack pointer and PR as well. The call chain: PR, then the
+ * words on the old stack that point into the engine's code (return addresses saved by the
+ * callers; some may be stale - look them up with tools/where.sh). */
+extern char text_start_sym[] __asm__("__text_start");
+extern char text_end_sym[] __asm__("__text_end");
+
+void plat_exception(uint32_t kind, uint32_t pc, uint32_t sp, uint32_t pr)
 {
 	static const char *const kinds[] = { "?", "ILLEGAL INSTRUCTION", "INVALID SLOT INSTRUCTION",
 	                                     "ADDRESS ERROR (MISALIGNED ACCESS?)", "DMA ADDRESS ERROR",
 	                                     "OTHER EXCEPTION" };
-	static char pc_line[24] = "PC = ";
+	static char pc_line[40] = "PC ";
+	static char chain[3][48];
 	set_sr(0xF0);
-	hex(pc_line + 5, pc, 8);
-	const char *lines[] = { "OPENJAZZ 32X - SH2 EXCEPTION", "", kinds[kind < 6 ? kind : 0], pc_line,
-	                        "(LOOK THE PC UP IN MARS/OPENJAZZ32X.MAP)", "", "LAST LOG:", last_log, "", heap_line() };
-	text_screen(0x0010, 0x7FFF, lines, 10);
+	hex(pc_line + 3, pc, 8);
+	strcat(pc_line, "  PR ");
+	hex(pc_line + strlen(pc_line), pr, 8);
+	int found = 0;
+	if (sp >= 0x06000000u && sp < 0x06040000u && (sp & 3) == 0)
+	{
+		const volatile uint32_t *st = (const volatile uint32_t *)(uintptr_t)(sp | 0x20000000u);
+		for (int i = 2; i < 256 && found < 9 && sp + 4u * i < 0x06040000u; ++i)
+		{
+			uint32_t v = st[i];
+			if (v >= (uint32_t)(uintptr_t)text_start_sym && v < (uint32_t)(uintptr_t)text_end_sym && (v & 1) == 0)
+			{
+				char *l = chain[found / 3];
+				if (found % 3 == 0) strcpy(l, "CALLS ");
+				hex(l + strlen(l), v, 8);
+				strcat(l, " ");
+				found++;
+			}
+		}
+	}
+	const char *lines[] = { "OPENJAZZ 32X - SH2 EXCEPTION", kinds[kind < 6 ? kind : 0], pc_line,
+	                        chain[0], chain[1], chain[2], "(TOOLS/WHERE.SH <ADDRESS>)",
+	                        "LAST LOG:", prev_log[0], prev_log[1], last_log, heap_line() };
+	text_screen(0x0010, 0x7FFF, lines, 12);
 	for (;;) { }
 }
 
@@ -622,7 +653,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J4C  " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J4C2 " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&

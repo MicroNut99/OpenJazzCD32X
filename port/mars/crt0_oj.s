@@ -1,6 +1,7 @@
 !-----------------------------------------------------------------------
 ! OpenJazz CD32X - SH2 start-up: Tyrian 32X T3j's crt0_tyrian.s, UNCHANGED except this
-! header and the tyrian.ld -> oj.ld references. The CD32X loader (OpenLara's cdloader_sh2.c)
+! header, the tyrian.ld -> oj.ld references and (OJ-J4C2) two lines in pri_err_go that hand
+! the old stack pointer and PR to plat_exception, for a call chain on the red screen. The CD32X loader (OpenLara's cdloader_sh2.c)
 ! starts it exactly as the 32X boot ROM starts a cartridge: SDRAM image copied, VBR set,
 ! r15 = vector 1, COMM0 = COMM4 = 0 (so the 'wait for the 68000' loops pass at once).
 !
@@ -291,6 +292,8 @@ pri_err:
         mov     #5,r4
 pri_err_go:
         mov.l   @r15,r5
+        mov     r15,r6                  /* OJ-J4C2: the old stack (PC, SR, then the callers' frames) */
+        sts     pr,r7                   /* OJ-J4C2: PR at the fault = where the faulting function returns to */
         mov.l   _pri_exc_stk,r15        /* fresh stack: the old one may be the problem */
         mov.l   _pri_exc_handler,r0
         jmp     @r0

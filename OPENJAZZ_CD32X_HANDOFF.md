@@ -307,3 +307,19 @@ path: `cd32x/subcpu/Makefile` IMAGE_FILES gets IMAGE8.RAW (marked OJ-J4C).
   152,722 bytes (was 463,417 without the pack; 32X has ~207,000 free after start-up).
   Without the demo level in the pack, the demo does not start and the menu stays.
 - Untested on the SH2: fmemopen from newlib (link will tell), the pack copy from the engine.
+
+## J4c console result (video 1005261847) and J4c2
+Pack copied (second bar run, ~40 s), boot test "PACK: OK 1240268 BYTES" (fmemopen links and
+works on newlib). After Start: red screen ADDRESS ERROR in newlib free_r (mallocr.c:2655-2669),
+last log "PICTURE 56X48 NOT IN THE PACK", heap 130,816 used.
+- 56x48 = a panel font atlas: stb_rect_pack sorts with qsort, whose order for equal keys
+  differs between glibc and newlib -> the SH2 built a different atlas. Fix: stable insertion
+  sort for stb_rect_pack (`port/oj32x_sort.h`, -DSTBRP_SORT), on both builds.
+- free_r crash: not reproduced on the PC (also not with the 32X code paths under ASan and a
+  forced atlas miss). Platform-specific candidate found: our `_fstat` answered "character
+  device" for ANY fd and left st_blksize uninitialised; newlib sizes a stream's buffer from
+  that when the stream has no file - every pack file (fmemopen, fd -1) got a garbage-sized
+  buffer. Fix: `_fstat` = EBADF for fd outside 0-2 (newlib then uses BUFSIZ), `_isatty` only 0-2.
+- Diagnostics: red screens show PC, PR and up to 9 return addresses from the stack (crt0
+  pri_err_go passes the old r15 and PR: two added lines, OJ-J4C2) and the last three log lines;
+  each pack file read logs "OPEN <name>". `tools/where.sh <address>` looks them up.

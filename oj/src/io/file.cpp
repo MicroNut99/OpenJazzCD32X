@@ -27,6 +27,7 @@
 #include "file.h"
 #ifdef OJ32X
 #include "pack.h"
+#include "oj32x.h"
 #endif
 
 #include "io/gfx/video.h"
@@ -65,6 +66,13 @@ File::File (const char* name, int pathType, bool write) :
 			if (file) {
 				packData = data;
 				filePath = createString("pack/", name);
+#ifdef OJ32X_MARS
+				{	// PORT32X: the 32X red screen shows the last log lines - which file was read
+					char msg[32];
+					snprintf(msg, sizeof msg, "OPEN %s", name);
+					oj32x_log(msg);
+				}
+#endif
 				LOG_DEBUG("Opened file: %s", filePath);
 				return;
 			}

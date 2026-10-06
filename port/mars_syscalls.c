@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/times.h>
@@ -53,9 +54,19 @@ int _read(int fd, char *buf, int len) { (void)fd; (void)buf; (void)len; return 0
 int _open(const char *name, int flags, int mode) { (void)name; (void)flags; (void)mode; errno = ENOENT; return -1; }
 int _close(int fd) { (void)fd; return -1; }
 int _lseek(int fd, int off, int whence) { (void)fd; (void)off; (void)whence; return 0; }
-int _fstat(int fd, struct stat *st) { (void)fd; st->st_mode = S_IFCHR; return 0; }
+/* J4c2: only the console streams 0-2 exist here. Streams from fmemopen (the data pack) have
+ * no file (fd -1): newlib's __smakebuf asks _fstat about them, and the old version answered
+ * "character device" for ANY fd and left st_blksize uninitialised - newlib then sized the
+ * stream buffer from that garbage. Now: unknown fd = EBADF, so newlib uses BUFSIZ. */
+int _fstat(int fd, struct stat *st)
+{
+	if (fd < 0 || fd > 2) { errno = EBADF; return -1; }
+	memset(st, 0, sizeof *st);
+	st->st_mode = S_IFCHR;
+	return 0;
+}
 int _stat(const char *name, struct stat *st) { (void)name; (void)st; errno = ENOENT; return -1; }
-int _isatty(int fd) { (void)fd; return 1; }
+int _isatty(int fd) { return fd >= 0 && fd <= 2; }
 int _kill(int pid, int sig) { (void)pid; (void)sig; errno = EINVAL; return -1; }
 int _getpid(void) { return 1; }
 int _unlink(const char *name) { (void)name; errno = ENOENT; return -1; }
