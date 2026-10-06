@@ -281,6 +281,28 @@ int SDL_FillRect(SDL_Surface *s, SDL_Rect *r, Uint32 colour)
 	return 0;
 }
 
+/* J9: copy n bytes with as many aligned 32-bit writes as possible. On the 32X the game draws
+ * straight into the frame buffer, where every write is a bus access: four pixels per write
+ * instead of one. The source may be unaligned (tiles in the cart, scrolled positions): its
+ * bytes are put together (memcpy into a word = right byte order on any machine). */
+static void copy_run(Uint8 *d, const Uint8 *s, int n)
+{
+	while (n > 0 && ((uintptr_t)d & 3)) { *d++ = *s++; n--; }
+	if (((uintptr_t)s & 3) == 0) {
+		Uint32 *dw = reinterpret_cast<Uint32 *>(d);
+		const Uint32 *sw = reinterpret_cast<const Uint32 *>(s);
+		for (; n >= 16; n -= 16) { dw[0] = sw[0]; dw[1] = sw[1]; dw[2] = sw[2]; dw[3] = sw[3]; dw += 4; sw += 4; }
+		for (; n >= 4; n -= 4) *dw++ = *sw++;
+		d = reinterpret_cast<Uint8 *>(dw);
+		s = reinterpret_cast<const Uint8 *>(sw);
+	} else {
+		Uint32 *dw = reinterpret_cast<Uint32 *>(d);
+		for (; n >= 4; n -= 4) { Uint32 v; memcpy(&v, s, 4); *dw++ = v; s += 4; }
+		d = reinterpret_cast<Uint8 *>(dw);
+	}
+	while (n-- > 0) *d++ = *s++;
+}
+
 int SDL_UpperBlit(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rect *dstrect)
 {
 	int sx = 0, sy = 0, w = src->w, h = src->h;
@@ -321,10 +343,17 @@ int SDL_UpperBlit(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rec
 
 	for (int y = 0; y < h; ++y, sp += src->pitch, dp += dst->pitch) {
 		if (!keyed) {
-			if (identity) memcpy(dp, sp, (size_t)w);
+			if (identity) copy_run(dp, sp, w);
 			else for (int x = 0; x < w; ++x) dp[x] = map[sp[x]];
 		} else if (identity) {
-			for (int x = 0; x < w; ++x) { Uint8 v = sp[x]; if (v != key) dp[x] = v; }
+			/* J9: runs of visible pixels, each copied with 32-bit writes where possible */
+			int x = 0;
+			while (x < w) {
+				while (x < w && sp[x] == key) x++;
+				const int start = x;
+				while (x < w && sp[x] != key) x++;
+				if (x > start) copy_run(dp + start, sp + start, x - start);
+			}
 		} else {
 			for (int x = 0; x < w; ++x) { Uint8 v = sp[x]; if (v != key) dp[x] = map[v]; }
 		}
@@ -400,8 +429,8 @@ char *SDL_GetKeyName(SDLKey key)
 	}
 }
 
-/* Pad layouts (PORT32X). Play: C jump, B fire, A change weapon, Start = the
- * level menu (OpenJazz's Escape). Menu: C or Start = Enter, B = back (Escape). */
+/* Pad layouts (PORT32X). Play: C or A jump, B fire, X or Y change weapon, Start = the level
+ * menu (OpenJazz's Escape), Z statistics. Menu: C, A or Start = Enter, B = back (Escape). */
 struct PadKey { uint16_t bit; SDLKey play, menu; };
 static const PadKey pad_keys[] = {
 	{PAD_UP,    SDLK_UP,     SDLK_UP},
@@ -410,10 +439,10 @@ static const PadKey pad_keys[] = {
 	{PAD_RIGHT, SDLK_RIGHT,  SDLK_RIGHT},
 	{PAD_C,     SDLK_SPACE,  SDLK_RETURN},
 	{PAD_B,     SDLK_LALT,   SDLK_ESCAPE},
-	{PAD_A,     SDLK_RCTRL,  SDLK_UNKNOWN},
+	{PAD_A,     SDLK_SPACE,  SDLK_RETURN},   /* J9 (Micronut99): A = C */
 	{PAD_START, SDLK_ESCAPE, SDLK_RETURN},
-	{PAD_X,     SDLK_UNKNOWN, SDLK_UNKNOWN},
-	{PAD_Y,     SDLK_UNKNOWN, SDLK_UNKNOWN},
+	{PAD_X,     SDLK_RCTRL,  SDLK_UNKNOWN},  /* J9: change weapon moved to X / Y (6-button pad) */
+	{PAD_Y,     SDLK_RCTRL,  SDLK_UNKNOWN},
 	{PAD_Z,     SDLK_F9,     SDLK_UNKNOWN},   /* Z: statistics screen */
 	{PAD_MODE,  SDLK_UNKNOWN, SDLK_UNKNOWN},
 };
@@ -512,10 +541,15 @@ void oj32x_level_pack(const char *levelFile)
 	const char *b = levelFile;
 	for (const char *p = levelFile; *p; ++p)
 		if (*p == '/' || *p == '\\') b = p + 1;
-	if (strncasecmp(b, "LEVEL", 5) != 0 || !isdigit((unsigned char)b[5]) || b[6] != '.' ||
-	    !isdigit((unsigned char)b[7]) || !isdigit((unsigned char)b[8]) || !isdigit((unsigned char)b[9]))
-		return;
-	const int k = (b[7] - '0') * 1000 + (b[8] - '0') * 100 + (b[9] - '0') * 10 + (b[5] - '0');
+	int k;
+	if (strncasecmp(b, "BONUSMAP.", 9) == 0) {
+		k = PACK_BONUS_K;   /* J9: every bonus map uses the one bonus pack */
+	} else {
+		if (strncasecmp(b, "LEVEL", 5) != 0 || !isdigit((unsigned char)b[5]) || b[6] != '.' ||
+		    !isdigit((unsigned char)b[7]) || !isdigit((unsigned char)b[8]) || !isdigit((unsigned char)b[9]))
+			return;
+		k = (b[7] - '0') * 1000 + (b[8] - '0') * 100 + (b[9] - '0') * 10 + (b[5] - '0');
+	}
 	if (k == current) return;
 	{
 		char msg[40];

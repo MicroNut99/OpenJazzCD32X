@@ -232,7 +232,12 @@ int MainMenu::select (int option) {
 
 		case 5: // Exit
 
+#ifdef OJ32X_MARS
+			// PORT32X: no "Exit game" on a console (Micronut99, J9)
+			break;
+#else
 			return E_RETURN;
+#endif
 
 	}
 

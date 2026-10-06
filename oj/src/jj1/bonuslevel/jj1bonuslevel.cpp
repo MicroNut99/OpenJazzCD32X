@@ -24,6 +24,9 @@
 
 #include "jj1bonuslevelplayer.h"
 #include "jj1bonuslevel.h"
+#ifdef OJ32X
+#include "oj32x.h"
+#endif
 
 #include "game/game.h"
 #include "game/gamemode.h"
@@ -200,6 +203,11 @@ JJ1BonusLevel::JJ1BonusLevel (Game* owner, char * fileName, bool multi) : Level(
 	unsigned char *buffer;
 	char *string, *fileString;
 	int count, x, y;
+
+#ifdef OJ32X
+	// PORT32X: the bonus levels' files and pictures come into the cart (one pack for all)
+	oj32x_level_pack(fileName);
+#endif
 
 	try {
 

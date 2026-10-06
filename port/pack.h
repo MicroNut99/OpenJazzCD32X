@@ -47,6 +47,7 @@ extern "C" {
 #define PACK_LEVEL_ID0   200
 #define PACK_LEVEL_CART  0x280000u
 #define PACK_LEVEL_MAX   0x170000u   /* up to 0x3F0000, where saves begin */
+#define PACK_BONUS_K     800         /* J9: OJ800.PAK = the bonus levels (all BONUSMAP.* files) */
 
 /* Makes a pack in memory (the cart) known to the game. false: not a pack. */
 bool pack_mount(const uint8_t *base);

@@ -431,3 +431,19 @@ free() crash: J4c added a member to File (file.h), and objects compiled before k
 size of File (heap damage); it vanished when J4c3's Makefile change rebuilt everything.
 J8: -MMD -MP and `-include $(OBJS:.o=.d)` in mars/Makefile (the Makefile change itself
 rebuilds every object once).
+
+## J8 console result and J9
+Level 1 plays on the console (video 1006261545): level menu, save/load screens work; the
+in-game FPS counter shows about 11. Micronut99: all remaining content, no cutscenes, no Exit
+Game, A = C, more frames per second without changing the game's speed.
+- Cutscenes off on the 32X (Level::playScene returns at once; OJ32X_MARS).
+- Main menu "Exit game" does nothing on the 32X.
+- Pad: A = C (play: jump; menus: select); change weapon moved to X and Y (6-button pad).
+- Speed: blits copy runs of visible pixels with aligned 32-bit writes (copy_run): the game
+  draws straight into the frame buffer, so this is up to 4x fewer frame buffer writes. The
+  game's own timing is unchanged (it runs by the clock, not by frames). Regression 0 different.
+- Bonus levels: measured with the 32X paths and a bonus pack (OJ800.PAK, ready in the code:
+  BONUSMAP.* -> k 800): peak 236 KB (the bonus map alone is 128 KB, plus a 64 KB decoding
+  buffer) - more than the 218 KB. So on the 32X a bonus level is skipped (Game::playLevel,
+  back to where the game came from); the bonus pack is not built yet. Needs the same kind of
+  map work as the levels (tiles read-only from the pack, events as a small table).

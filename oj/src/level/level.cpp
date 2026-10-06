@@ -122,6 +122,12 @@ int Level::playScene (const char* file) {
 	JJ1Scene* scene;
 	int ret;
 
+#ifdef OJ32X_MARS
+	// PORT32X: no cutscenes on the 32X (Micronut99, J9)
+	(void)file;
+	return E_NONE;
+#endif
+
 	delete paletteEffects;
 	paletteEffects = NULL;
 

@@ -1,3 +1,20 @@
+diff --git a/oj/src/game/game.cpp b/oj/src/game/game.cpp
+index da9278b..d6dca7d 100644
+--- a/oj/src/game/game.cpp
++++ b/oj/src/game/game.cpp
+@@ -204,6 +204,12 @@ int Game::playLevel (char* fileName, bool intro, bool checkpoint) {
+ 
+ 	} else if (levelType == LT_JJ1BONUS) {
+ 
++#ifdef OJ32X_MARS
++		// PORT32X: no bonus levels on the 32X yet - their map alone needs 128 KB of SDRAM
++		// (J9, measured on the PC with the 32X code paths: 236 KB at the peak, 218 KB there)
++		return E_NONE;
++#endif
++
+ 		JJ1BonusLevel *bonus;
+ 
+ 		try {
 diff --git a/oj/src/io/file.cpp b/oj/src/io/file.cpp
 index 9791b29..7e49841 100644
 --- a/oj/src/io/file.cpp
@@ -315,6 +332,32 @@ index 9f5be2d..d7a5b92 100644
  
  #if OJ_SDL3
  	SDL_CloseAudioDevice(SDL_GetAudioStreamDevice(audioStream));
+diff --git a/oj/src/jj1/bonuslevel/jj1bonuslevel.cpp b/oj/src/jj1/bonuslevel/jj1bonuslevel.cpp
+index c868799..abbf555 100644
+--- a/oj/src/jj1/bonuslevel/jj1bonuslevel.cpp
++++ b/oj/src/jj1/bonuslevel/jj1bonuslevel.cpp
+@@ -24,6 +24,9 @@
+ 
+ #include "jj1bonuslevelplayer.h"
+ #include "jj1bonuslevel.h"
++#ifdef OJ32X
++#include "oj32x.h"
++#endif
+ 
+ #include "game/game.h"
+ #include "game/gamemode.h"
+@@ -201,6 +204,11 @@ JJ1BonusLevel::JJ1BonusLevel (Game* owner, char * fileName, bool multi) : Level(
+ 	char *string, *fileString;
+ 	int count, x, y;
+ 
++#ifdef OJ32X
++	// PORT32X: the bonus levels' files and pictures come into the cart (one pack for all)
++	oj32x_level_pack(fileName);
++#endif
++
+ 	try {
+ 
+ 		font = new Font(true);
 diff --git a/oj/src/jj1/level/jj1level.cpp b/oj/src/jj1/level/jj1level.cpp
 index 2d890c2..a83adb1 100644
 --- a/oj/src/jj1/level/jj1level.cpp
@@ -773,7 +816,7 @@ index 306b9e9..1a0c639 100644
  						}
  						break;
 diff --git a/oj/src/level/level.cpp b/oj/src/level/level.cpp
-index 1ab7284..d058e71 100644
+index 1ab7284..2c34cc4 100644
 --- a/oj/src/level/level.cpp
 +++ b/oj/src/level/level.cpp
 @@ -28,6 +28,9 @@
@@ -786,7 +829,20 @@ index 1ab7284..d058e71 100644
  
  #include "game/game.h"
  #include "io/controls.h"
-@@ -428,6 +431,10 @@ int Level::loop (bool& menu, int& option, bool& message) {
+@@ -119,6 +122,12 @@ int Level::playScene (const char* file) {
+ 	JJ1Scene* scene;
+ 	int ret;
+ 
++#ifdef OJ32X_MARS
++	// PORT32X: no cutscenes on the 32X (Micronut99, J9)
++	(void)file;
++	return E_NONE;
++#endif
++
+ 	delete paletteEffects;
+ 	paletteEffects = NULL;
+ 
+@@ -428,6 +437,10 @@ int Level::loop (bool& menu, int& option, bool& message) {
  
  
  	// Main loop
@@ -846,10 +902,23 @@ index 71b7fff..e5c8a6f 100644
  
  		if (event.type == SDL_EVENT_QUIT) return E_QUIT;
 diff --git a/oj/src/menu/mainmenu.cpp b/oj/src/menu/mainmenu.cpp
-index b898e56..a9d0b8f 100644
+index b898e56..7ea0eb5 100644
 --- a/oj/src/menu/mainmenu.cpp
 +++ b/oj/src/menu/mainmenu.cpp
-@@ -417,10 +417,16 @@ int MainMenu::run () {
+@@ -232,7 +232,12 @@ int MainMenu::select (int option) {
+ 
+ 		case 5: // Exit
+ 
++#ifdef OJ32X_MARS
++			// PORT32X: no "Exit game" on a console (Micronut99, J9)
++			break;
++#else
+ 			return E_RETURN;
++#endif
+ 
+ 	}
+ 
+@@ -417,10 +422,16 @@ int MainMenu::run () {
  		SDL_Delay(T_MENU_FRAME);
  
  
