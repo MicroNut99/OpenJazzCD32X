@@ -272,3 +272,14 @@ Graphics into the cart, tested on the PC: a cart image in the host build (4 MB, 
 by a "68000" copy routine, read-only for the game), the decoded tile set, sprites, fonts and
 menu pictures placed there, the level grid split. Goal: SDRAM heap under ~150 KB in every
 level, regression still 0 different.
+
+## J4b7 (console video 1005261759)
+- Chilly's white text shows at the start (Sub-CPU boot), no green: OK.
+- Splash colours washed out (lavender instead of purple) with the Genesis display on + text
+  priority bit during the splash; J4a (display off during the splash) was vivid. So:
+  `OJ_DIAG_TEXT 0` (loader switches the Genesis display off when the splash appears) and
+  `OJ32X_DIAG_TEXT 0`; KOBO_BOOT_TEXT stays 1: the white text shows during the Sub-CPU boot,
+  before the splash - the J4a/OpenLara-proven picture with the white text in front of it.
+- The boot test was drawn OVER the splash: text_screen cleared with byte writes of 0, which did
+  not land in the frame buffer; J4a's clean screens came from clear_back_buffer's 32-bit
+  writes. text_screen now clears with 32-bit writes.

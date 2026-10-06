@@ -59,7 +59,7 @@
  * until C++ start-up has worked (a crash before that still shows the Sub-CPU's last STATE);
  * 0 = text off at once. Either way it goes off for the engine's own screens (CMD 52). */
 #ifndef OJ32X_DIAG_TEXT
-#define OJ32X_DIAG_TEXT 1
+#define OJ32X_DIAG_TEXT 0
 #endif
 
 /* SPLASH SWITCH (like Kobo's KOBO_SPLASH / SPLASH_HOLD, sh2_main.c K15/K16): 1 = the
@@ -428,9 +428,13 @@ static void text_screen(uint16_t bg, uint16_t fg, const char *const *lines, int 
 	for (int y = 0; y < 256; ++y)
 		FB16[y] = (uint16_t)(FB_PIX_WORD + (y < PLAT_SCREEN_H ? y : 0) * FB_LINE_WORDS);
 
+	/* J4b7: clear with 32-bit writes. Console video: byte writes of 0 did not clear the
+	 * frame buffer (the boot test was drawn over the splash), while clear_back_buffer's
+	 * 32-bit writes did (J4a: clean screens). main.c K12 saw zero data not landing too. */
 	volatile uint8_t *pix = (volatile uint8_t *)FB16 + FB_PIX_WORD * 2;
-	for (int i = 0; i < PLAT_SCREEN_W * PLAT_SCREEN_H; ++i)
-		pix[i] = 0;
+	volatile uint32_t *pix32 = FB32 + (FB_PIX_WORD * 2) / 4;
+	for (int i = 0; i < PLAT_SCREEN_W * PLAT_SCREEN_H / 4; ++i)
+		pix32[i] = 0;
 
 	int row = 1;
 	for (int l = 0; l < count && row < PLAT_SCREEN_H / 12; ++l)
