@@ -59,7 +59,7 @@
  * until C++ start-up has worked (a crash before that still shows the Sub-CPU's last STATE);
  * 0 = text off at once. Either way it goes off for the engine's own screens (CMD 52). */
 #ifndef OJ32X_DIAG_TEXT
-#define OJ32X_DIAG_TEXT 1
+#define OJ32X_DIAG_TEXT 0
 #endif
 
 /* SPLASH SWITCH (like Kobo's KOBO_SPLASH / SPLASH_HOLD, sh2_main.c K15/K16): 1 = the
