@@ -20,6 +20,8 @@ struct SDL_Surface;
 SDL_Surface *oj32x_cart_surface(const unsigned char *pixels, int w, int h);
 /* J3: a finished surface moves to the cart (returns the new one; the old one is freed) */
 SDL_Surface *oj32x_freeze(SDL_Surface *s);
+/* J10: a band view of a surface (same pixels, own clip rectangle; index 0 or 1) */
+SDL_Surface *oj32x_view(SDL_Surface *base, int index, int x, int y, int w, int h);
 extern "C" {
 #endif
 
@@ -28,6 +30,15 @@ void oj32x_packs_ready(void);
 
 /* J5: load the cart pack for a level file (JJ1Level::load) */
 void oj32x_level_pack(const char *levelFile);
+
+/* J10: a sound effect (32X: Sega CD PCM) */
+void oj32x_sfx(int id);
+
+/* J10: music as CD audio (fileName NULL = stop) */
+void oj32x_music(const char *fileName, bool restart);
+
+/* J10: run fn(arg, 0) and fn(arg, 1); on the 32X on both SH2s at the same time */
+void oj32x_parallel(void (*fn)(void *, int), void *arg);
 
 /* J5: skip the intro cutscene (32X: always; PC build: T32X_SKIP_INTRO=1) */
 int oj32x_skip_intro(void);

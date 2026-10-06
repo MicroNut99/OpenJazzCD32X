@@ -900,3 +900,12 @@ __attribute__((constructor)) static void heap_report_init(void)
 /* J5: the PC build keeps the screen in memory (plat_present) */
 uint8_t *plat_canvas(void) { return NULL; }
 void plat_present_canvas(const uint16_t *palette555) { (void)palette555; }
+
+void plat_parallel(void (*fn)(void *, int), void *arg)
+{
+	fn(arg, 0);
+	fn(arg, 1);
+}
+
+void plat_sfx(int id) { (void)id; }
+void plat_music(int track) { (void)track; }

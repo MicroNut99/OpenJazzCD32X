@@ -141,7 +141,16 @@ void plat_cart_write(uint32_t offset, const void *src, size_t bytes);
  * length, or a negative number when there is none. plat_cart_ptr: where the game reads a cart
  * offset. */
 int32_t plat_load_pack(int id, uint32_t cart_offset, uint32_t max_bytes);
-void plat_packs_ready(void);   /* PC: mount T32X_PACK now if not yet; 32X: nothing */
+void plat_packs_ready(void);
+
+/* J10: fn(arg, 1) on the slave SH2 while fn(arg, 0) runs here; returns when both are done
+ * (PC: one after the other). fn may only draw and read - no memory allocation, no logging. */
+void plat_parallel(void (*fn)(void *, int), void *arg);
+
+/* J10: play sound effect n (OpenJazz SE::Type, 1..) - 32X: Sega CD PCM; PC: nothing */
+void plat_sfx(int id);
+/* J10: CD audio track n, repeating (0 = stop); only with OJ32X_MUSIC 1 (tracks on the disc) */
+void plat_music(int track);   /* PC: mount T32X_PACK now if not yet; 32X: nothing */
 const uint8_t *plat_cart_ptr(uint32_t cart_offset);
 
 /* Base of the ROM file system image (see tools/mkromfs.py). */

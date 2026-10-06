@@ -534,6 +534,44 @@ void SDL_MixAudio(Uint8 *dst, const Uint8 *src, Uint32 len, int volume)
 /* ------------------------------------------------------------------ misc */
 void oj32x_log(const char *msg) { plat_log(msg); }
 
+/* J10: a second surface on the same pixels with its own clip rectangle (band x,y,w,h inside
+ * base's clip rectangle) - so the two SH2s can draw into two bands of one screen at once */
+static Surf *views[2];
+
+SDL_Surface *oj32x_view(SDL_Surface *base, int index, int x, int y, int w, int h)
+{
+	if (index < 0 || index > 1) return base;
+	if (!views[index]) views[index] = new_surface(base->w, base->h, base->pixels);  /* master only: see oj32x_parallel */
+	Surf *v = views[index];
+	v->s.pixels = base->pixels;
+	v->s.pitch = base->pitch;
+	v->s.w = base->w;
+	v->s.h = base->h;
+	SDL_Rect r = { (Sint16)x, (Sint16)y, (Uint16)w, (Uint16)h };
+	SDL_SetClipRect(&v->s, &r);
+	const SDL_Rect &c = base->clip_rect;
+	int x0 = v->s.clip_rect.x > c.x ? v->s.clip_rect.x : c.x;
+	int y0 = v->s.clip_rect.y > c.y ? v->s.clip_rect.y : c.y;
+	int x1 = v->s.clip_rect.x + v->s.clip_rect.w, y1 = v->s.clip_rect.y + v->s.clip_rect.h;
+	if (c.x + c.w < x1) x1 = c.x + c.w;
+	if (c.y + c.h < y1) y1 = c.y + c.h;
+	if (x1 < x0) x1 = x0;
+	if (y1 < y0) y1 = y0;
+	v->s.clip_rect.x = (Sint16)x0; v->s.clip_rect.y = (Sint16)y0;
+	v->s.clip_rect.w = (Uint16)(x1 - x0); v->s.clip_rect.h = (Uint16)(y1 - y0);
+	return &v->s;
+}
+
+/* J10: fn(arg, 0) and fn(arg, 1) - on the 32X at the same time on the master and the slave
+ * SH2 (plat_parallel); on the PC one after the other (same pixels, the bands do not overlap) */
+void oj32x_parallel(void (*fn)(void *, int), void *arg)
+{
+	/* the views are made here, on the master: malloc must never run on both SH2s at once */
+	for (int i = 0; i < 2; i++)
+		if (!views[i] && screen_surface) views[i] = new_surface(screen_surface->w, screen_surface->h, screen_surface->pixels);
+	plat_parallel(fn, arg);
+}
+
 /* J5: the pack for a level file (LEVELn.www -> k = www * 10 + n, disc file OJ<k>.PAK). */
 void oj32x_level_pack(const char *levelFile)
 {
@@ -569,6 +607,64 @@ void oj32x_level_pack(const char *levelFile)
 }
 
 void oj32x_packs_ready(void) { plat_packs_ready(); }
+
+void oj32x_sfx(int id) { plat_sfx(id); }
+
+/* J10: music as CD audio. The game's 35 music files in alphabetical order are disc tracks 2-36
+ * (tools/music_tracks.txt - Micronut99 provides the WAVs); NULL = stop. */
+void oj32x_music(const char *fileName, bool restart)
+{
+	static const char *const songs[] = {
+		"BONUS",
+		"BOSS",
+		"ENDLEVEL",
+		"ENDSONG",
+		"MENUSNG",
+		"SECRET",
+		"SONG0",
+		"SONG1",
+		"SONG10",
+		"SONG11",
+		"SONG12",
+		"SONG13",
+		"SONG14",
+		"SONG15",
+		"SONG16",
+		"SONG17",
+		"SONG2",
+		"SONG3",
+		"SONG4",
+		"SONG5",
+		"SONG6",
+		"SONG7",
+		"SONG8",
+		"SONG9",
+		"SONGCD0",
+		"SONGCD1",
+		"SONGCD2",
+		"SONGCD3",
+		"SONGCD4",
+		"SONGCD5",
+		"SONGCD6",
+		"SONGCD7",
+		"SONGCD8",
+		"XM2",
+		"XM3"
+	};
+	static int current = -1;
+	if (!fileName) { current = -1; plat_music(0); return; }
+	const char *b = fileName;
+	for (const char *p = fileName; *p; ++p) if (*p == '/' || *p == '\\') b = p + 1;
+	for (int i = 0; i < (int)(sizeof songs / sizeof songs[0]); i++) {
+		size_t n = strlen(songs[i]);
+		if (strncasecmp(b, songs[i], n) == 0 && b[n] == '.') {
+			if (i == current && !restart) return;
+			current = i;
+			plat_music(i + 2);
+			return;
+		}
+	}
+}
 
 int oj32x_skip_intro(void)
 {

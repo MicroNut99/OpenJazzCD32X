@@ -315,10 +315,20 @@ index 9d2ea85..a0f1198 100644
  	// get current time
  	time_t t = time(nullptr);
 diff --git a/oj/src/io/sound.cpp b/oj/src/io/sound.cpp
-index 9f5be2d..d7a5b92 100644
+index 9f5be2d..abc0816 100644
 --- a/oj/src/io/sound.cpp
 +++ b/oj/src/io/sound.cpp
-@@ -293,7 +293,13 @@ void openAudio () {
+@@ -24,6 +24,9 @@
+ 
+ #include "file.h"
+ #include "sound.h"
++#ifdef OJ32X_MARS
++#include "oj32x.h"
++#endif
+ #include "util.h"
+ #include "io/log.h"
+ #include "platforms/platforms.h"
+@@ -293,7 +296,13 @@ void openAudio () {
   */
  void closeAudio () {
  	stopMusic();
@@ -332,6 +342,41 @@ index 9f5be2d..d7a5b92 100644
  
  #if OJ_SDL3
  	SDL_CloseAudioDevice(SDL_GetAudioStreamDevice(audioStream));
+@@ -325,6 +334,11 @@ void closeAudio () {
+  * @param restart Restart music when same file is played.
+  */
+ void playMusic (const char * fileName, bool restart) {
++#ifdef OJ32X_MARS
++	// PORT32X (J10): CD audio - track n for the n-th music file (tools/music_tracks.txt)
++	oj32x_music(fileName, restart);
++	return;
++#endif
+ 	/* Only stop any existing music playing, if a different file
+ 	   should be played or a restart has been requested. */
+ 	if ((currentMusic && (strcmp(fileName, currentMusic) == 0)) && !restart)
+@@ -397,6 +411,10 @@ void pauseMusic (bool pause) {
+  * Stop the current music.
+  */
+ void stopMusic () {
++#ifdef OJ32X_MARS
++	oj32x_music(nullptr, false);  // PORT32X (J10): CD audio off
++	return;
++#endif
+ 	// Stop the music playing
+ 	LockAudio();
+ 
+@@ -664,6 +682,11 @@ void freeSounds() {
+  * @param index Number of the sound to play
+  */
+ void playSound(SE::Type index) {
++#ifdef OJ32X_MARS
++	// PORT32X (J10): the Sega CD's PCM chip plays it (SFX00.BIN, tools/make_oj_sfx.py)
++	if (index != SE::NONE) oj32x_sfx(static_cast<int>(index));
++	return;
++#endif
+ 	// silently ignore
+ 	if (!soundsLoaded || index == SE::NONE) return;
+ 
 diff --git a/oj/src/jj1/bonuslevel/jj1bonuslevel.cpp b/oj/src/jj1/bonuslevel/jj1bonuslevel.cpp
 index c868799..abbf555 100644
 --- a/oj/src/jj1/bonuslevel/jj1bonuslevel.cpp
@@ -421,7 +466,7 @@ index 2d890c2..a83adb1 100644
  }
  
 diff --git a/oj/src/jj1/level/jj1level.h b/oj/src/jj1/level/jj1level.h
-index 94a0081..ddfb5a0 100644
+index 94a0081..33a0a8c 100644
 --- a/oj/src/jj1/level/jj1level.h
 +++ b/oj/src/jj1/level/jj1level.h
 @@ -146,11 +146,20 @@
@@ -459,6 +504,208 @@ index 94a0081..ddfb5a0 100644
  		SDL_Color     skyPalette[MAX_PALETTE_COLORS]; ///< Full palette for sky background
  		bool          sky; ///< Whether or not to use sky background
  		unsigned char skyOrb; ///< The tile to use as the background sun/moon/etc.
+@@ -254,6 +270,13 @@ class JJ1Level : public Level {
+ 		int  load (char* fileName, bool checkpoint);
+ 		int  step ();
+ 		void draw ();
++#ifdef OJ32X
++	public:
++		/// PORT32X (J10): one band of the tile layers - the master and the slave SH2 each
++		/// draw half of the screen at the same time (port/plat_mars.c oj32x_parallel)
++		void drawBand (SDL_Surface* target, int vX, int vY, int viewH, bool foreground);
++	private:
++#endif
+ 		bool handleSave (int slot) override;
+ 
+ 	public:
+diff --git a/oj/src/jj1/level/jj1levelframe.cpp b/oj/src/jj1/level/jj1levelframe.cpp
+index a4a5b02..43c8d52 100644
+--- a/oj/src/jj1/level/jj1levelframe.cpp
++++ b/oj/src/jj1/level/jj1levelframe.cpp
+@@ -38,6 +38,9 @@
+ #include "io/gfx/font.h"
+ #include "io/gfx/video.h"
+ #include "util.h"
++#ifdef OJ32X
++#include "oj32x.h"
++#endif
+ 
+ 
+ /**
+@@ -215,9 +218,127 @@ int JJ1Level::step () {
+ /**
+  * Draw the level.
+  */
++#ifdef OJ32X
++namespace {
++	struct OJ32XBand { JJ1Level* level; int vX, vY, viewH; bool foreground; };
++	void oj32xBandJob (void* arg, int part) {
++		OJ32XBand* j = static_cast<OJ32XBand*>(arg);
++		// part 0 = top half, part 1 = bottom half of the view
++		const int mid = j->viewH / 2;
++		const int y0 = part ? mid : 0, y1 = part ? j->viewH : mid;
++		SDL_Surface* target = oj32x_view(canvas, part, 0, y0, canvasW, y1 - y0);
++		j->level->drawBand(target, j->vX, j->vY, j->viewH, j->foreground);
++	}
++}
++
++/**
++ * PORT32X (J10): the original's sky + background tile pass (foreground = false) or its
++ * foreground tile pass (true), drawn into one band (target's clip rectangle). Same pixels as
++ * the original code: only the target surface and the row range differ.
++ */
++void JJ1Level::drawBand (SDL_Surface* target, int vX, int vY, int viewH, bool foreground) {
++
++	SDL_Rect src, dst;
++	GridElement* ge;
++	const int bandTop = target->clip_rect.y, bandBottom = target->clip_rect.y + target->clip_rect.h;
++	auto fill = [&](int x, int y, int w, int h, int colour) {
++		SDL_Rect r = { (Sint16)x, (Sint16)y, (Uint16)w, (Uint16)h };
++		SDL_FillRect(target, &r, colour);
++	};
++
++	src.w = TTOI(1);
++	src.h = TTOI(1);
++	src.x = 0;
++
++	if (!foreground) {
++
++		if (sky) {
++
++			int bgScale;
++			if (canvasW > SW) bgScale = ((canvasH - 1) / 100) + 1;
++			else bgScale = ((canvasH - 34) / 100) + 1;
++
++			for (int y = 0; y < viewH; y += bgScale)
++				if (y + bgScale > bandTop && y < bandBottom)
++					fill(0, y, canvasW, bgScale, 156 + (y / bgScale));
++
++			if (skyOrb) {
++				dst.x = ((canvasW * 4) / 5) - (vX & 3);
++				dst.y = ((canvasH - 33) * 3) / 25;
++				src.y = TTOI(skyOrb + (vX & 3));
++				SDL_BlitSurface(tileSet, &src, target, &dst);
++			}
++
++		} else {
++
++			fill(0, 0, canvasW, canvasH, 127);
++
++		}
++
++	}
++
++	for (int y = 0; y <= ITOT(viewH - 1) + 1; y++) {
++
++		const int sy = TTOI(y) - (vY & 31);
++		if (sy + 32 <= bandTop || sy >= bandBottom) continue;
++
++		for (int x = 0; x <= ITOT(canvasW - 1) + 1; x++) {
++
++			const int sx = TTOI(x) - (vX & 31);
++
++			if ((x + ITOT(vX) >= 256) || (y + ITOT(vY) >= 64)) {
++				if (!foreground) fill(sx, sy, 32, 32, LEVEL_BLACK);
++				continue;
++			}
++
++			ge = grid[y + ITOT(vY)] + x + ITOT(vX);
++
++			if (!foreground) {
++
++				if (ge->bg) fill(sx, sy, 32, 32, LEVEL_BLACK);
++
++				if ((ge->event != 123) && (ge->event != 124) && (ge->event != 125) &&
++					(eventSet[ge->event].movement != 37) &&
++					(eventSet[ge->event].movement != 38)) {
++					dst.x = sx;
++					dst.y = sy;
++					src.y = TTOI(ge->tile);
++					SDL_BlitSurface(tileSet, &src, target, &dst);
++				}
++
++			} else {
++
++				if (ge->event == 123) {
++					dst.x = sx;
++					dst.y = sy;
++					if (ticks & 64) src.y = TTOI(eventSet[ge->event].multiB);
++					else src.y = TTOI(eventSet[ge->event].multiA);
++					SDL_BlitSurface(tileSet, &src, target, &dst);
++				}
++
++				if ((ge->event == 124) || (ge->event == 125) ||
++					(eventSet[ge->event].movement == 37) ||
++					(eventSet[ge->event].movement == 38)) {
++					dst.x = sx;
++					dst.y = sy;
++					src.y = TTOI(ge->tile);
++					SDL_BlitSurface(tileSet, &src, target, &dst);
++				}
++
++			}
++
++		}
++
++	}
++
++}
++#endif
++
+ void JJ1Level::draw () {
+ 
++#ifndef OJ32X
+ 	GridElement *ge;
++#endif
+ 	SDL_Rect src, dst;
+ 	int viewH = canvasH;
+ 	int vX, vY;
+@@ -264,6 +385,13 @@ void JJ1Level::draw () {
+ 	src.x = 0;
+ 
+ 
++#ifdef OJ32X
++	// PORT32X (J10): sky and background tiles in two bands, one per SH2, at the same time
++	{
++		OJ32XBand job = { this, vX, vY, viewH, false };
++		oj32x_parallel(oj32xBandJob, &job);
++	}
++#else
+ 	// If there is a sky, draw it
+ 	if (sky) {
+ 
+@@ -341,6 +469,8 @@ void JJ1Level::draw () {
+ 	}
+ 
+ 
++#endif
++
+ 	// Show active events
+ 	if (events) events->draw(ticks, change);
+ 
+@@ -354,6 +484,13 @@ void JJ1Level::draw () {
+ 
+ 
+ 
++#ifdef OJ32X
++	// PORT32X (J10): foreground tiles in two bands, one per SH2
++	{
++		OJ32XBand job = { this, vX, vY, viewH, true };
++		oj32x_parallel(oj32xBandJob, &job);
++	}
++#else
+ 	// Show foreground tiles
+ 
+ 	for (y = 0; y <= ITOT(viewH - 1) + 1; y++) {
+@@ -404,6 +541,8 @@ void JJ1Level::draw () {
+ 
+ 	}
+ 
++#endif
++
+ 	// FIXME: Temporary lines showing the water level
+ 	video.drawRect(0, FTOI(waterLevel - viewY), canvasW, 2, 24);
+ 	video.drawRect(0, FTOI(waterLevel - viewY) + 3, canvasW, 1, 24);
 diff --git a/oj/src/jj1/level/jj1levelload.cpp b/oj/src/jj1/level/jj1levelload.cpp
 index cfc4d66..646256f 100644
 --- a/oj/src/jj1/level/jj1levelload.cpp
@@ -934,4 +1181,20 @@ index b898e56..7ea0eb5 100644
 +#endif
  
  		// draw logo and version string
+ 
+diff --git a/oj/src/menu/menu.h b/oj/src/menu/menu.h
+index cea5afb..4d2a07a 100644
+--- a/oj/src/menu/menu.h
++++ b/oj/src/menu/menu.h
+@@ -31,7 +31,11 @@
+ 
+ // Constants
+ 
++#ifdef OJ32X_MARS
++#define ESCAPE_STRING "(b) back"  // PORT32X: the pad's B button
++#else
+ #define ESCAPE_STRING "(esc) quits"
++#endif
+ 
+ #define MAX_EPISODES 11
  

@@ -447,3 +447,22 @@ Game, A = C, more frames per second without changing the game's speed.
   buffer) - more than the 218 KB. So on the 32X a bonus level is skipped (Game::playLevel,
   back to where the game came from); the bonus pack is not built yet. Needs the same kind of
   map work as the levels (tiles read-only from the pack, events as a small table).
+
+## J10 (one CD-R: as much as possible in one go)
+- Slave SH2 draws: JJ1Level::drawBand draws the sky + background tiles and the foreground tiles
+  for one band of the view; oj32x_parallel runs the top band on the master and the bottom band
+  on the slave at the same time (plat_parallel: job in SDRAM through the cache-through address,
+  the slave purges its cache before each job; the band views are made on the master, so malloc
+  never runs on both). Same pixels as the original (regression 0 different). Switch
+  OJ32X_SLAVE_DRAWS (plat_mars.c), 0 = master draws both bands.
+  JJ1 itself has no parallax layer: the sky is a palette gradient (moves with the view by
+  palette), the rest are tiles that scroll with the level - smoothness = frame rate.
+- Sound effects: tools/make_oj_sfx.py turns SOUNDS.000 (22 sounds, unsigned 8-bit 11025 Hz)
+  into SFX00.BIN (KSFX, 5 kHz, all 22 in 60 KB of the PCM chip); CMD 53 loads it at boot;
+  OpenJazz's playSound puts the effect on the next pad request (COMM0 = 48 | n << 8, n = SE::Type)
+  - main.c's proven K33/OL-6 path, unchanged.
+- Music: CD audio, tracks 2-36 = the 35 music files in alphabetical order
+  (tools/music_tracks.txt). Micronut99 provides WAVs in music/ named like the files; then
+  build.sh makes the tracks (make_music_tracks.py) and builds with OJ32X_MUSIC 1 (CMD 45 to
+  play, 54 to stop). Without WAVs the engine asks for no tracks.
+- Menus: "(esc) quits" is text (fontbig) -> "(b) back" on the 32X.

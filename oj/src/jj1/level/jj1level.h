@@ -270,6 +270,13 @@ class JJ1Level : public Level {
 		int  load (char* fileName, bool checkpoint);
 		int  step ();
 		void draw ();
+#ifdef OJ32X
+	public:
+		/// PORT32X (J10): one band of the tile layers - the master and the slave SH2 each
+		/// draw half of the screen at the same time (port/plat_mars.c oj32x_parallel)
+		void drawBand (SDL_Surface* target, int vX, int vY, int viewH, bool foreground);
+	private:
+#endif
 		bool handleSave (int slot) override;
 
 	public:

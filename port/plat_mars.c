@@ -74,6 +74,12 @@
 
 /* DIRECT FRAME BUFFER SWITCH (J5): 1 = the game draws its screen straight into the 32X frame
  * buffer (no 64 KB screen in SDRAM, no copy each frame); 0 = SDRAM screen + copy (J4). */
+/* SLAVE SH2 SWITCH (J10): 1 = the slave SH2 draws the bottom half of the level's tile layers
+ * while the master draws the top half; 0 = the master draws both (one after the other). */
+#ifndef OJ32X_SLAVE_DRAWS
+#define OJ32X_SLAVE_DRAWS 1
+#endif
+
 #ifndef OJ32X_DIRECT_FB
 #define OJ32X_DIRECT_FB 1
 #endif
@@ -89,7 +95,8 @@
 #define CMD_OPEN_FILE    38      /* main.c: COMM2 = n opens IMAGE<n>.RAW for cart slot n; length -> COMM8 (32 bit) */
 #define CMD_CHUNK_TO_CART 46     /* main.c: COMM2 = chunk (bit 15: no read-back, OL-13); reply COMM12 = bad */
 #define PACK_SLOT        8       /* IMAGE8.RAW -> cart 8 * 128 KB = 0x100000 = PLAT_CART_DATA_OFFSET */
-#define CMD_CHUNK_TO_FB  51      /* main.c: file chunk -> frame buffer (the loader's splash) */
+#define CMD_CHUNK_TO_FB  51
+#define CMD_LOAD_SFX     53      /* main.c: SFX<COMM2>.BIN -> PCM chip; COMM12 = number of effects */      /* main.c: file chunk -> frame buffer (the loader's splash) */
 #define MARS_COMM8_32    (*(volatile uint32_t *)0x20004028)
 #define CMD_TEXT_ONOFF   52
 
@@ -111,10 +118,40 @@ void pri_cmd_handler(void) { MARS_CMD_CLR = 0; }
 void sec_cmd_handler(void) { MARS_CMD_CLR = 0; }
 void sec_dma1_handler(void) { }
 
-/* The slave SH2: idle for now (Tyrian's sound mixer comes back with the sound round). */
+/* J10: the slave SH2 draws half of the level picture (plat_parallel). The job lives in SDRAM
+ * and both SH2s use it through the cache-through address (0x26xxxxxx), so neither sees a stale
+ * copy; the slave purges its cache before each job, so the level data it reads is current
+ * (the SH2 caches write through: the master's writes are already in SDRAM). */
+typedef struct { void (*fn)(void *, int); void *arg; int go; int done; } SlaveJob;
+static SlaveJob slave_job;
+#define JOB ((volatile SlaveJob *)((uintptr_t)&slave_job | 0x20000000u))
+
 void secondary(void)
 {
-	for (;;) { }
+	for (;;)
+	{
+		while (!JOB->go) { }
+		JOB->go = 0;
+		*(volatile uint8_t *)0xFFFFFE92 = 0x11;   /* purge + enable the slave's cache */
+		JOB->fn(JOB->arg, 1);
+		JOB->done = 1;
+	}
+}
+
+void plat_parallel(void (*fn)(void *, int), void *arg)
+{
+	if (!OJ32X_SLAVE_DRAWS)
+	{
+		fn(arg, 0);
+		fn(arg, 1);
+		return;
+	}
+	JOB->fn = fn;
+	JOB->arg = arg;
+	JOB->done = 0;
+	JOB->go = 1;
+	fn(arg, 0);
+	while (!JOB->done) { }
 }
 
 /* ------------------------------------------------------------ helpers */
@@ -224,6 +261,7 @@ static void cxx_start(void)
 int main(int argc, char *argv[]);
 void plat_exit(int code) __attribute__((noreturn));
 static void boot_test(void);
+static void sfx_load(void);
 
 /* ---- J4c: the data pack, with the loader's progress bar on the splash -------------------
  * The bar is the loader's (cdloader_sh2.c splash_bar: same place, same colours 253-255 from
@@ -320,6 +358,7 @@ void plat_mars_entry(void)
 	{ void oj32x_cxx_handlers(void); oj32x_cxx_handlers(); }   /* J7: name what stops the game */
 	plat_log("PACK LOADING");
 	pack_load();
+	sfx_load();
 	if (OJ32X_SPLASH)
 		while (vblank_count - splash_from < OJ32X_SPLASH_HOLD) { }
 	set_genesis_text(0);
@@ -372,6 +411,39 @@ uint32_t plat_random_seed(void)
 }
 
 /* ------------------------------------------------------------------ pad */
+/* J10: sound effects on the Sega CD's PCM chip (SFX00.BIN, loaded at boot by CMD 53) */
+static volatile uint16_t sfx_pending;
+
+void plat_sfx(int id)
+{
+	if (id > 0 && id < 256)
+		sfx_pending = (uint16_t)id;
+}
+
+/* MUSIC SWITCH (J10): 1 = CD audio tracks 2-36 for the game's music (build.sh sets it when
+ * music/*.wav exist); 0 = no music (no such tracks on the disc - do not ask for them). */
+#ifndef OJ32X_MUSIC
+#define OJ32X_MUSIC 0
+#endif
+#define CMD_PLAY_TRACK   45      /* main.c: COMM2 = track (bit 15 = once) */
+#define CMD_MUSIC_OFF    54
+
+void plat_music(int track)
+{
+	if (!OJ32X_MUSIC) return;
+	if (track <= 0) { send_cmd(CMD_MUSIC_OFF, 4000000UL); return; }
+	MARS_COMM2 = (uint16_t)track;
+	send_cmd(CMD_PLAY_TRACK, 4000000UL);
+}
+
+static void sfx_load(void)
+{
+	MARS_COMM2 = 0;            /* SFX00.BIN */
+	MARS_COMM12 = 0;
+	send_cmd(CMD_LOAD_SFX, 4000000UL);
+	if (MARS_COMM12 == 0) plat_log("SOUND EFFECTS: SFX00.BIN NOT LOADED");
+}
+
 uint16_t plat_read_pad(void)
 {
 	static uint16_t pad;
@@ -382,7 +454,10 @@ uint16_t plat_read_pad(void)
 		return pad;
 	last_ms = now;
 
-	if (!send_cmd(CMD_GET_PAD, 40000UL))
+	/* J10: a waiting sound effect rides on the pad request (main.c K33: COMM0 = 48 | n << 8) */
+	const uint16_t fx = sfx_pending;
+	sfx_pending = 0;
+	if (!send_cmd((uint16_t)(CMD_GET_PAD | (fx << 8)), 40000UL))
 		return pad;
 
 	uint16_t bits = MARS_COMM8;
@@ -685,7 +760,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J9   " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J10  " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&

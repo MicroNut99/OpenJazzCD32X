@@ -38,6 +38,9 @@
 #include "io/gfx/font.h"
 #include "io/gfx/video.h"
 #include "util.h"
+#ifdef OJ32X
+#include "oj32x.h"
+#endif
 
 
 /**
@@ -215,9 +218,127 @@ int JJ1Level::step () {
 /**
  * Draw the level.
  */
+#ifdef OJ32X
+namespace {
+	struct OJ32XBand { JJ1Level* level; int vX, vY, viewH; bool foreground; };
+	void oj32xBandJob (void* arg, int part) {
+		OJ32XBand* j = static_cast<OJ32XBand*>(arg);
+		// part 0 = top half, part 1 = bottom half of the view
+		const int mid = j->viewH / 2;
+		const int y0 = part ? mid : 0, y1 = part ? j->viewH : mid;
+		SDL_Surface* target = oj32x_view(canvas, part, 0, y0, canvasW, y1 - y0);
+		j->level->drawBand(target, j->vX, j->vY, j->viewH, j->foreground);
+	}
+}
+
+/**
+ * PORT32X (J10): the original's sky + background tile pass (foreground = false) or its
+ * foreground tile pass (true), drawn into one band (target's clip rectangle). Same pixels as
+ * the original code: only the target surface and the row range differ.
+ */
+void JJ1Level::drawBand (SDL_Surface* target, int vX, int vY, int viewH, bool foreground) {
+
+	SDL_Rect src, dst;
+	GridElement* ge;
+	const int bandTop = target->clip_rect.y, bandBottom = target->clip_rect.y + target->clip_rect.h;
+	auto fill = [&](int x, int y, int w, int h, int colour) {
+		SDL_Rect r = { (Sint16)x, (Sint16)y, (Uint16)w, (Uint16)h };
+		SDL_FillRect(target, &r, colour);
+	};
+
+	src.w = TTOI(1);
+	src.h = TTOI(1);
+	src.x = 0;
+
+	if (!foreground) {
+
+		if (sky) {
+
+			int bgScale;
+			if (canvasW > SW) bgScale = ((canvasH - 1) / 100) + 1;
+			else bgScale = ((canvasH - 34) / 100) + 1;
+
+			for (int y = 0; y < viewH; y += bgScale)
+				if (y + bgScale > bandTop && y < bandBottom)
+					fill(0, y, canvasW, bgScale, 156 + (y / bgScale));
+
+			if (skyOrb) {
+				dst.x = ((canvasW * 4) / 5) - (vX & 3);
+				dst.y = ((canvasH - 33) * 3) / 25;
+				src.y = TTOI(skyOrb + (vX & 3));
+				SDL_BlitSurface(tileSet, &src, target, &dst);
+			}
+
+		} else {
+
+			fill(0, 0, canvasW, canvasH, 127);
+
+		}
+
+	}
+
+	for (int y = 0; y <= ITOT(viewH - 1) + 1; y++) {
+
+		const int sy = TTOI(y) - (vY & 31);
+		if (sy + 32 <= bandTop || sy >= bandBottom) continue;
+
+		for (int x = 0; x <= ITOT(canvasW - 1) + 1; x++) {
+
+			const int sx = TTOI(x) - (vX & 31);
+
+			if ((x + ITOT(vX) >= 256) || (y + ITOT(vY) >= 64)) {
+				if (!foreground) fill(sx, sy, 32, 32, LEVEL_BLACK);
+				continue;
+			}
+
+			ge = grid[y + ITOT(vY)] + x + ITOT(vX);
+
+			if (!foreground) {
+
+				if (ge->bg) fill(sx, sy, 32, 32, LEVEL_BLACK);
+
+				if ((ge->event != 123) && (ge->event != 124) && (ge->event != 125) &&
+					(eventSet[ge->event].movement != 37) &&
+					(eventSet[ge->event].movement != 38)) {
+					dst.x = sx;
+					dst.y = sy;
+					src.y = TTOI(ge->tile);
+					SDL_BlitSurface(tileSet, &src, target, &dst);
+				}
+
+			} else {
+
+				if (ge->event == 123) {
+					dst.x = sx;
+					dst.y = sy;
+					if (ticks & 64) src.y = TTOI(eventSet[ge->event].multiB);
+					else src.y = TTOI(eventSet[ge->event].multiA);
+					SDL_BlitSurface(tileSet, &src, target, &dst);
+				}
+
+				if ((ge->event == 124) || (ge->event == 125) ||
+					(eventSet[ge->event].movement == 37) ||
+					(eventSet[ge->event].movement == 38)) {
+					dst.x = sx;
+					dst.y = sy;
+					src.y = TTOI(ge->tile);
+					SDL_BlitSurface(tileSet, &src, target, &dst);
+				}
+
+			}
+
+		}
+
+	}
+
+}
+#endif
+
 void JJ1Level::draw () {
 
+#ifndef OJ32X
 	GridElement *ge;
+#endif
 	SDL_Rect src, dst;
 	int viewH = canvasH;
 	int vX, vY;
@@ -264,6 +385,13 @@ void JJ1Level::draw () {
 	src.x = 0;
 
 
+#ifdef OJ32X
+	// PORT32X (J10): sky and background tiles in two bands, one per SH2, at the same time
+	{
+		OJ32XBand job = { this, vX, vY, viewH, false };
+		oj32x_parallel(oj32xBandJob, &job);
+	}
+#else
 	// If there is a sky, draw it
 	if (sky) {
 
@@ -341,6 +469,8 @@ void JJ1Level::draw () {
 	}
 
 
+#endif
+
 	// Show active events
 	if (events) events->draw(ticks, change);
 
@@ -354,6 +484,13 @@ void JJ1Level::draw () {
 
 
 
+#ifdef OJ32X
+	// PORT32X (J10): foreground tiles in two bands, one per SH2
+	{
+		OJ32XBand job = { this, vX, vY, viewH, true };
+		oj32x_parallel(oj32xBandJob, &job);
+	}
+#else
 	// Show foreground tiles
 
 	for (y = 0; y <= ITOT(viewH - 1) + 1; y++) {
@@ -403,6 +540,8 @@ void JJ1Level::draw () {
 		}
 
 	}
+
+#endif
 
 	// FIXME: Temporary lines showing the water level
 	video.drawRect(0, FTOI(waterLevel - viewY), canvasW, 2, 24);

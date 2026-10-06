@@ -44,6 +44,8 @@ DEFS   := -DOJ32X -DOJ32X_MARS -DOJ_SDL1 -DPORTABLE -DNDEBUG \
           -DOJ_URL=\"http://alister.eu/jazz/oj/\" -DOJ_BUGREPORT=\"https://github.com/AlisterT/openjazz/issues\" \
           -DLIBXMP_CORE_PLAYER -DLIBXMP_STATIC -DXMP_SYM_VISIBILITY
 INCS   := -I$(PORT)/include -I$(PORT) -I$(SRC) -I$(EXT)/argparse -I$(EXT)/miniz -I$(EXT)/xmp -I$(EXT)/xmp/src -I$(EXT)/stb
+# J10: build.sh passes EXTRA_DEFS=-DOJ32X_MUSIC=1 when music/*.wav exist
+DEFS += $(EXTRA_DEFS)
 CXXFLAGS := -std=gnu++14 $(OPT) $(DEFS) $(INCS) -fno-threadsafe-statics -Wall -Wno-unused-result -Wno-narrowing -MMD -MP
 CFLAGS   := -std=gnu11 $(OPT) $(DEFS) $(INCS) -w -MMD -MP
 

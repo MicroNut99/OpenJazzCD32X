@@ -50,7 +50,12 @@ else
   rm -f "$ROMS"/OJ*.PAK
   "$HERE/tools/bake_levels.sh" "$DATA" "$ROMS/IMAGE8.RAW" "$ROMS"
 fi
-echo "==> engine";      make -C "$HERE/mars"
+echo "==> sound effects"; python3 "$HERE/tools/make_oj_sfx.py" "$DATA/SOUNDS.000" "$ROMS/SFX00.BIN"
+# J10: music - WAVs in music/ (named like the game's music files, tools/music_tracks.txt)
+MUSIC_WAVS=$(ls "$HERE"/music/*.wav "$HERE"/music/*.WAV 2>/dev/null | wc -l)
+if [ "$MUSIC_WAVS" -gt 0 ]; then MUSIC_DEFS="-DOJ32X_MUSIC=1"; else MUSIC_DEFS=""; fi
+rm -f "$HERE/mars/obj/port/plat_mars.o" "$HERE/mars/obj/port/plat_mars.d"   # the switch lives there
+echo "==> engine";      make -C "$HERE/mars" EXTRA_DEFS="$MUSIC_DEFS"
 [ -f "$HERE/mars/OPENJAZZ.32X" ] || { echo "*** mars/OPENJAZZ.32X was not made - stopping"; exit 1; }
 echo "==> ROM check";   python3 "$HERE/cd32x/ref/openlara/tools/prep_openlara_cd.py" "$HERE/mars/OPENJAZZ.32X" "$ROMS/OPENLARA.32X"
 echo "==> SH2 loader";  cd "$HERE/cd32x/sh2"    && make -f Makefile.cdloader clean && make -f Makefile.cdloader
@@ -73,7 +78,15 @@ import sys, wave
 w = wave.open(sys.argv[1], "wb"); w.setnchannels(2); w.setsampwidth(2); w.setframerate(44100)
 w.writeframes(b"\0" * 44100 * 4 * 2); w.close()
 PY
-cd "$HERE/cd32x/subcpu" && python3 make_mixed_cd2.py CDROMPlayer.iso silence.wav --out OpenJazzCD32X
+if [ "$MUSIC_WAVS" -gt 0 ]; then
+  echo "==> music: $MUSIC_WAVS WAVs -> CD audio tracks"
+  rm -rf "$HERE/cd32x/subcpu/soundtrack_cd"
+  python3 "$HERE/tools/make_music_tracks.py" "$HERE/tools/music_tracks.txt" "$HERE/music" "$HERE/cd32x/subcpu/soundtrack_cd"
+  cd "$HERE/cd32x/subcpu" && python3 make_mixed_cd2.py CDROMPlayer.iso soundtrack_cd/Track*.wav --out OpenJazzCD32X
+else
+  echo "==> no music/*.wav: one silent audio track (the engine plays no music)"
+  cd "$HERE/cd32x/subcpu" && python3 make_mixed_cd2.py CDROMPlayer.iso silence.wav --out OpenJazzCD32X
+fi
 echo
 echo "==> done:"
 echo "    emulator: cd32x/subcpu/OpenJazzCD32X.cue (with its .bin)"

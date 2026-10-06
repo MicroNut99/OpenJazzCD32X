@@ -24,6 +24,9 @@
 
 #include "file.h"
 #include "sound.h"
+#ifdef OJ32X_MARS
+#include "oj32x.h"
+#endif
 #include "util.h"
 #include "io/log.h"
 #include "platforms/platforms.h"
@@ -331,6 +334,11 @@ void closeAudio () {
  * @param restart Restart music when same file is played.
  */
 void playMusic (const char * fileName, bool restart) {
+#ifdef OJ32X_MARS
+	// PORT32X (J10): CD audio - track n for the n-th music file (tools/music_tracks.txt)
+	oj32x_music(fileName, restart);
+	return;
+#endif
 	/* Only stop any existing music playing, if a different file
 	   should be played or a restart has been requested. */
 	if ((currentMusic && (strcmp(fileName, currentMusic) == 0)) && !restart)
@@ -403,6 +411,10 @@ void pauseMusic (bool pause) {
  * Stop the current music.
  */
 void stopMusic () {
+#ifdef OJ32X_MARS
+	oj32x_music(nullptr, false);  // PORT32X (J10): CD audio off
+	return;
+#endif
 	// Stop the music playing
 	LockAudio();
 
@@ -670,6 +682,11 @@ void freeSounds() {
  * @param index Number of the sound to play
  */
 void playSound(SE::Type index) {
+#ifdef OJ32X_MARS
+	// PORT32X (J10): the Sega CD's PCM chip plays it (SFX00.BIN, tools/make_oj_sfx.py)
+	if (index != SE::NONE) oj32x_sfx(static_cast<int>(index));
+	return;
+#endif
 	// silently ignore
 	if (!soundsLoaded || index == SE::NONE) return;
 
