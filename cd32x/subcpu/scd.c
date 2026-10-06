@@ -22,8 +22,21 @@ extern int do_md_cmd4(int cmd, int arg1, int arg2, int arg3, int arg4);
 #define MD_CMD_PUT_STR 9
 #define TEXT_GREEN 0x2000
 
+/* OJ-J4B6 GREEN TEXT SWITCH for this file, the same pattern as KOBO_DIAG_TEXT in main.c (K19):
+   0 = scd_diag_print, scd_diag_print_row2, scd_timeout_print and scd_print_row print nothing
+   (the green CKPT / INITCD lines showed although KOBO_DIAG_TEXT was 0 - they never went
+   through print_diag). NOTE: the last two only print on an error (CD timeout, file not
+   found + root directory list) - set 1 when a disc does not boot. 1 = as before. */
+#ifndef SCD_DIAG_TEXT
+#define SCD_DIAG_TEXT 0
+#endif
+
 static void scd_diag_print(const char *msg)
 {
+#if !SCD_DIAG_TEXT
+    (void)msg;
+    return;                                   /* OJ-J4B6: green text off (see top) */
+#endif
     char *temp = (char *)0x0C0000;
     int i = 0;
     while (msg[i] && i < 39) { temp[i] = msg[i]; i++; }
@@ -34,6 +47,10 @@ static void scd_diag_print(const char *msg)
 
 static void scd_timeout_print(const char *msg)
 {
+#if !SCD_DIAG_TEXT
+    (void)msg;
+    return;                                   /* OJ-J4B6: green text off (see top) */
+#endif
     char *temp = (char *)0x0C0000;
     int i = 0;
     while (msg[i] && i < 39) { temp[i] = msg[i]; i++; }
@@ -52,6 +69,10 @@ static void scd_timeout_print(const char *msg)
    immediately after InitCD() returns" on screen at the same time. */
 static void scd_diag_print_row2(const char *msg)
 {
+#if !SCD_DIAG_TEXT
+    (void)msg;
+    return;                                   /* OJ-J4B6: green text off (see top) */
+#endif
     char *temp = (char *)0x0C0000;
     int i = 0;
     while (msg[i] && i < 39) { temp[i] = msg[i]; i++; }
@@ -133,6 +154,11 @@ extern char DENTRY_NAME[];
 
 static void scd_print_row(const char *msg, int row)
 {
+#if !SCD_DIAG_TEXT
+    (void)msg;
+    (void)row;
+    return;                                   /* OJ-J4B6: green text off (see top) */
+#endif
     char *temp = (char *)0x0C0000;
     int i = 0;
     while (msg[i] && i < 39) { temp[i] = msg[i]; i++; }

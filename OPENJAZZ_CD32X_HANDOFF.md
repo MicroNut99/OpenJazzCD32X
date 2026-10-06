@@ -252,6 +252,15 @@ Boot path edits, each marked `OJ-J4B`, only switching back what the docs/ commen
 **Now set (J4b5, Micronut99): only Chilly's white text** - KOBO_BOOT_TEXT 1, KOBO_DIAG_TEXT 0 (green off);
 OJ_DIAG_TEXT 1 and OJ32X_DIAG_TEXT 1 keep the Genesis display on so the white text can show
 (with 0 the loader's CMD 52 would switch the whole Genesis display off).
+
+**J4b6 (emulator video):** (1) green lines (INSIDE-INITCD, CKPT1) still showed: they come from
+`cd32x/subcpu/scd.c`, which prints green without going through print_diag - new switch
+`SCD_DIAG_TEXT 0` there (same pattern as KOBO_DIAG_TEXT; also silences its error-only prints:
+CD timeout, file-not-found root listing - set 1 when a disc does not boot). (2) glitches at
+the top of the splash = the Genesis layer showing through: IMAGE.RAW's black border used
+index 0 / value 0x0000, which are see-through on the 32X (Kobo rule 5). make_boot_image.py now
+never uses index 0; black = index 252 = 0x0400 (as Tyrian's make_splash.py).
+| `SCD_DIAG_TEXT` | `cd32x/subcpu/scd.c` | 1 (green CKPT/INITCD + error lines) | 0 |
 | `KOBO_DIAG_TEXT` | `cd32x/subcpu/main.c` | 1 (green STATE text) | 0 |
 | `KOBO_BOOT_TEXT` | `cd32x/subcpu/main.c` | 1 (white start-up messages) | 0 |
 | `OJ32X_DIAG_TEXT` | `port/plat_mars.c` | 1 (text kept until C++ start-up) | 0 |
