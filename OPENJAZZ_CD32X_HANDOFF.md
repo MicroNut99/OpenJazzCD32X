@@ -252,6 +252,7 @@ Boot path edits, each marked `OJ-J4B`, only switching back what the docs/ commen
 | `KOBO_BOOT_TEXT` | `cd32x/subcpu/main.c` | 1 (white start-up messages) | 0 |
 | `OJ32X_DIAG_TEXT` | `port/plat_mars.c` | 1 (text kept until C++ start-up) | 0 |
 The progress bar is not a diagnostic: it is always on.
+| `OJ32X_SPLASH` | `port/plat_mars.c` | 1: the loader's splash stays through engine start-up + `OJ32X_SPLASH_HOLD` (120 frames), like Kobo's KOBO_SPLASH/SPLASH_HOLD | 1 |
 
 ## Next round (J3)
 Graphics into the cart, tested on the PC: a cart image in the host build (4 MB, written only

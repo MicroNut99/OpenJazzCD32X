@@ -62,6 +62,15 @@
 #define OJ32X_DIAG_TEXT 1
 #endif
 
+/* SPLASH SWITCH (like Kobo's KOBO_SPLASH / SPLASH_HOLD, sh2_main.c K15/K16): 1 = the
+ * loader's splash (picture + full bar, in both frame buffers) stays on screen when the engine
+ * starts, through C++ start-up, for at least OJ32X_SPLASH_HOLD frames; 0 = the engine clears
+ * the screen at once (Tyrian's start-up). */
+#ifndef OJ32X_SPLASH
+#define OJ32X_SPLASH 1
+#endif
+#define OJ32X_SPLASH_HOLD 120   /* frames at 60 Hz = 2 s */
+
 #define CMD_GET_PAD      48
 #define CMD_TEXT_ONOFF   52
 
@@ -214,17 +223,25 @@ void plat_mars_entry(void)
 	if (!OJ32X_DIAG_TEXT)
 		set_genesis_text(0);
 
-	for (int i = 0; i < 2; ++i)
+	const uint32_t splash_from = vblank_count;
+	if (!OJ32X_SPLASH)
 	{
-		clear_back_buffer();
-		write_game_line_table();
-		flip_wait();
+		for (int i = 0; i < 2; ++i)
+		{
+			clear_back_buffer();
+			write_game_line_table();
+			flip_wait();
+		}
+		for (int i = 0; i < 256; ++i)
+			VDP_CRAM[i] = 0;
 	}
-	for (int i = 0; i < 256; ++i)
-		VDP_CRAM[i] = 0;
+	/* OJ32X_SPLASH 1: the frame buffers, line tables and palette are the loader's splash -
+	 * nothing is drawn or flipped until the boot test */
 
 	plat_log("C++ START-UP");
 	cxx_start();
+	if (OJ32X_SPLASH)
+		while (vblank_count - splash_from < OJ32X_SPLASH_HOLD) { }
 	set_genesis_text(0);
 	boot_test();
 
