@@ -157,7 +157,7 @@ Heap after a level has loaded: **321-335 KB** (was 1.09-1.32 MB). Cart: ~0.9 MB 
 Left in SDRAM after loading: level object 159 KB (grid), screen 64 KB (-> frame buffer on
 the 32X), HUD panel 10 KB, ~65 KB small blocks. Loading still peaks at up to 777 KB
 (the tile set is held twice while it is assembled) -> next: decode straight into the cart.
-Cart layout (proposed): 0x000000 engine (≤ 512 KB), 0x080000-0x3EFFFF graphics,
+Cart layout (proposed): 0x000000 engine (≤ 1 MB), 0x100000-0x3EFFFF graphics,
 0x3F0000 settings and saves.
 
 `cd32x/ref/APP_openlara.BIN`: a second APP.BIN from Micronut99 - an early OpenLara loader
@@ -183,6 +183,26 @@ cdloader_sh2.c, cdl_crt0.s, cdloader.ld, Makefile.cdloader), `tools/prep_openlar
 - Engine start-up: OpenLara's engine uses its own 32x crt0 (not in this zip); OpenJazz will
   use Tyrian's cartridge crt0 (`port/mars/crt0_tyrian.s` + linker script), which already
   has the stack guard, slave start and error screens.
+
+## J4a - first disc: boot test (sent)
+- `build.sh`: splash → `make -C mars` (engine) → OpenLara's `prep_openlara_cd.py` (checks the
+  header, writes `cd32x/subcpu/ROMS/OPENLARA.32X`) → loader → Sub-CPU → ISO → the disc checks
+  of OpenLara's build.sh → a .cue with one 2 s silent track for emulators.
+- `cd32x/sh2`, `cd32x/subcpu`: OpenLara's loader and Sub-CPU program, **byte for byte**
+  (`cd32x/ref/openlara` is the untouched copy). The engine is on the disc as OPENLARA.32X,
+  the name they open (file 20). Renaming comes later, as a separate change.
+- Engine: `port/mars/crt0_oj.s` = Tyrian's crt0 (comments only changed), `port/mars/oj.ld`
+  = tyrian.ld + .eh_frame/.gcc_except_table kept + .init_array; `port/plat_mars.c` from
+  Tyrian's (no 0x0AAA handshake - the loader did it; C++ constructors + __register_frame_info
+  before main; the SH2 never writes the cart); `tools/make_oj_rom.py` (Tyrian's cart tool
+  without 68000 program/romfs; 'CDB2' at 0x3BC, "OpenJazz 32X" at 0x3C0; checked with a fake
+  ELF against prep_openlara_cd.py in the sandbox).
+- Cart: engine 0x000000-0x0FFFFF (1 MB), graphics from 0x100000, saves 0x3F0000.
+- On the 32X, OpenJazz's log goes to the error screens' "last log" line (io/log.cpp, OJ32X_MARS).
+- Boot test screen (before the game): cart read, C++ constructors, new/delete, exception
+  throw/catch, heap, live pad + clock. Start runs the game; with no game files yet it must
+  end on the blue screen "THE GAME STOPPED WITH AN ERROR", last log about the data files.
+- Untested: everything SH2-side (no SH2 compiler in the sandbox); expect a fix round.
 
 ## Next round (J3)
 Graphics into the cart, tested on the PC: a cart image in the host build (4 MB, written only

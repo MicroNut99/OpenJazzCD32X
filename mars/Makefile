@@ -1,9 +1,9 @@
-# OpenJazz CD32X - J3a: FIRST SH2 COMPILE (compile + trial link only; nothing runs yet).
-# Compiles the same game + port files as the PC build with the Sega toolchain's sh-elf-g++,
-# then does a trial link (no start-up code; missing 32X platform functions allowed) to
-# measure the real SH2 code size, and lists the functions the 32X platform layer must provide.
-#   make -k -C mars 2>&1 | tee mars_log.txt    (-k: try every file, list all failures)
-# Results: mars/report.txt (sizes) and mars/undefined.txt (functions still to write).
+# OpenJazz CD32X - the SH2 engine (J4a): the game + port layer, linked as a 32X cartridge
+# image for the CD32X loader (OpenLara's), with Tyrian's start-up code.
+#   make -k -C mars 2>&1 | tee mars_log.txt
+# Results: mars/openjazz32x.elf / .bin / .map, mars/OPENJAZZ.32X (via tools/make_oj_rom.py),
+#          mars/report.txt (sizes).
+# A PC dry run of the old trial link is no longer possible (SH2 start-up code).
 
 TC      ?= /opt/toolchains/sega/sh-elf/bin/sh-elf-
 CC      := $(TC)gcc
@@ -11,8 +11,6 @@ CXX     := $(TC)g++
 SIZE    := $(TC)size
 NM      := $(TC)nm
 ARCH    ?= -m2 -mb
-# SH ELF puts an underscore before C names (PC dry run: MAIN=main)
-MAIN    ?= _main
 
 ROOT := ..
 SRC  := $(ROOT)/oj/src
@@ -36,18 +34,13 @@ GAME_SRCS := \
 	jj1/planet/jj1planet.cpp jj1/save/jj1save.cpp jj1/scene/jj1scene.cpp jj1/scene/jj1sceneload.cpp
 EXT_SRCS := argparse/argparse.c miniz/miniz.c stb/stb_rect_pack.c
 XMP_SRCS := $(notdir $(wildcard $(EXT)/xmp/src/*.c)) $(addprefix loaders/,$(notdir $(wildcard $(EXT)/xmp/src/loaders/*.c)))
-PORT_CXX := sdl_oj.cpp
-PORT_C   := mixer.c cart.c
-# newlib system calls for the SH2 (keeps libc.a's simulator syscalls out: `errno' clash).
-# Not in a PC dry run (TC=), where they would clash with the PC's C library.
-ifneq ($(TC),)
-PORT_C   += mars_syscalls.c
-endif
+PORT_CXX := sdl_oj.cpp mars_boottest.cpp
+PORT_C   := cart.c plat_mars.c mars_syscalls.c
 
 OBJDIR := obj
 OPT    := $(ARCH) -Os -ffunction-sections -fdata-sections
 DEFS   := -DOJ32X -DOJ32X_MARS -DOJ_SDL1 -DPORTABLE -DNDEBUG \
-          -DOJ_VERSION=\"git-oj32x\" -DOJ_DATE=\"2026-10-06\" \
+          -DOJ_VERSION=\"git-oj32x\" -DOJ_DATE=\"2026-10-06\" -D__32X__ -DMARS \
           -DOJ_URL=\"http://alister.eu/jazz/oj/\" -DOJ_BUGREPORT=\"https://github.com/AlisterT/openjazz/issues\" \
           -DLIBXMP_CORE_PLAYER -DLIBXMP_STATIC -DXMP_SYM_VISIBILITY
 INCS   := -I$(PORT)/include -I$(PORT) -I$(SRC) -I$(EXT)/argparse -I$(EXT)/miniz -I$(EXT)/xmp -I$(EXT)/xmp/src -I$(EXT)/stb
@@ -60,30 +53,27 @@ XMP_OBJS  := $(addprefix $(OBJDIR)/xmp/,$(XMP_SRCS:.c=.o))
 PORT_OBJS := $(addprefix $(OBJDIR)/port/,$(PORT_CXX:.cpp=.o) $(PORT_C:.c=.o))
 OBJS := $(GAME_OBJS) $(EXT_OBJS) $(XMP_OBJS) $(PORT_OBJS)
 
-all: report.txt undefined.txt
-	@echo; cat report.txt; echo; echo "==> $$(wc -l < undefined.txt) functions still to provide: mars/undefined.txt"
+LD_SCRIPT := $(PORT)/mars/oj.ld
 
-# -k style: every file is tried, the failures are listed at the end
-report.txt: $(OBJS) $(OBJDIR)/trial_stub.o
-	@echo "==> trial link (no start-up code, missing functions allowed)"
-	$(CXX) $(ARCH) -Os -nostartfiles -Wl,-e,$(MAIN) -Wl,-u,$(MAIN) -Wl,--gc-sections -Wl,--unresolved-symbols=ignore-all \
-		-o trial.elf $(OBJS) $(OBJDIR)/trial_stub.o -lstdc++ -lm -lc -lgcc -Wl,-Map,trial.map
-	@{ echo "== SH2 code size per part (-Os, before removing unused code)"; \
-	   echo "           text    data     bss     dec     hex"; \
-	   echo "game:   $$($(SIZE) -t $(GAME_OBJS) | tail -1)"; \
-	   echo "ext:    $$($(SIZE) -t $(EXT_OBJS) | tail -1)"; \
-	   echo "xmp:    $$($(SIZE) -t $(XMP_OBJS) | tail -1)"; \
-	   echo "port:   $$($(SIZE) -t $(PORT_OBJS) | tail -1)"; \
-	   echo "== trial link, unused code removed, with libstdc++/newlib (text data bss dec hex)"; \
-	   $(SIZE) trial.elf | tail -1; } > $@
+all: OPENJAZZ.32X report.txt
+	@echo; cat report.txt
 
-undefined.txt: $(OBJS) $(OBJDIR)/trial_stub.o
-	$(CXX) $(ARCH) -nostdlib -r -o partial.o $(OBJS)
-	$(NM) -u -C partial.o | awk '{$$1=""; print substr($$0,2)}' | sort > all_undefined.txt
-	@# what the libraries do not cover = what the 32X platform layer must provide
-	$(CXX) $(ARCH) -Os -nostartfiles -Wl,-e,$(MAIN) -Wl,--unresolved-symbols=report-all \
-		-o /dev/null $(OBJS) $(OBJDIR)/trial_stub.o -lstdc++ -lm -lc -lgcc 2>&1 | \
-		grep -o "undefined reference to \`[^']*'" | sed "s/undefined reference to \`//; s/'$$//" | sort -u > $@ || true
+openjazz32x.elf: $(OBJDIR)/crt0_oj.o $(OBJS) $(LD_SCRIPT)
+	$(CXX) $(ARCH) -nostartfiles -T $(LD_SCRIPT) -Wl,--gc-sections -Wl,-Map,openjazz32x.map \
+		-o $@ $(OBJDIR)/crt0_oj.o $(OBJS) -lstdc++ -lm -lc -lgcc
+
+openjazz32x.bin: openjazz32x.elf
+	$(TC)objcopy -O binary -j .sdcode -j .data -j .text $< $@
+
+OPENJAZZ.32X: openjazz32x.elf openjazz32x.bin $(ROOT)/tools/make_oj_rom.py $(ROOT)/tools/mars_boot.bin
+	python3 $(ROOT)/tools/make_oj_rom.py $(ROOT)/tools/mars_boot.bin openjazz32x.elf openjazz32x.bin $@
+
+report.txt: openjazz32x.elf
+	@{ echo "== SH2 sections (bytes)"; $(SIZE) -A openjazz32x.elf | grep -E "sdcode|data|text|bss|Total"; } > $@
+
+$(OBJDIR)/crt0_oj.o: $(PORT)/mars/crt0_oj.s
+	@mkdir -p $(dir $@)
+	$(CC) $(ARCH) -c $< -o $@
 
 $(OBJDIR)/game/%.o: $(SRC)/%.cpp
 	@mkdir -p $(dir $@)
@@ -94,9 +84,6 @@ $(OBJDIR)/ext/%.o: $(EXT)/%.c
 $(OBJDIR)/xmp/%.o: $(EXT)/xmp/src/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
-$(OBJDIR)/trial_stub.o: trial_stub.c
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
 $(OBJDIR)/port/%.o: $(PORT)/%.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
@@ -105,5 +92,5 @@ $(OBJDIR)/port/%.o: $(PORT)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -rf obj trial.elf trial.map partial.o report.txt undefined.txt all_undefined.txt
+	rm -rf obj openjazz32x.elf openjazz32x.bin openjazz32x.map OPENJAZZ.32X report.txt
 .PHONY: all clean

@@ -125,7 +125,7 @@ unsigned int plat_net_recv(uint8_t *bytes, unsigned int most);   /* bytes waitin
 /* OpenJazz J3: the RAM cart's data area (read-only for the SH2). plat_cart_data returns its
  * start and size; plat_cart_write copies bytes to an offset in it (32X: through the 68000;
  * PC: a read-only mapping opened just for the copy). */
-#define PLAT_CART_DATA_OFFSET 0x080000   /* after 512 KB for the engine */
+#define PLAT_CART_DATA_OFFSET 0x100000   /* after 1 MB for the engine (J4a estimate: ~0.45 MB) */
 #define PLAT_CART_DATA_END    0x3F0000   /* 0x3F0000.. settings and saves (as OpenLara) */
 uint8_t *plat_cart_data(uint32_t *size);
 void plat_cart_write(uint32_t offset, const void *src, size_t bytes);

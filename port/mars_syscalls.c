@@ -43,6 +43,9 @@ void *_sbrk(ptrdiff_t incr)
 	return prev;
 }
 
+size_t oj32x_heap_used(void) { return heap_brk ? (size_t)(heap_brk - heap_start) : 0; }
+size_t oj32x_heap_size(void) { return (size_t)(heap_end - heap_start); }
+
 void _exit(int code) { plat_exit(code); }
 
 int _write(int fd, const char *buf, int len) { (void)fd; (void)buf; return len; }

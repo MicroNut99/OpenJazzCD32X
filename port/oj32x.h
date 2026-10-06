@@ -25,6 +25,9 @@ SDL_Surface *oj32x_move_to_cart(SDL_Surface *s);
 extern "C" {
 #endif
 
+/* a line for the platform's log (32X: the error screens' "last log") */
+void oj32x_log(const char *msg);
+
 /* memory report at a point of interest (PC build: heap now/peak; 32X: nothing) */
 void oj32x_mem_mark(const char *label);
 

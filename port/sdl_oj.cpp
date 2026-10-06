@@ -459,6 +459,8 @@ void SDL_MixAudio(Uint8 *dst, const Uint8 *src, Uint32 len, int volume)
 }
 
 /* ------------------------------------------------------------------ misc */
+void oj32x_log(const char *msg) { plat_log(msg); }
+
 void oj32x_mem_mark(const char *label)
 {
 	plat_mem_mark(label);
