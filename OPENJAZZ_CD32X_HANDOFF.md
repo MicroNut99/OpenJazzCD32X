@@ -405,3 +405,7 @@ all levels, no demo mode")
   T32X_PACK mounted only at plat_init (files opened before were missed); heap snapshot with an
   empty label.
 - Not in the packs yet: music (no sound), cutscenes between episodes, bonus levels.
+
+## Round names
+Micronut99 already had a zip named J5: the J5 above was renamed on his side. The next delivery is **J7**
+(no J6), and later zips count on from there.
