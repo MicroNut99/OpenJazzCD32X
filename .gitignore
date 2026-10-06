@@ -44,3 +44,6 @@ cd32x/subcpu/silence.wav
 cd32x/sh2/*.o
 cd32x/sh2/CDLOADER.*
 cd32x/sh2/cdloader.map
+music/
+host/psm2wav
+cd32x/subcpu/soundtrack_cd/

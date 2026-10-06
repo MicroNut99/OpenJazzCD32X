@@ -466,3 +466,11 @@ Game, A = C, more frames per second without changing the game's speed.
   build.sh makes the tracks (make_music_tracks.py) and builds with OJ32X_MUSIC 1 (CMD 45 to
   play, 54 to stop). Without WAVs the engine asks for no tracks.
 - Menus: "(esc) quits" is text (fontbig) -> "(b) back" on the 32X.
+
+## J10b: the game's own music as CD audio (before the burn)
+tools/make_music_wavs.sh renders the 35 .PSM songs with OpenJazz's own libxmp (tools/psm2wav.c,
+linked with the PC build's xmp objects) into music/<NAME>.wav, 44.1 kHz 16-bit stereo, one pass,
+at most 80 s each (MAX_SECONDS): 35 songs = 433 MB, the console repeats each track. build.sh then
+makes tracks 2-36 (+ silent 37-80 from make_music_tracks.py) and builds with OJ32X_MUSIC 1.
+Tested here: all 35 render (40-80 s, real signal), make_music_tracks.py maps all 35.
+Later: a cloned project for the line-table scrolling renderer (Micronut99).
