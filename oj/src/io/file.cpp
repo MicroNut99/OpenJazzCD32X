@@ -57,6 +57,7 @@ File::File (const char* name, int pathType, bool write) :
 
 #ifdef OJ32X
 	// PORT32X: game files come from the data packs in the RAM cart when one holds them
+	oj32x_packs_ready();
 	packData = nullptr;
 	if (!write) {
 		const uint8_t* data;
@@ -183,6 +184,7 @@ bool File::exists (const char * fileName, int pathType) {
 
 #ifdef OJ32X
 	// PORT32X: files in a cart pack exist
+	oj32x_packs_ready();
 	if (pack_exists(fileName)) return true;  // in a pack, or listed as on the disc (J4d)
 #endif
 
@@ -458,6 +460,14 @@ const unsigned char* File::packPicture (int width, int height, int length) {
 	if (!pic || (int)end != tell() + length) return nullptr;
 	seek(end, true);
 	return pic;
+
+}
+
+
+const unsigned char* File::packPictureAny (int* width, int* height, uint32_t* end) {
+
+	if (!packData) return nullptr;
+	return pack_file_picture_any(filePath, tell(), width, height, end);
 
 }
 

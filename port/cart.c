@@ -84,7 +84,9 @@ void cart_free(void *p)
 
 void cart_write(void *dst, const void *src, size_t bytes)
 {
-	plat_cart_write((uint8_t *)dst - base, src, bytes);
+	/* J5: plat_cart_write counts from the start of the data area, not from the allocator's
+	 * base (which lies after a mounted pack) - writing relative to the base overwrote the pack */
+	plat_cart_write((uint32_t)((uint8_t *)dst - plat_cart_ptr(PLAT_CART_DATA_OFFSET)), src, bytes);
 }
 
 bool cart_contains(const void *p)

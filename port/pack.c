@@ -29,6 +29,27 @@ bool pack_mount(const uint8_t *base)
 }
 
 void pack_unmount_all(void) { npacks = 0; }
+
+bool pack_mount_at(int index, const uint8_t *base)
+{
+	if (index < 0 || index >= PACK_MAX || index > npacks)
+		return false;
+	if (base == NULL)
+	{
+		if (index < npacks) npacks = index;
+		return true;
+	}
+	if (base[0] != 'O' || base[1] != 'J' || base[2] != 'P' || base[3] != 'K' || be32(base + 4) != 2)
+		return false;
+	Pack *k = &packs[index];
+	k->base = base;
+	k->files = be32(base + 8);
+	k->pics = be32(base + 12);
+	k->size = be32(base + 16);
+	k->fpics = be32(base + 20);
+	if (index >= npacks) npacks = index + 1;
+	return true;
+}
 int pack_count(void) { return npacks; }
 
 /* "path/to/Panel.000" -> "PANEL.000" (at most 15 characters) */
@@ -139,6 +160,25 @@ const uint8_t *pack_file_picture(const char *name, uint32_t start, int w, int h,
 		for (uint32_t i = 0; i < packs[k].fpics; ++i, e += 32)
 			if (be32(e + 16) == start && memcmp(e, want, 16) == 0 && be16(e + 24) == w && be16(e + 26) == h)
 			{
+				*end = be32(e + 20);
+				return packs[k].base + be32(e + 28);
+			}
+	}
+	return NULL;
+}
+
+const uint8_t *pack_file_picture_any(const char *name, uint32_t start, int *w, int *h, uint32_t *end)
+{
+	char want[16];
+	norm_name(name, want);
+	for (int k = npacks - 1; k >= 0; --k)
+	{
+		const uint8_t *e = packs[k].base + 24 + packs[k].files * 24 + packs[k].pics * 12;
+		for (uint32_t i = 0; i < packs[k].fpics; ++i, e += 32)
+			if (be32(e + 16) == start && memcmp(e, want, 16) == 0)
+			{
+				*w = be16(e + 24);
+				*h = be16(e + 26);
 				*end = be32(e + 20);
 				return packs[k].base + be32(e + 28);
 			}

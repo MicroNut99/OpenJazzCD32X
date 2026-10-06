@@ -21,9 +21,16 @@ extern "C" {
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <ctype.h>
+#include <strings.h>
 
 /* J4c3: heap check points on the 32X (port/mars_syscalls.c oj32x_heap_check) */
-#ifdef OJ32X_MARS
+/* J5: OJ32X_HEAP_CHECK 1 = check the heap at every picture create/free/blit (slow: a walk over
+ * all blocks each time - a diagnostic); 0 = only at log lines (port/plat_mars.c) */
+#ifndef OJ32X_HEAP_CHECK
+#define OJ32X_HEAP_CHECK 0
+#endif
+#if defined(OJ32X_MARS) && OJ32X_HEAP_CHECK
 extern "C" void oj32x_heap_check(const char *where);
 #define HEAP_CHECK(w) oj32x_heap_check(w)
 #else
@@ -334,7 +341,8 @@ SDL_Surface *SDL_SetVideoMode(int w, int h, int bpp, Uint32 flags)
 		last_error = msg;
 		return nullptr;
 	}
-	if (!screen_surface) screen_surface = &new_surface(w, h, nullptr)->s;
+	/* J5: on the 32X the screen is the frame buffer itself (plat_canvas) */
+	if (!screen_surface) screen_surface = &new_surface(w, h, plat_canvas())->s;
 	return screen_surface;
 }
 
@@ -348,7 +356,28 @@ SDL_Rect **SDL_ListModes(SDL_PixelFormat *f, Uint32 flags)
 
 int SDL_Flip(SDL_Surface *screen)
 {
+	if (screen->pixels == plat_canvas() && screen->pixels) {
+		plat_present_canvas(phys555);
+		return 0;
+	}
 	plat_present(static_cast<const uint8_t *>(screen->pixels), screen->pitch, phys555);
+#ifndef OJ32X_MARS
+	/* J5 test (PC): T32X_DOUBLE_BUFFER=1 swaps the screen between two buffers at every flip,
+	 * the second one starting as junk - like the 32X frame buffer the game now draws into.
+	 * Frames identical to a normal run = the game redraws everything it shows each frame. */
+	{
+		static int dbl = -1;
+		static uint8_t *other;
+		if (dbl < 0) { const char *e = getenv("T32X_DOUBLE_BUFFER"); dbl = e && *e == '1'; }
+		if (dbl) {
+			const size_t n = (size_t)screen->pitch * screen->h;
+			if (!other) { other = static_cast<uint8_t *>(malloc(n)); for (size_t i = 0; i < n; i++) other[i] = (uint8_t)(i * 7); }
+			uint8_t *cur = static_cast<uint8_t *>(screen->pixels);
+			screen->pixels = other;
+			other = cur;
+		}
+	}
+#endif
 	return 0;
 }
 
@@ -475,6 +504,42 @@ void SDL_MixAudio(Uint8 *dst, const Uint8 *src, Uint32 len, int volume)
 
 /* ------------------------------------------------------------------ misc */
 void oj32x_log(const char *msg) { plat_log(msg); }
+
+/* J5: the pack for a level file (LEVELn.www -> k = www * 10 + n, disc file OJ<k>.PAK). */
+void oj32x_level_pack(const char *levelFile)
+{
+	static int current = -1;
+	const char *b = levelFile;
+	for (const char *p = levelFile; *p; ++p)
+		if (*p == '/' || *p == '\\') b = p + 1;
+	if (strncasecmp(b, "LEVEL", 5) != 0 || !isdigit((unsigned char)b[5]) || b[6] != '.' ||
+	    !isdigit((unsigned char)b[7]) || !isdigit((unsigned char)b[8]) || !isdigit((unsigned char)b[9]))
+		return;
+	const int k = (b[7] - '0') * 1000 + (b[8] - '0') * 100 + (b[9] - '0') * 10 + (b[5] - '0');
+	if (k == current) return;
+	const int32_t len = plat_load_pack(PACK_LEVEL_ID0 + k, PACK_LEVEL_CART, PACK_LEVEL_MAX);
+	if (len > 0 && pack_mount_at(1, plat_cart_ptr(PACK_LEVEL_CART))) {
+		current = k;
+		char msg[40];
+		snprintf(msg, sizeof msg, "LEVEL PACK OJ%03d.PAK", k);
+		plat_log(msg);
+	} else {
+		pack_mount_at(1, nullptr);
+		current = -1;
+	}
+}
+
+void oj32x_packs_ready(void) { plat_packs_ready(); }
+
+int oj32x_skip_intro(void)
+{
+#ifdef OJ32X_MARS
+	return 1;
+#else
+	const char *e = getenv("T32X_SKIP_INTRO");
+	return e && *e == '1';
+#endif
+}
 
 void oj32x_mem_mark(const char *label)
 {

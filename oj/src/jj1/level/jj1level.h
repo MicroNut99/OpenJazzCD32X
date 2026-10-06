@@ -146,11 +146,20 @@
 /// JJ1 level grid element
 typedef struct {
 
+#ifdef OJ32X
+	// PORT32X: 3 bytes instead of 8 (48 KB instead of 128 KB for the grid): event (0-127)
+	// and bg (0/1) share a byte, the time lives in JJ1Level::eventTimes
+	unsigned char tile; ///< Indexes the tile set
+	unsigned char event : 7; ///< Indexes the event set
+	unsigned char bg : 1; ///< 0 = Effect background, 1 = Black background
+	unsigned char hits; ///< Number of times the event has been shot
+#else
 	unsigned char tile; ///< Indexes the tile set
 	unsigned char bg; ///< 0 = Effect background, 1 = Black background
 	unsigned char event; ///< Indexes the event set
 	unsigned char hits; ///< Number of times the event has been shot
 	int           time; ///< Point at which the event will do something, e.g. terminate
+#endif
 
 } GridElement;
 
@@ -219,6 +228,13 @@ class JJ1Level : public Level {
 		JJ1EventType  eventSet[EVENTS]; ///< Event types
 		char          mask[240][64]; ///< Tile masks. At most 240 tiles, all with 8 * 8 masks
 		GridElement   grid[LH][LW]; ///< Level grid. All levels are the same size
+#ifdef OJ32X
+		/// PORT32X: event times live here instead of in every grid element (4 of the 8 bytes
+		/// of 16,384 elements = 64 KB); only cells with a time set take an entry
+		struct EventTime { unsigned short cell; unsigned int time; };
+		EventTime     eventTimes[256];
+		int           nEventTimes;
+#endif
 		SDL_Color     skyPalette[MAX_PALETTE_COLORS]; ///< Full palette for sky background
 		bool          sky; ///< Whether or not to use sky background
 		unsigned char skyOrb; ///< The tile to use as the background sun/moon/etc.

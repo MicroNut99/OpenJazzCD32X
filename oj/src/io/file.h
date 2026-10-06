@@ -87,6 +87,8 @@ class File {
 		/// PORT32X: the picture at the current position, already decoded in a cart pack
 		/// (the file then continues after its <length> bytes); null if not there
 		const unsigned char* packPicture (int width, int height, int length);
+		/// PORT32X: the picture at the current position in a cart pack, any size
+		const unsigned char* packPictureAny (int* width, int* height, uint32_t* end);
 		/// PORT32X: PC build - record the picture decoded from <start>..now (T32X_BAKE)
 		void               bakePicture (int start, const unsigned char* pixels, int width, int height);
 #endif

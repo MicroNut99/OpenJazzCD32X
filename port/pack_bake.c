@@ -71,6 +71,8 @@ static int skipped(const char n[16])
 		const char *e = strchr(p, ',');
 		size_t k = e ? (size_t)(e - p) : strlen(p);
 		if (k == l && strncasecmp(p, n, l) == 0) return 1;
+		/* "*.EXT": every file with that ending */
+		if (k > 1 && p[0] == '*' && l >= k - 1 && strncasecmp(p + 1, n + l - (k - 1), k - 1) == 0) return 1;
 		p += k + (e ? 1 : 0);
 	}
 	return 0;
@@ -82,6 +84,10 @@ void pack_bake_file(const char *name, const char *path)
 	char n[16];
 	norm(name, n);
 	if (skipped(n)) return;
+	{	/* J5: already in a mounted pack (the common pack, when baking a level pack) */
+		const uint8_t *d; uint32_t sz;
+		if (pack_file(n, &d, &sz)) return;
+	}
 	for (int i = 0; i < nfiles; ++i)
 		if (memcmp(bfiles[i].name, n, 16) == 0) return;
 	FILE *f = fopen(path, "rb");
@@ -102,6 +108,7 @@ void pack_bake_file(const char *name, const char *path)
 void pack_bake_picture(const uint8_t *pixels, int w, int h)
 {
 	if (!bake_on()) return;
+	if (pack_picture(pixels, w, h)) return;   /* J5: already in a mounted pack */
 	const uint32_t hv = pack_hash(pixels, w, h);
 	const size_t n = (size_t)w * h;
 	for (int i = 0; i < npics; ++i)
@@ -120,6 +127,10 @@ void pack_bake_file_picture(const char *name, uint32_t start, uint32_t end,
                             const uint8_t *pixels, int w, int h)
 {
 	if (!bake_on()) return;
+	{	/* J5: already in a mounted pack */
+		int pw, ph; uint32_t pe;
+		if (pack_file_picture_any(name, start, &pw, &ph, &pe)) return;
+	}
 	pack_bake_picture(pixels, w, h);
 	char n[16];
 	norm(name, n);
@@ -185,8 +196,28 @@ static void read_catalog(void)
 	closedir(d);
 }
 
+/* J5: T32X_BAKE_ADD=<prefix>: every file of the T32X_BAKE_CATALOG folder whose name starts
+ * with it goes into the pack in full (e.g. PLANET. - the planet screens of every episode) */
+static void add_prefixed(void)
+{
+	const char *pre = getenv("T32X_BAKE_ADD"), *dir = getenv("T32X_BAKE_CATALOG");
+	if (!pre || !dir) return;
+	DIR *d = opendir(dir);
+	if (!d) return;
+	struct dirent *e;
+	while ((e = readdir(d)) != NULL)
+		if (strncasecmp(e->d_name, pre, strlen(pre)) == 0 && strlen(e->d_name) <= 15)
+		{
+			char path[1024];
+			snprintf(path, sizeof path, "%s/%s", dir, e->d_name);
+			pack_bake_file(e->d_name, path);
+		}
+	closedir(d);
+}
+
 static void bake_write(void)
 {
+	add_prefixed();
 	read_catalog();
 	qsort(bpics, (size_t)npics, sizeof *bpics, cmp_pic);
 	uint32_t pos = 24 + (uint32_t)(nfiles + ncat) * 24 + (uint32_t)npics * 12 + (uint32_t)nfp * 32;

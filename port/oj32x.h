@@ -23,6 +23,15 @@ SDL_Surface *oj32x_freeze(SDL_Surface *s);
 extern "C" {
 #endif
 
+/* J5: the packs are mounted (PC build: T32X_PACK at the first file look-up) */
+void oj32x_packs_ready(void);
+
+/* J5: load the cart pack for a level file (JJ1Level::load) */
+void oj32x_level_pack(const char *levelFile);
+
+/* J5: skip the intro cutscene (32X: always; PC build: T32X_SKIP_INTRO=1) */
+int oj32x_skip_intro(void);
+
 /* a line for the platform's log (32X: the error screens' "last log") */
 void oj32x_log(const char *msg);
 

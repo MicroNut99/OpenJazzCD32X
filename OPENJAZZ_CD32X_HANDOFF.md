@@ -371,3 +371,37 @@ Menu reached, no crash any more (no demos), menus slow, intro still vertical str
 - Menu speed: the plasma background (four cosines per pixel, 64,000 pixels a frame) is off on
   the 32X (OJ32X_MARS): plain background colour 28 (the line upstream had commented out).
 - Next (Micronut99: "focus on adding content"): levels - fitting a level into SDRAM.
+
+## J5: no intro, no demos, every level (Micronut99: "skip the intro, load the first level, add
+all levels, no demo mode")
+- Intro skipped on the 32X (oj32x_skip_intro; PC build: T32X_SKIP_INTRO=1). Demos: MACRO.1-4
+  stay out of the packs, so the menu never starts one.
+- Level memory (all measured on the PC with the 32X code paths, `-DOJ32X_MARS`):
+  - grid 128 KB -> 48 KB: event times in a 256-entry table (JJ1Level::eventTimes), grid cell
+    3 bytes (event 7 bits + bg 1 bit share a byte). Regression 0 different (demo 1 plays a
+    whole level).
+  - tile set and the level's tile/event references come decoded from the pack (no 490 KB /
+    32 KB decoding buffers in SDRAM).
+  - the game screen is the 32X frame buffer (`OJ32X_DIRECT_FB 1`, plat_canvas): no 64 KB
+    SDRAM screen and no 64 KB copy per frame. Checked on the PC with T32X_DOUBLE_BUFFER=1
+    (screen swaps between two buffers, the second starting as junk, like the frame buffer):
+    the new-game scenario (92 frames) and the menu tour (94 frames) identical - the game
+    redraws everything it shows each frame.
+  - SDL_PixelFormat without colour masks (16 bytes per surface); cart block table 16 entries
+    on the 32X (8 KB less .bss); heap checks only at log lines (OJ32X_HEAP_CHECK 0).
+- Level packs: OJ<k>.PAK, k = world * 10 + level (port/pack.h), cart 0x280000 (slot 20),
+  max 1.5 MB. Sub-CPU main.c: CMD 38 numbers 200-1199 open OJ<n-200>.PAK into slot 20
+  (OJ-J5, the same pattern as OL-2's level table). The engine loads a level's pack at
+  JJ1Level::load with the loading screen (the loader's splash via CMD 38/51 + the bar) and
+  mounts it as pack 1. tools/bake_levels.sh makes all 79 (common pack mounted: only what it
+  lacks); sizes 0.5-1.0 MB, 62 MB in all.
+- Common pack: no intro, every menu, all PLANET.* files, no music: 1,542,844 bytes (must stay
+  under 1.5 MB = 0x180000; build.sh checks).
+- Memory, all 79 levels from the packs alone (32X paths, PC): every level plays 400 frames,
+  no picture missing, heap peak at most 256,730 bytes INCLUDING the 64,000-byte screen the PC
+  still keeps (the 32X draws into the frame buffer) -> about 193 KB; the 32X has 218,448 with
+  ~12 KB used before main; the SH2's 4-byte pointers make it smaller still.
+- PC-side bugs fixed: cart_write counted from the allocator base (wrote over a mounted pack);
+  T32X_PACK mounted only at plat_init (files opened before were missed); heap snapshot with an
+  empty label.
+- Not in the packs yet: music (no sound), cutscenes between episodes, bonus levels.

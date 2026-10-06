@@ -41,9 +41,19 @@ extern "C" {
 
 #define PACK_MAX 4
 
+/* J5: level packs. Disc file OJ<k>.PAK (k = world * 10 + level, three digits) = command 38
+ * number PACK_LEVEL_ID0 + k; copied to cart PACK_LEVEL_CART (slot 20). The common pack (cart
+ * 0x100000) must therefore end before 0x280000 (1.5 MB) - build.sh checks both sizes. */
+#define PACK_LEVEL_ID0   200
+#define PACK_LEVEL_CART  0x280000u
+#define PACK_LEVEL_MAX   0x170000u   /* up to 0x3F0000, where saves begin */
+
 /* Makes a pack in memory (the cart) known to the game. false: not a pack. */
 bool pack_mount(const uint8_t *base);
 void pack_unmount_all(void);
+/* J5: mount at a given place (0 = the common pack, 1 = the current level's pack); NULL removes
+ * the last one */
+bool pack_mount_at(int index, const uint8_t *base);
 int  pack_count(void);
 
 /* Game files: name without directories, any case. */
@@ -58,6 +68,9 @@ const uint8_t *pack_picture(const uint8_t *pixels, int w, int h);
 /* A picture stored at <start> in a game file (file pictures): the decoded copy, and where
  * the file continues after it; NULL if the pack does not have it. */
 const uint8_t *pack_file_picture(const char *name, uint32_t start, int w, int h, uint32_t *end);
+
+/* the same, any size: width and height come back */
+const uint8_t *pack_file_picture_any(const char *name, uint32_t start, int *w, int *h, uint32_t *end);
 
 /* true if p lies inside a mounted pack (such data is never freed) */
 bool pack_contains(const void *p);

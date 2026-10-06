@@ -20,7 +20,11 @@
 extern "C" {
 #endif
 
+#ifdef OJ32X_MARS
+#define CART_BLOCKS 16      /* J5: the 32X never allocates in the cart (the SH2 cannot write it) */
+#else
 #define CART_BLOCKS 1024
+#endif
 
 void  cart_init(void);
 void *cart_alloc(size_t bytes);        /* 4-byte aligned; NULL when full */

@@ -354,6 +354,23 @@ int JJ1Level::loadTiles (char* fileName) {
 	   FIXME: These are actually alternating, needs rewritten `SkyPaletteEffect` */
 	file->skipRLE();
 
+#ifdef OJ32X
+	// PORT32X: the tile set decoded by the PC build (cart pack): the decoding held every tile
+	// twice in SDRAM (up to 490 KB). The tiles run to the end of the file.
+	const int tilesStart = file->tell();
+	{
+		int pw, ph;
+		uint32_t end;
+		const uint8_t* pic = file->packPictureAny(&pw, &ph, &end);
+		if (pic && pw == TTOI(1) && (int)end == file->getSize()) {
+			file->seek(end, true);
+			tileSet = video.createSurface(pic, TTOI(1), ph);
+			video.enableColorKey(tileSet, TKEY);
+			return ph >> 5;
+		}
+	}
+#endif
+
 	// Load the tile pixel indices
 	int tiles = 0;
 	unsigned char* pixels[TSETS * TNUM] = {0};
@@ -393,6 +410,9 @@ int JJ1Level::loadTiles (char* fileName) {
 		delete[] pixels[i];
 	}
 
+#ifdef OJ32X
+	file->bakePicture(tilesStart, buffer, TTOI(1), TTOI(tiles));  // PC build, T32X_BAKE
+#endif
 	tileSet = video.createSurface(buffer, TTOI(1), TTOI(tiles));
 	video.enableColorKey(tileSet, TKEY);
 	delete[] buffer;
@@ -417,6 +437,11 @@ int JJ1Level::loadTiles (char* fileName) {
  */
 int JJ1Level::load (char* fileName, bool checkpoint) {
 	unsigned char* buffer;
+
+#ifdef OJ32X
+	// PORT32X: this level's files and pictures come into the cart (loading screen on the 32X)
+	oj32x_level_pack(fileName);
+#endif
 
 	// Load font
 	try {
@@ -641,8 +666,27 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
 
 	// Load tile and event references
 
+#ifdef OJ32X
+	// PORT32X: the decoded references from the cart pack (no 32 KB buffer in SDRAM)
+	const int gridStart = file->tell();
+	bool bakedGrid = false;
+	{
+		int gw, gh;
+		uint32_t gend;
+		const unsigned char* baked = file->packPictureAny(&gw, &gh, &gend);
+		if (baked && gw * gh == LW * LH * 2) {
+			file->seek(gend, true);
+			buffer = const_cast<unsigned char*>(baked);
+			bakedGrid = true;
+		}
+	}
+	if (!bakedGrid)
+#endif
 	buffer = file->loadRLE(LW * LH * 2);
 
+#ifdef OJ32X
+	nEventTimes = 0;  // PORT32X: event time table (see jj1level.h)
+#endif
 	// Create grid from data
 	for (int x = 0; x < LW; x++) {
 
@@ -652,13 +696,22 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
 			grid[y][x].bg = buffer[((y + (x * LH)) << 1) + 1] >> 7;
 			grid[y][x].event = buffer[((y + (x * LH)) << 1) + 1] & 127;
 			grid[y][x].hits = 0;
+#ifndef OJ32X
 			grid[y][x].time = 0;
+#endif
 
 		}
 
 	}
 
+#ifdef OJ32X
+	if (!bakedGrid) {
+		file->bakePicture(gridStart, buffer, LW * 2, LH);  // PC build, T32X_BAKE
+		delete[] buffer;
+	}
+#else
 	delete[] buffer;
+#endif
 
 	// Ignore tile transparency settings, these are applied based on event type/behaviour
 

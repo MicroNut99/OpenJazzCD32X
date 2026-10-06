@@ -642,6 +642,10 @@ int main(void)
                 strcpy(img_name, ol_level_files[img_idx - OL_LEVEL_BASE]);   /* OL-2 */
                 cur_img = OL_LEVEL_SLOT;
             }
+            else if (img_idx >= 200 && img_idx < 1200) {   /* OJ-J5: OpenJazz level packs (port/pack.h) */
+                sprintf(img_name, "OJ%03d.PAK", img_idx - 200);
+                cur_img = 20;                               /* cart 20 * 128 KB = 0x280000 */
+            }
             else if (img_idx <= 0) strcpy(img_name, "IMAGE.RAW");
             else sprintf(img_name, "IMAGE%d.RAW", img_idx);
 

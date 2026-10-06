@@ -62,6 +62,12 @@ void plat_present(const uint8_t *pixels, int pitch, const uint16_t *palette555);
 #define PLAT_FB_DISPLAY 1
 uint8_t *plat_fb_area(int area);
 
+/* J5: the game screen drawn straight into the 32X frame buffer (saves the 64,000-byte SDRAM
+ * screen and its copy every frame). plat_canvas: where to draw (320 per line, 200 lines), or
+ * NULL when the platform has no such thing (PC); plat_present_canvas: show it. */
+uint8_t *plat_canvas(void);
+void plat_present_canvas(const uint16_t *palette555);
+
 /* Like plat_present, but the playfield (x 0..263, rows 0..183) is already in
  * the back buffer's picture area (drawn there directly during levels, see
  * port/video32x.c): only the status bar parts of `pixels` are copied - the
@@ -129,6 +135,14 @@ unsigned int plat_net_recv(uint8_t *bytes, unsigned int most);   /* bytes waitin
 #define PLAT_CART_DATA_END    0x3F0000   /* 0x3F0000.. settings and saves (as OpenLara) */
 uint8_t *plat_cart_data(uint32_t *size);
 void plat_cart_write(uint32_t offset, const void *src, size_t bytes);
+
+/* J5: a level pack from the disc into the cart at <cart_offset> (32X: command 38 number <id>,
+ * command 46 chunks, with the loading screen; PC: T32X_PACK_DIR/OJ<id-200>.PAK). Returns its
+ * length, or a negative number when there is none. plat_cart_ptr: where the game reads a cart
+ * offset. */
+int32_t plat_load_pack(int id, uint32_t cart_offset, uint32_t max_bytes);
+void plat_packs_ready(void);   /* PC: mount T32X_PACK now if not yet; 32X: nothing */
+const uint8_t *plat_cart_ptr(uint32_t cart_offset);
 
 /* Base of the ROM file system image (see tools/mkromfs.py). */
 const uint8_t *plat_romfs_base(void);

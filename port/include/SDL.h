@@ -45,8 +45,7 @@ typedef struct SDL_Color { Uint8 r, g, b, unused; } SDL_Color;
 typedef struct SDL_Palette { int ncolors; SDL_Color *colors; } SDL_Palette;
 typedef struct {
 	SDL_Palette *palette;
-	Uint8  BitsPerPixel, BytesPerPixel;
-	Uint32 Rmask, Gmask, Bmask, Amask;
+	Uint8  BitsPerPixel, BytesPerPixel;   /* (J5: no colour masks - 8-bit only, 16 bytes per surface) */
 	Uint32 colorkey;
 } SDL_PixelFormat;
 typedef struct SDL_Surface {

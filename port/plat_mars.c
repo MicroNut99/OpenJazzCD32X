@@ -72,6 +72,12 @@
 #endif
 #define OJ32X_SPLASH_HOLD 120
 
+/* DIRECT FRAME BUFFER SWITCH (J5): 1 = the game draws its screen straight into the 32X frame
+ * buffer (no 64 KB screen in SDRAM, no copy each frame); 0 = SDRAM screen + copy (J4). */
+#ifndef OJ32X_DIRECT_FB
+#define OJ32X_DIRECT_FB 1
+#endif
+
 /* BOOT TEST SWITCH (J4c3): 1 = the boot test screen is shown and waits for Start;
  * 0 = the checks still run, but the screen only appears (and waits) when one FAILS -
  * otherwise the game starts straight after the splash. */
@@ -83,6 +89,7 @@
 #define CMD_OPEN_FILE    38      /* main.c: COMM2 = n opens IMAGE<n>.RAW for cart slot n; length -> COMM8 (32 bit) */
 #define CMD_CHUNK_TO_CART 46     /* main.c: COMM2 = chunk (bit 15: no read-back, OL-13); reply COMM12 = bad */
 #define PACK_SLOT        8       /* IMAGE8.RAW -> cart 8 * 128 KB = 0x100000 = PLAT_CART_DATA_OFFSET */
+#define CMD_CHUNK_TO_FB  51      /* main.c: file chunk -> frame buffer (the loader's splash) */
 #define MARS_COMM8_32    (*(volatile uint32_t *)0x20004028)
 #define CMD_TEXT_ONOFF   52
 
@@ -448,6 +455,18 @@ void plat_present(const uint8_t *pixels, int pitch, const uint16_t *palette555)
 	present_finish(dst, palette555);
 }
 
+uint8_t *plat_canvas(void)
+{
+	return OJ32X_DIRECT_FB ? (uint8_t *)FB16 + FB_PIX_WORD * 2 : NULL;
+}
+
+void plat_present_canvas(const uint16_t *palette555)
+{
+	stack_guard_check();
+	write_game_line_table();
+	present_finish(FB32 + (FB_PIX_WORD * 2 + PLAT_GAME_H * PLAT_SCREEN_W) / 4, palette555);
+}
+
 uint8_t *plat_fb_area(int area)
 {
 	return (uint8_t *)FB16 + (area == PLAT_FB_DISPLAY ? FB_PIX_WORD * 2 : 0x10000);
@@ -665,7 +684,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J4E  " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J5   " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&
@@ -742,3 +761,74 @@ static void boot_test(void)
 /* What crtbegin.o normally provides (we link with -nostartfiles): the handle C++ uses to
    register static destructors (__cxa_atexit). Same fix as the J3a trial link. */
 void *__dso_handle = 0;
+
+
+/* ---- J5: the loading screen and the level packs -------------------------------------------
+ * The loading screen is the loader's splash (cdloader_sh2.c splash_show, same commands: 38
+ * with file 0 = IMAGE.RAW, 51 = chunk into the frame buffer, both buffers) with the bar. */
+static void give_fb(void)
+{
+	MARS_ADAPTER_B = 0x00;
+	while ((MARS_INTMSK & 0x8000) != 0) { }
+}
+
+static void loading_screen(void)
+{
+	MARS_COMM2 = 0;
+	if (!send_cmd(CMD_OPEN_FILE, 2000000UL)) return;
+	uint32_t len = MARS_COMM8_32;
+	if ((int32_t)len < PLAT_SCREEN_W * 224 + 512) return;     /* no IMAGE.RAW */
+	uint32_t chunks = (len + 32767) >> 15;
+	for (int pass = 0; pass < 2; pass++)
+	{
+		give_fb();
+		for (uint32_t c = 0; c < chunks; c++) { MARS_COMM2 = (uint16_t)c; send_cmd(CMD_CHUNK_TO_FB, 2000000UL); }
+		take_fb();
+		for (int i = 0; i < 256; i++)
+			FB16[i] = (uint16_t)(0x100 + (i < 224 ? i : 223) * (PLAT_SCREEN_W / 2));
+		if (pass == 0)
+		{
+			const volatile uint16_t *pal = (const volatile uint16_t *)((volatile uint8_t *)FB16 + 0x200 + PLAT_SCREEN_W * 224);
+			for (int i = 0; i < 256; i++) VDP_CRAM[i] = pal[i];
+		}
+		splash_bar(0, 1);
+		flip_wait();
+	}
+}
+
+const uint8_t *plat_cart_ptr(uint32_t cart_offset)
+{
+	return (const uint8_t *)(0x02000000u + cart_offset);
+}
+
+int32_t plat_load_pack(int id, uint32_t cart_offset, uint32_t max_bytes)
+{
+	(void)cart_offset;   /* main.c puts OJ<k>.PAK at slot 24 = PACK_LEVEL_CART */
+	MARS_COMM2 = (uint16_t)id;
+	MARS_COMM8_32 = 0;
+	if (!send_cmd(CMD_OPEN_FILE, 2000000UL)) { plat_log("LEVEL PACK: OPEN TIMED OUT"); return -1; }
+	uint32_t len = MARS_COMM8_32;
+	if ((int32_t)len <= 0) { plat_log("LEVEL PACK: NOT ON THE DISC"); return -1; }
+	if (len > max_bytes) { plat_log("LEVEL PACK: TOO BIG FOR THE CART"); return -2; }
+
+	loading_screen();
+	/* the 32-bit length again for command 46 (command 51 used COMM8 meanwhile): reopen */
+	MARS_COMM2 = (uint16_t)id;
+	send_cmd(CMD_OPEN_FILE, 2000000UL);
+	MARS_COMM8_32 = len;
+	const uint32_t chunks = (len + 32767) >> 15;
+	int bad = 0;
+	for (uint32_t c = 0; c < chunks; c++)
+	{
+		MARS_COMM2 = (uint16_t)(c | 0x8000);   /* OL-13: no read-back */
+		MARS_COMM12 = 0;
+		if (!send_cmd(CMD_CHUNK_TO_CART, 2000000UL) || MARS_COMM12 != 0)
+			bad++;
+		for (int i = 0; i < 2; i++) { splash_bar(c + 1, chunks); flip_wait(); }
+	}
+	*(volatile uint8_t *)0xFFFFFE92 = 0x11;   /* purge the cache: the 68000 wrote the cart */
+	if (bad) plat_log("LEVEL PACK: BAD CHUNKS");
+	return (int32_t)len;
+}
+
+void plat_packs_ready(void) { }

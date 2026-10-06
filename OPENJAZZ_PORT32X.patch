@@ -1,5 +1,5 @@
 diff --git a/oj/src/io/file.cpp b/oj/src/io/file.cpp
-index 9791b29..8ed6c5d 100644
+index 9791b29..7e49841 100644
 --- a/oj/src/io/file.cpp
 +++ b/oj/src/io/file.cpp
 @@ -25,6 +25,10 @@
@@ -13,12 +13,13 @@ index 9791b29..8ed6c5d 100644
  
  #include "io/gfx/video.h"
  #include "util.h"
-@@ -51,6 +55,31 @@
+@@ -51,6 +55,32 @@
  File::File (const char* name, int pathType, bool write) :
  	file(nullptr), filePath(nullptr), forWriting(write) {
  
 +#ifdef OJ32X
 +	// PORT32X: game files come from the data packs in the RAM cart when one holds them
++	oj32x_packs_ready();
 +	packData = nullptr;
 +	if (!write) {
 +		const uint8_t* data;
@@ -45,7 +46,7 @@ index 9791b29..8ed6c5d 100644
  	Path* path = gamePaths.paths;
  
  	while (path) {
-@@ -123,6 +152,10 @@ bool File::open (const char* path, const char* name, bool write) {
+@@ -123,6 +153,10 @@ bool File::open (const char* path, const char* name, bool write) {
  
  	if (file) {
  		LOG_DEBUG("Opened file: %s", filePath);
@@ -56,19 +57,20 @@ index 9791b29..8ed6c5d 100644
  
  		return true;
  	}
-@@ -148,6 +181,11 @@ bool File::exists (const char * fileName, int pathType) {
+@@ -148,6 +182,12 @@ bool File::exists (const char * fileName, int pathType) {
  
  	bool exists = false;
  
 +#ifdef OJ32X
 +	// PORT32X: files in a cart pack exist
++	oj32x_packs_ready();
 +	if (pack_exists(fileName)) return true;  // in a pack, or listed as on the disc (J4d)
 +#endif
 +
  	Path* path = gamePaths.paths;
  	while (path) {
  		// skip other paths
-@@ -392,6 +430,46 @@ void File::storeData (const void* data, int length) {
+@@ -392,6 +432,54 @@ void File::storeData (const void* data, int length) {
   *
   * @return Buffer containing the block of data
   */
@@ -104,6 +106,14 @@ index 9791b29..8ed6c5d 100644
 +}
 +
 +
++const unsigned char* File::packPictureAny (int* width, int* height, uint32_t* end) {
++
++	if (!packData) return nullptr;
++	return pack_file_picture_any(filePath, tell(), width, height, end);
++
++}
++
++
 +void File::bakePicture (int start, const unsigned char* pixels, int width, int height) {
 +
 +	pack_bake_file_picture(filePath, start, tell(), pixels, width, height);
@@ -115,7 +125,7 @@ index 9791b29..8ed6c5d 100644
  unsigned char * File::loadBlock (int length) {
  
  	unsigned char *buffer;
-@@ -581,8 +659,26 @@ SDL_Surface* File::loadSurface (int width, int height, bool checkSize) {
+@@ -581,8 +669,26 @@ SDL_Surface* File::loadSurface (int width, int height, bool checkSize) {
  	SDL_Surface* surface;
  	unsigned char* pixels;
  
@@ -143,7 +153,7 @@ index 9791b29..8ed6c5d 100644
  
  	delete[] pixels;
 diff --git a/oj/src/io/file.h b/oj/src/io/file.h
-index cf009ca..d6148da 100644
+index cf009ca..1e05ebe 100644
 --- a/oj/src/io/file.h
 +++ b/oj/src/io/file.h
 @@ -52,6 +52,9 @@ class File {
@@ -156,7 +166,7 @@ index cf009ca..d6148da 100644
  
  		bool open (const char* path, const char* name, bool write);
  
-@@ -77,6 +80,16 @@ class File {
+@@ -77,6 +80,18 @@ class File {
  		void               storeString (const char *string);
  		void               storeData   (const void* data, int length);
  		unsigned char*     loadBlock   (int length);
@@ -167,6 +177,8 @@ index cf009ca..d6148da 100644
 +		/// PORT32X: the picture at the current position, already decoded in a cart pack
 +		/// (the file then continues after its <length> bytes); null if not there
 +		const unsigned char* packPicture (int width, int height, int length);
++		/// PORT32X: the picture at the current position in a cart pack, any size
++		const unsigned char* packPictureAny (int* width, int* height, uint32_t* end);
 +		/// PORT32X: PC build - record the picture decoded from <start>..now (T32X_BAKE)
 +		void               bakePicture (int start, const unsigned char* pixels, int width, int height);
 +#endif
@@ -303,8 +315,109 @@ index 9f5be2d..d7a5b92 100644
  
  #if OJ_SDL3
  	SDL_CloseAudioDevice(SDL_GetAudioStreamDevice(audioStream));
+diff --git a/oj/src/jj1/level/jj1level.cpp b/oj/src/jj1/level/jj1level.cpp
+index 2d890c2..a83adb1 100644
+--- a/oj/src/jj1/level/jj1level.cpp
++++ b/oj/src/jj1/level/jj1level.cpp
+@@ -365,7 +365,15 @@ unsigned char JJ1Level::getEventHits (unsigned char gridX, unsigned char gridY)
+  */
+ unsigned int JJ1Level::getEventTime (unsigned char gridX, unsigned char gridY) {
+ 
++#ifdef OJ32X
++	// PORT32X: from the event time table (0 = no time, as a cleared grid had)
++	const unsigned short cell = (gridY << 8) | gridX;
++	for (int i = 0; i < nEventTimes; i++)
++		if (eventTimes[i].cell == cell) return eventTimes[i].time;
++	return 0;
++#else
+ 	return grid[gridY][gridX].time;
++#endif
+ 
+ }
+ 
+@@ -439,7 +447,11 @@ int JJ1Level::hitEvent (unsigned char gridX, unsigned char gridY, int hits, JJ1L
+ 		}
+ 
+ 		ge->hits = (hits == 255)? 255: hitsToKill;
++#ifdef OJ32X
++		setEventTime(gridX, gridY, time);  // PORT32X: event time table
++#else
+ 		ge->time = time;
++#endif
+ 
+ 	} else {
+ 
+@@ -475,7 +487,29 @@ int JJ1Level::hitEvent (unsigned char gridX, unsigned char gridY, int hits, JJ1L
+  */
+ void JJ1Level::setEventTime (unsigned char gridX, unsigned char gridY, unsigned int time) {
+ 
++#ifdef OJ32X
++	// PORT32X: event time table; time 0 removes the entry
++	const unsigned short cell = (gridY << 8) | gridX;
++	for (int i = 0; i < nEventTimes; i++) {
++		if (eventTimes[i].cell == cell) {
++			if (time) eventTimes[i].time = time;
++			else eventTimes[i] = eventTimes[--nEventTimes];
++			return;
++		}
++	}
++	if (!time) return;
++	if (nEventTimes == (int)(sizeof(eventTimes) / sizeof(eventTimes[0]))) {
++		// full: drop the oldest entry (never seen in testing; logged)
++		LOG_WARN("Event time table full");
++		for (int i = 1; i < nEventTimes; i++) eventTimes[i - 1] = eventTimes[i];
++		nEventTimes--;
++	}
++	eventTimes[nEventTimes].cell = cell;
++	eventTimes[nEventTimes].time = time;
++	nEventTimes++;
++#else
+ 	grid[gridY][gridX].time = time;
++#endif
+ 
+ }
+ 
+diff --git a/oj/src/jj1/level/jj1level.h b/oj/src/jj1/level/jj1level.h
+index 94a0081..ddfb5a0 100644
+--- a/oj/src/jj1/level/jj1level.h
++++ b/oj/src/jj1/level/jj1level.h
+@@ -146,11 +146,20 @@
+ /// JJ1 level grid element
+ typedef struct {
+ 
++#ifdef OJ32X
++	// PORT32X: 3 bytes instead of 8 (48 KB instead of 128 KB for the grid): event (0-127)
++	// and bg (0/1) share a byte, the time lives in JJ1Level::eventTimes
++	unsigned char tile; ///< Indexes the tile set
++	unsigned char event : 7; ///< Indexes the event set
++	unsigned char bg : 1; ///< 0 = Effect background, 1 = Black background
++	unsigned char hits; ///< Number of times the event has been shot
++#else
+ 	unsigned char tile; ///< Indexes the tile set
+ 	unsigned char bg; ///< 0 = Effect background, 1 = Black background
+ 	unsigned char event; ///< Indexes the event set
+ 	unsigned char hits; ///< Number of times the event has been shot
+ 	int           time; ///< Point at which the event will do something, e.g. terminate
++#endif
+ 
+ } GridElement;
+ 
+@@ -219,6 +228,13 @@ class JJ1Level : public Level {
+ 		JJ1EventType  eventSet[EVENTS]; ///< Event types
+ 		char          mask[240][64]; ///< Tile masks. At most 240 tiles, all with 8 * 8 masks
+ 		GridElement   grid[LH][LW]; ///< Level grid. All levels are the same size
++#ifdef OJ32X
++		/// PORT32X: event times live here instead of in every grid element (4 of the 8 bytes
++		/// of 16,384 elements = 64 KB); only cells with a time set take an entry
++		struct EventTime { unsigned short cell; unsigned int time; };
++		EventTime     eventTimes[256];
++		int           nEventTimes;
++#endif
+ 		SDL_Color     skyPalette[MAX_PALETTE_COLORS]; ///< Full palette for sky background
+ 		bool          sky; ///< Whether or not to use sky background
+ 		unsigned char skyOrb; ///< The tile to use as the background sun/moon/etc.
 diff --git a/oj/src/jj1/level/jj1levelload.cpp b/oj/src/jj1/level/jj1levelload.cpp
-index cfc4d66..4a877a1 100644
+index cfc4d66..646256f 100644
 --- a/oj/src/jj1/level/jj1levelload.cpp
 +++ b/oj/src/jj1/level/jj1levelload.cpp
 @@ -41,6 +41,9 @@
@@ -331,7 +444,53 @@ index cfc4d66..4a877a1 100644
  
  
  	// De-scramble the panel's ammo graphics
-@@ -585,7 +594,13 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
+@@ -345,6 +354,23 @@ int JJ1Level::loadTiles (char* fileName) {
+ 	   FIXME: These are actually alternating, needs rewritten `SkyPaletteEffect` */
+ 	file->skipRLE();
+ 
++#ifdef OJ32X
++	// PORT32X: the tile set decoded by the PC build (cart pack): the decoding held every tile
++	// twice in SDRAM (up to 490 KB). The tiles run to the end of the file.
++	const int tilesStart = file->tell();
++	{
++		int pw, ph;
++		uint32_t end;
++		const uint8_t* pic = file->packPictureAny(&pw, &ph, &end);
++		if (pic && pw == TTOI(1) && (int)end == file->getSize()) {
++			file->seek(end, true);
++			tileSet = video.createSurface(pic, TTOI(1), ph);
++			video.enableColorKey(tileSet, TKEY);
++			return ph >> 5;
++		}
++	}
++#endif
++
+ 	// Load the tile pixel indices
+ 	int tiles = 0;
+ 	unsigned char* pixels[TSETS * TNUM] = {0};
+@@ -384,6 +410,9 @@ int JJ1Level::loadTiles (char* fileName) {
+ 		delete[] pixels[i];
+ 	}
+ 
++#ifdef OJ32X
++	file->bakePicture(tilesStart, buffer, TTOI(1), TTOI(tiles));  // PC build, T32X_BAKE
++#endif
+ 	tileSet = video.createSurface(buffer, TTOI(1), TTOI(tiles));
+ 	video.enableColorKey(tileSet, TKEY);
+ 	delete[] buffer;
+@@ -409,6 +438,11 @@ int JJ1Level::loadTiles (char* fileName) {
+ int JJ1Level::load (char* fileName, bool checkpoint) {
+ 	unsigned char* buffer;
+ 
++#ifdef OJ32X
++	// PORT32X: this level's files and pictures come into the cart (loading screen on the 32X)
++	oj32x_level_pack(fileName);
++#endif
++
+ 	// Load font
+ 	try {
+ 
+@@ -585,7 +619,13 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
  
  	delete[] ext;
  
@@ -345,7 +504,7 @@ index cfc4d66..4a877a1 100644
  
  	delete[] string;
  
-@@ -603,6 +618,9 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
+@@ -603,6 +643,9 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
  
  	string = createFileName("SPRITES", worldNum);
  	res = loadSprites(string);
@@ -355,7 +514,58 @@ index cfc4d66..4a877a1 100644
  
  	delete[] string;
  
-@@ -1091,6 +1109,9 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
+@@ -623,8 +666,27 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
+ 
+ 	// Load tile and event references
+ 
++#ifdef OJ32X
++	// PORT32X: the decoded references from the cart pack (no 32 KB buffer in SDRAM)
++	const int gridStart = file->tell();
++	bool bakedGrid = false;
++	{
++		int gw, gh;
++		uint32_t gend;
++		const unsigned char* baked = file->packPictureAny(&gw, &gh, &gend);
++		if (baked && gw * gh == LW * LH * 2) {
++			file->seek(gend, true);
++			buffer = const_cast<unsigned char*>(baked);
++			bakedGrid = true;
++		}
++	}
++	if (!bakedGrid)
++#endif
+ 	buffer = file->loadRLE(LW * LH * 2);
+ 
++#ifdef OJ32X
++	nEventTimes = 0;  // PORT32X: event time table (see jj1level.h)
++#endif
+ 	// Create grid from data
+ 	for (int x = 0; x < LW; x++) {
+ 
+@@ -634,13 +696,22 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
+ 			grid[y][x].bg = buffer[((y + (x * LH)) << 1) + 1] >> 7;
+ 			grid[y][x].event = buffer[((y + (x * LH)) << 1) + 1] & 127;
+ 			grid[y][x].hits = 0;
++#ifndef OJ32X
+ 			grid[y][x].time = 0;
++#endif
+ 
+ 		}
+ 
+ 	}
+ 
++#ifdef OJ32X
++	if (!bakedGrid) {
++		file->bakePicture(gridStart, buffer, LW * 2, LH);  // PC build, T32X_BAKE
++		delete[] buffer;
++	}
++#else
+ 	delete[] buffer;
++#endif
+ 
+ 	// Ignore tile transparency settings, these are applied based on event type/behaviour
+ 
+@@ -1091,6 +1162,9 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
  	ammoType = 0;
  	ammoOffset = -1;
  
@@ -588,7 +798,7 @@ index 1ab7284..d058e71 100644
  
  
 diff --git a/oj/src/main.cpp b/oj/src/main.cpp
-index 71b7fff..a5ab271 100644
+index 71b7fff..e5c8a6f 100644
 --- a/oj/src/main.cpp
 +++ b/oj/src/main.cpp
 @@ -30,6 +30,10 @@
@@ -602,7 +812,28 @@ index 71b7fff..a5ab271 100644
  #if OJ_SDL3
  #include <SDL3/SDL_main.h>
  #endif
-@@ -532,6 +536,11 @@ int loop (LoopType type, PaletteEffect* paletteEffects, bool effectsStopped) {
+@@ -432,6 +436,10 @@ int play () {
+ 
+ 	// Load and play the startup cutscene
+ 
++#ifdef OJ32X
++	// PORT32X: the 32X skips the intro (Micronut99, J5); the PC build too with T32X_SKIP_INTRO=1
++	if (!oj32x_skip_intro()) {
++#endif
+ 	try {
+ 
+ 		scene = new JJ1Scene("STARTUP.0SC");
+@@ -451,6 +459,9 @@ int play () {
+ 	}
+ 
+ 	delete scene;
++#ifdef OJ32X
++	}
++#endif
+ 
+ 
+ 	// Load and run the menu
+@@ -532,6 +543,11 @@ int loop (LoopType type, PaletteEffect* paletteEffects, bool effectsStopped) {
  
  
  	// Process system events

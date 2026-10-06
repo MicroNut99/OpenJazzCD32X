@@ -79,6 +79,7 @@ static unsigned long env_ul(const char *name, unsigned long dflt)
 
 static void audio_start(void);  /* sound, below */
 static void cart_load_pack(void);  /* J4c, below */
+void plat_packs_ready(void);
 void __real_free(void *p);
 
 void plat_init(void)
@@ -605,14 +606,63 @@ static void cart_map(void)
 uint8_t *plat_cart_data(uint32_t *size)
 {
 	cart_map();
-	*size = cart_len - cart_pack_len;
+	cart_load_pack();   /* J5: the pack first - the allocator gets the space after it */
+	/* J5: the allocator stays below the level pack area (PACK_LEVEL_CART) */
+	*size = (PACK_LEVEL_CART - PLAT_CART_DATA_OFFSET) - cart_pack_len;
 	return cart_mem + cart_pack_len;
+}
+
+const uint8_t *plat_cart_ptr(uint32_t cart_offset)
+{
+	cart_map();
+	return cart_mem + (cart_offset - PLAT_CART_DATA_OFFSET);
+}
+
+int32_t plat_load_pack(int id, uint32_t cart_offset, uint32_t max_bytes)
+{
+	const char *dir = getenv("T32X_PACK_DIR");
+	if (!dir || !*dir)
+		return -1;
+	char path[1024];
+	snprintf(path, sizeof path, "%s/OJ%03d.PAK", dir, id - PACK_LEVEL_ID0);
+	FILE *f = fopen(path, "rb");
+	if (!f)
+		return -1;
+	fseek(f, 0, SEEK_END);
+	long len = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	if (len <= 0 || (uint32_t)len > max_bytes)
+	{
+		fclose(f);
+		fprintf(stderr, "[host] %s: %ld bytes, more than the %u the cart has for it\n", path, len, max_bytes);
+		return -2;
+	}
+	uint8_t *tmp = __real_malloc((size_t)len);
+	if (fread(tmp, 1, (size_t)len, f) != (size_t)len)
+		plat_fatal("cannot read a level pack");
+	fclose(f);
+	cart_map();
+	plat_cart_write(cart_offset - PLAT_CART_DATA_OFFSET, tmp, (size_t)len);
+	__real_free(tmp);
+	fprintf(stderr, "[host] level pack %s: %ld bytes\n", path, len);
+	return (int32_t)len;
 }
 
 /* J4c: T32X_PACK=<file>: the pack goes into the cart (like command 46 on the 32X) and is
  * mounted; the cart allocator gets the space after it */
+/* J5: game files can be opened before plat_init (configuration, PANEL.000): the pack is
+ * mounted at the first look-up */
+void plat_packs_ready(void)
+{
+	cart_load_pack();
+}
+
 static void cart_load_pack(void)
 {
+	static int done;
+	if (done)
+		return;
+	done = 1;
 	const char *path = getenv("T32X_PACK");
 	if (!path || !*path)
 		return;
@@ -823,7 +873,7 @@ void plat_mem_mark(const char *label)
 	 * blocks (needs T32X_HEAP_LOG) instead of the ones at the peak */
 	static int snapped;
 	const char *snap = getenv("T32X_HEAP_SNAP");
-	if (snap && !snapped && heap_log_min > 0 && strstr(label, snap))
+	if (snap && *snap && !snapped && heap_log_min > 0 && strstr(label, snap))
 	{
 		snapped = 1;
 		BigBlock tmp[HEAP_TRACK];
@@ -846,3 +896,7 @@ __attribute__((constructor)) static void heap_report_init(void)
 {
 	atexit(heap_report);
 }
+
+/* J5: the PC build keeps the screen in memory (plat_present) */
+uint8_t *plat_canvas(void) { return NULL; }
+void plat_present_canvas(const uint16_t *palette555) { (void)palette555; }

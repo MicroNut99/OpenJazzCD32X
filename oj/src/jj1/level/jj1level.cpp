@@ -365,7 +365,15 @@ unsigned char JJ1Level::getEventHits (unsigned char gridX, unsigned char gridY) 
  */
 unsigned int JJ1Level::getEventTime (unsigned char gridX, unsigned char gridY) {
 
+#ifdef OJ32X
+	// PORT32X: from the event time table (0 = no time, as a cleared grid had)
+	const unsigned short cell = (gridY << 8) | gridX;
+	for (int i = 0; i < nEventTimes; i++)
+		if (eventTimes[i].cell == cell) return eventTimes[i].time;
+	return 0;
+#else
 	return grid[gridY][gridX].time;
+#endif
 
 }
 
@@ -439,7 +447,11 @@ int JJ1Level::hitEvent (unsigned char gridX, unsigned char gridY, int hits, JJ1L
 		}
 
 		ge->hits = (hits == 255)? 255: hitsToKill;
+#ifdef OJ32X
+		setEventTime(gridX, gridY, time);  // PORT32X: event time table
+#else
 		ge->time = time;
+#endif
 
 	} else {
 
@@ -475,7 +487,29 @@ int JJ1Level::hitEvent (unsigned char gridX, unsigned char gridY, int hits, JJ1L
  */
 void JJ1Level::setEventTime (unsigned char gridX, unsigned char gridY, unsigned int time) {
 
+#ifdef OJ32X
+	// PORT32X: event time table; time 0 removes the entry
+	const unsigned short cell = (gridY << 8) | gridX;
+	for (int i = 0; i < nEventTimes; i++) {
+		if (eventTimes[i].cell == cell) {
+			if (time) eventTimes[i].time = time;
+			else eventTimes[i] = eventTimes[--nEventTimes];
+			return;
+		}
+	}
+	if (!time) return;
+	if (nEventTimes == (int)(sizeof(eventTimes) / sizeof(eventTimes[0]))) {
+		// full: drop the oldest entry (never seen in testing; logged)
+		LOG_WARN("Event time table full");
+		for (int i = 1; i < nEventTimes; i++) eventTimes[i - 1] = eventTimes[i];
+		nEventTimes--;
+	}
+	eventTimes[nEventTimes].cell = cell;
+	eventTimes[nEventTimes].time = time;
+	nEventTimes++;
+#else
 	grid[gridY][gridX].time = time;
+#endif
 
 }
 
