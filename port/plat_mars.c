@@ -70,7 +70,14 @@
 #ifndef OJ32X_SPLASH
 #define OJ32X_SPLASH 1
 #endif
-#define OJ32X_SPLASH_HOLD 120   /* frames at 60 Hz = 2 s */
+#define OJ32X_SPLASH_HOLD 120
+
+/* BOOT TEST SWITCH (J4c3): 1 = the boot test screen is shown and waits for Start;
+ * 0 = the checks still run, but the screen only appears (and waits) when one FAILS -
+ * otherwise the game starts straight after the splash. */
+#ifndef OJ32X_BOOT_TEST
+#define OJ32X_BOOT_TEST 0
+#endif   /* frames at 60 Hz = 2 s */
 
 #define CMD_GET_PAD      48
 #define CMD_OPEN_FILE    38      /* main.c: COMM2 = n opens IMAGE<n>.RAW for cart slot n; length -> COMM8 (32 bit) */
@@ -690,6 +697,11 @@ static void boot_test(void)
 		strcpy(l_pack, "PACK: FAILED  ");
 		strncat(l_pack, last_log, 40);
 	}
+
+	/* OJ32X_BOOT_TEST 0: no screen and no Start when every check is OK */
+	if (!OJ32X_BOOT_TEST && cart_ok && oj32x_test_ctor() && oj32x_test_new() && t == 0x0123 &&
+	    pack_count() > 0 && pack_bad_chunks == 0)
+		return;
 
 	/* live screen: pad + clock, until Start */
 	uint16_t pad = 0;

@@ -338,3 +338,6 @@ freeing its single-character surfaces), last log "PICTURE 56X48 NOT IN THE PACK"
   "HEAP DAMAGED, FOUND AT <point> BLOCK <n>" - the damage happened since the check before.
   Untested assumption: newlib's first block starts at __heap_start (16-aligned) - if the very
   first check already fails, the assumption is wrong, not the heap.
+- J4c3b (Micronut99): `OJ32X_BOOT_TEST 0` in port/plat_mars.c - the boot test checks still
+  run, but its screen (and the wait for Start) only appears when a check fails; otherwise the
+  game starts straight after the splash. 1 = the screen as before.
