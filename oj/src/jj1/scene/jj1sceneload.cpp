@@ -169,6 +169,86 @@ void JJ1Scene::loadFullFrameMem (int size, unsigned char* frameData, unsigned ch
  * @param frameData The compressed data
  * @param pixels Buffer to contain the decompressed data
  */
+#ifdef OJ32X
+/**
+ * PORT32X: the same decompression with one write per pixel.
+ *
+ * The original fills every coloured run down its whole column (to the bottom of the screen)
+ * and lets later rows overwrite it: up to 200 writes per pixel - seconds per cutscene frame
+ * on the SH2, which shows the half-done picture (every row the same: vertical stripes).
+ * Same result here: going through the screen in order, a pixel the data does not set takes
+ * the last colour written in its column above it (if any), otherwise keeps what it had.
+ */
+void JJ1Scene::loadCompactedMem (int size, unsigned char* frameData, unsigned char* pixels) {
+
+	const int total = SW * SH;
+	unsigned char colColor[SW];
+	bool colSet[SW];
+	for (int c = 0; c < SW; c++) colSet[c] = false;
+
+	int pos = 0;       // next position of the data stream
+	int done = 0;      // pixels finished (in order)
+	int doneCol = 0;   // done % SW
+
+	auto advance = [&](int to) {
+		if (to > total) to = total;
+		for (; done < to; done++) {
+			if (colSet[doneCol]) pixels[done] = colColor[doneCol];
+			if (++doneCol == SW) doneCol = 0;
+		}
+	};
+	auto put = [&](int p, unsigned char color) {
+		if (p >= total) return;
+		advance(p);
+		pixels[p] = color;
+		int c = p % SW;
+		colColor[c] = color;
+		colSet[c] = true;
+		done = p + 1;
+		doneCol = c + 1 == SW ? 0 : c + 1;
+	};
+
+	while (size > 0) {
+
+		unsigned char header = *frameData;
+		frameData++;
+		int fillWidth;
+
+		if (header == 0x7F) {
+			fillWidth = loadShortMem(&frameData);
+			unsigned char fillColor = *frameData;
+			frameData++;
+			for (int k = 0; k < fillWidth; k++) put(pos + k, fillColor);
+			size -= 3;
+		} else if (header == 0xFF) {
+			fillWidth = loadShortMem(&frameData);
+			size -= 2;
+		} else if (header & 0x80) {
+			fillWidth = (header - 0x80) + 1;
+		} else if (header & 0x40) {
+			unsigned char fillColor = *frameData;
+			frameData++;
+			fillWidth = (header - 0x40) + 1;
+			for (int k = 0; k < fillWidth; k++) put(pos + k, fillColor);
+			size--;
+		} else {
+			fillWidth = (header & 0x3F) + 1;
+			for (int col = 0; col < fillWidth; col++) {
+				unsigned char color = *frameData;
+				frameData++;
+				if (color != 0xFF) put(pos + col, color);
+				size--;
+			}
+		}
+
+		pos += fillWidth;
+		size--;
+	}
+
+	advance(total);
+
+}
+#else
 void JJ1Scene::loadCompactedMem (int size, unsigned char* frameData, unsigned char* pixels) {
 
 	unsigned char* nextPixel = pixels;
@@ -250,6 +330,7 @@ void JJ1Scene::loadCompactedMem (int size, unsigned char* frameData, unsigned ch
 
 	LOG_CM("PL CM pixels: %d", (unsigned int)(nextPixel - pixels));
 }
+#endif
 
 
 /**

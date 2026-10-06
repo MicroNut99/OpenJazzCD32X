@@ -417,10 +417,16 @@ int MainMenu::run () {
 		SDL_Delay(T_MENU_FRAME);
 
 
+#ifdef OJ32X_MARS
+		// PORT32X: no plasma on the 32X (a sum of four cosines for each of the 64,000 pixels,
+		// every frame: it made the menu slow) - the plain background colour instead
+		video.clearScreen(28);
+#else
 		//as long as we're drawing plasma, we don't need to clear the screen.
 		//video.clearScreen(28);
 
 		plasma.draw();
+#endif
 
 		// draw logo and version string
 

@@ -359,3 +359,15 @@ Selecting did nothing; ~20 s idle -> blue screen EXIT CODE 1, last log "OPEN MAC
   pack load fills the second half (cdloader_sh2.c one line, OJ-J4D).
 - Expected next stop on the console: after the planet screen, the level -> blue screen
   EXIT CODE 1 (no memory for the level yet).
+
+## J4d console result and J4e
+Menu reached, no crash any more (no demos), menus slow, intro still vertical stripes.
+- Stripes: JJ1Scene::loadCompactedMem fills every coloured run down its whole column and lets
+  later rows overwrite it (up to 200 writes per pixel): seconds per cutscene frame on the SH2,
+  so the half-done picture (row 0 repeated = stripes) is what shows. J4e (OJ32X, both builds):
+  the same result with one write per pixel (a pixel the data does not set takes the last colour
+  written in its column above it, else keeps its value). Regression 0 different (the attract
+  run includes the whole intro).
+- Menu speed: the plasma background (four cosines per pixel, 64,000 pixels a frame) is off on
+  the 32X (OJ32X_MARS): plain background colour 28 (the line upstream had commented out).
+- Next (Micronut99: "focus on adding content"): levels - fitting a level into SDRAM.
