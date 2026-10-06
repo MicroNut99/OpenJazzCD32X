@@ -317,6 +317,7 @@ void plat_mars_entry(void)
 
 	plat_log("C++ START-UP");
 	cxx_start();
+	{ void oj32x_cxx_handlers(void); oj32x_cxx_handlers(); }   /* J7: name what stops the game */
 	plat_log("PACK LOADING");
 	pack_load();
 	if (OJ32X_SPLASH)
@@ -660,8 +661,8 @@ void plat_exit(int code)
 	if (code < 0) { code_line[10] = '-'; dec(code_line + 11, (uint32_t)-code); }
 	else dec(code_line + 10, (uint32_t)code);
 	const char *lines[] = { "OPENJAZZ 32X", "", code == 0 ? "THE GAME HAS ENDED." : "THE GAME STOPPED WITH AN ERROR.",
-	                        code_line, "", "LAST LOG:", last_log, "", heap_line() };
-	text_screen(0x2800 /* dark blue */, 0x7FFF, lines, 9);
+	                        code_line, "", "LAST LOG:", prev_log[0], prev_log[1], last_log, "", heap_line() };
+	text_screen(0x2800 /* dark blue */, 0x7FFF, lines, 11);
 	for (;;) { }
 }
 
@@ -684,7 +685,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J5   " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J7   " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&

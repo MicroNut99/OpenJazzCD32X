@@ -517,6 +517,11 @@ void oj32x_level_pack(const char *levelFile)
 		return;
 	const int k = (b[7] - '0') * 1000 + (b[8] - '0') * 100 + (b[9] - '0') * 10 + (b[5] - '0');
 	if (k == current) return;
+	{
+		char msg[40];
+		snprintf(msg, sizeof msg, "LEVEL FILE %s: PACK OJ%03d", b, k);
+		plat_log(msg);
+	}
 	const int32_t len = plat_load_pack(PACK_LEVEL_ID0 + k, PACK_LEVEL_CART, PACK_LEVEL_MAX);
 	if (len > 0 && pack_mount_at(1, plat_cart_ptr(PACK_LEVEL_CART))) {
 		current = k;

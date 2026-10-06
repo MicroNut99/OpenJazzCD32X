@@ -409,3 +409,15 @@ all levels, no demo mode")
 ## Round names
 Micronut99 already had a zip named J5: the J5 above was renamed on his side. The next delivery is **J7**
 (no J6), and later zips count on from there.
+
+## J5 console result and J7
+Intro skipped OK. New Game -> ... -> blue screen EXIT CODE 1, last log "Could not open file:
+MENUSNG.PSM", heap top 89,296 of 226,512 (so not out of SDRAM at the heap top). On the PC with
+the 32X paths and the packs, the same steps reach level 1: after the second MENUSNG.PSM line
+come "LEVEL PACK OJ000.PAK", OPEN FONTS.000 ... So on the 32X it stops between the menu and
+the end of the level pack load. Exit code 1 = abort() = std::terminate (an exception nobody
+catches; OpenJazz catches only int).
+J7 diagnostics: std::set_terminate -> red screen "C++ TERMINATE: UNCAUGHT EXCEPTION <type>";
+operator new on the 32X -> red screen "OUT OF MEMORY: NEW OF n BYTES (HEAP TOP ...)"; the blue
+end screen shows the last three log lines; the level hook logs "LEVEL FILE <name>: PACK OJ<k>"
+before loading. Packs unchanged: LEVEL_PACKS=keep ./build.sh.
