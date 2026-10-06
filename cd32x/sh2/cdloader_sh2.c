@@ -7,6 +7,14 @@
    test 1: "SH2 READY FOR ISOLATED TEST: FFFF"). */
 /* OpenLara CD32X OL-1: 1 = the 68000 stays in the listener (no CMD 60) and the SH2s are
    released with COMM0 = COMM4 = 0 instead of M_OK/S_OK.  0 = original D32XR behaviour. */
+/* OJ-J4B DIAGNOSTICS SWITCH (with KOBO_DIAG_TEXT / KOBO_BOOT_TEXT in subcpu/main.c and
+   OJ32X_DIAG_TEXT in port/plat_mars.c): 1 = the Genesis text (white start-up messages, green
+   STATE codes) is switched on and drawn IN FRONT of the splash (DISPMODE bit 7, Kobo K18);
+   0 = text off, the splash shows alone (OpenLara's release setting, OL-3). */
+#ifndef OJ_DIAG_TEXT
+#define OJ_DIAG_TEXT 1
+#endif
+
 #ifndef CDL_TARGET_OPENLARA
 #define CDL_TARGET_OPENLARA 1
 #endif
@@ -260,7 +268,7 @@ static void splash_show(void) {
         }
         splash_bar(0, 1);                /* OJ-J4B: the empty bar (OL-7 had removed it) */
         flip_wait();
-        if (pass == 0) SC_VDP_DISPMODE = 0x0081;                /* 256 colours: picture shows;
+        if (pass == 0) SC_VDP_DISPMODE = OJ_DIAG_TEXT ? 0x0081 : 0x0001;                /* 256 colours: picture shows;
                                                                    OJ-J4B: + 0x80 = the green/white
                                                                    diagnostic text in front (Kobo K18) */
     }
@@ -295,7 +303,7 @@ int main(void) {
     /* Genesis text layer ON (as Kobo's set_text): CMD 52 with COMM2 = 1 makes the Sub-CPU set
        VDP register 1 = 0x8174 (display on).  Without it the status codes were not visible
        (Fusion test: black screen with only the loading bar). */
-    SC_COMM2 = 1;                        /* OJ-J4B: Genesis text ON - diagnostics (OL-3 had it off) */
+    SC_COMM2 = OJ_DIAG_TEXT;             /* OJ-J4B: Genesis text per the switch above (OL-3 had 0) */
     wait_cmd(52);
     show_status(0x4D01);
 #if CDL_TARGET_OPENLARA

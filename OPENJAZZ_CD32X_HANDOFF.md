@@ -244,6 +244,15 @@ Boot path edits, each marked `OJ-J4B`, only switching back what the docs/ commen
   reprinting its rows). Exit code printed signed.
 - Next: the engine's own loading screen (same picture + bar) when game files load (J4c).
 
+**Diagnostics switches (one per program, all at the top of the file, all documented there):**
+| Switch | File | Diagnostics | Release |
+|---|---|---|---|
+| `OJ_DIAG_TEXT` | `cd32x/sh2/cdloader_sh2.c` | 1 (text on, in front of the splash) | 0 |
+| `KOBO_DIAG_TEXT` | `cd32x/subcpu/main.c` | 1 (green STATE text) | 0 |
+| `KOBO_BOOT_TEXT` | `cd32x/subcpu/main.c` | 1 (white start-up messages) | 0 |
+| `OJ32X_DIAG_TEXT` | `port/plat_mars.c` | 1 (text kept until C++ start-up) | 0 |
+The progress bar is not a diagnostic: it is always on.
+
 ## Next round (J3)
 Graphics into the cart, tested on the PC: a cart image in the host build (4 MB, written only
 by a "68000" copy routine, read-only for the game), the decoded tile set, sprites, fonts and

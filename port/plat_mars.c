@@ -54,6 +54,14 @@
 #define SH2_IPRA         (*(volatile uint16_t *)0xFFFFFEE2)
 #define SH2_VCRWDT       (*(volatile uint16_t *)0xFFFFFEE4)
 
+/* DIAGNOSTICS SWITCH (with OJ_DIAG_TEXT in cd32x/sh2/cdloader_sh2.c and KOBO_DIAG_TEXT /
+ * KOBO_BOOT_TEXT in cd32x/subcpu/main.c): 1 = the Genesis text the loader switched on stays
+ * until C++ start-up has worked (a crash before that still shows the Sub-CPU's last STATE);
+ * 0 = text off at once. Either way it goes off for the engine's own screens (CMD 52). */
+#ifndef OJ32X_DIAG_TEXT
+#define OJ32X_DIAG_TEXT 1
+#endif
+
 #define CMD_GET_PAD      48
 #define CMD_TEXT_ONOFF   52
 
@@ -203,6 +211,8 @@ void plat_mars_entry(void)
 	/* J4b: the Genesis text (the Sub-CPU's green/white diagnostics) stays as the loader left
 	 * it until C++ start-up has worked; our own screens take over from there */
 	VDP_DISPMODE = (uint16_t)((VDP_DISPMODE & (0x8000 | DISP_PRI_TEXT)) | DISP_MODE_256);
+	if (!OJ32X_DIAG_TEXT)
+		set_genesis_text(0);
 
 	for (int i = 0; i < 2; ++i)
 	{
