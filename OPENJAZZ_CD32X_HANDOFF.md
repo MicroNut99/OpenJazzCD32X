@@ -225,6 +225,25 @@ at its end** as the payload the loader copies into the cart and starts (file 20)
 - Untested on SH2 here (no compiler in the sandbox): plat_mars.c, crt0/oj.ld link, C++
   start-up. Expect one fix round from the build log.
 
+## J4a console result (Micronut99's video, real Sega CD + 32X + RAM cart)
+SEGA logo -> splash (no bar) -> boot test: cart read OK, C++ constructors OK, new/delete OK,
+exceptions OK (0123), heap 12,176 used of 219,024 before the game -> Start -> blue screen
+"Unable to find game data files", exactly as expected. Seen: a strip of the splash's bottom
+line under the text screens (to look at).
+
+## J4b: splash with progress bar, diagnostics on (Micronut99's request)
+Boot path edits, each marked `OJ-J4B`, only switching back what the docs/ comments show:
+- `cd32x/sh2/cdloader_sh2.c`: the progress bar again (OL-7 had removed it): empty bar drawn
+  with the splash, `splash_progress` after every chunk; bar moved to x 56-236, y 186-198
+  (between the logo and the copyright line, measured on Splash.png); Genesis text ON
+  (COMM2 = 1 at CMD 52, OL-3 had 0); 256-colour mode with 0x80 = text in front (Kobo K18).
+- `cd32x/subcpu/main.c`: KOBO_DIAG_TEXT 1 (green), KOBO_BOOT_TEXT 1 (white) - the
+  "diagnostics" column of the CD32X boot handoff's switch table.
+- Engine: leaves the text as the loader set it until C++ start-up has worked, then switches
+  it off for its own screens; writes COMM12 = 0x4B10 before main() (HW9: the Sub-CPU stops
+  reprinting its rows). Exit code printed signed.
+- Next: the engine's own loading screen (same picture + bar) when game files load (J4c).
+
 ## Next round (J3)
 Graphics into the cart, tested on the PC: a cart image in the host build (4 MB, written only
 by a "68000" copy routine, read-only for the game), the decoded tile set, sprites, fonts and

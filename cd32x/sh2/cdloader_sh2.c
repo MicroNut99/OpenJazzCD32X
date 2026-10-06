@@ -209,10 +209,12 @@ static uint32_t rd32(uint32_t off) {     /* big-endian long from the cart */
 #define SPL_W            320
 #define SPL_LINES        224
 #define SPL_PAL_OFS      (0x200 + SPL_W * SPL_LINES)
-#define BAR_X0           14
-#define BAR_X1           306
-#define BAR_Y0           198
-#define BAR_Y1           214
+/* OJ-J4B: the bar sits low on the picture, between the Jazz Jackrabbit logo and the
+   (C) 1994 EPIC MEGAGAMES line, clear of the turtle on the right (Splash.png measured) */
+#define BAR_X0           56
+#define BAR_X1           236
+#define BAR_Y0           186
+#define BAR_Y1           198
 static int splash_on = 0;
 
 static void give_fb(void) {
@@ -256,9 +258,11 @@ static void splash_show(void) {
                 (const volatile uint16_t *)((volatile uint8_t *)SC_FRAMEBUFFER + SPL_PAL_OFS);
             for (i = 0; i < 256; i++) SC_CRAM[i] = pal[i];
         }
-        /* OL-7: no bar on the boot splash */
+        splash_bar(0, 1);                /* OJ-J4B: the empty bar (OL-7 had removed it) */
         flip_wait();
-        if (pass == 0) SC_VDP_DISPMODE = 0x0001;                /* 256 colours: picture shows */
+        if (pass == 0) SC_VDP_DISPMODE = 0x0081;                /* 256 colours: picture shows;
+                                                                   OJ-J4B: + 0x80 = the green/white
+                                                                   diagnostic text in front (Kobo K18) */
     }
     splash_on = 1;
 }
@@ -291,7 +295,7 @@ int main(void) {
     /* Genesis text layer ON (as Kobo's set_text): CMD 52 with COMM2 = 1 makes the Sub-CPU set
        VDP register 1 = 0x8174 (display on).  Without it the status codes were not visible
        (Fusion test: black screen with only the loading bar). */
-    SC_COMM2 = 0;                        /* OL-3: Genesis text stays off */
+    SC_COMM2 = 1;                        /* OJ-J4B: Genesis text ON - diagnostics (OL-3 had it off) */
     wait_cmd(52);
     show_status(0x4D01);
 #if CDL_TARGET_OPENLARA
@@ -333,7 +337,7 @@ int main(void) {
         /* progress in the green text: STATE:4C00 .. 4C3F (chunk number; 64 chunks = 2 MB) */
         show_status((uint16_t)(0x4C00 | (c & 0xFF)));
 #if CDL_TARGET_OPENLARA
-        /* OL-7: no bar on the boot splash (was splash_progress) */
+        splash_progress(c + 1, nchunks);  /* OJ-J4B: the bar grows with every chunk (OL-7 had it off) */
 #endif
     }
     if (bad) halt(0x4DE2);

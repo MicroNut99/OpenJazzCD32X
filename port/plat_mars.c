@@ -200,8 +200,9 @@ void plat_mars_entry(void)
 	wdt_start();
 	stack_guard_set();
 
-	VDP_DISPMODE = (uint16_t)((VDP_DISPMODE & 0x8000) | DISP_MODE_256);
-	set_genesis_text(0);
+	/* J4b: the Genesis text (the Sub-CPU's green/white diagnostics) stays as the loader left
+	 * it until C++ start-up has worked; our own screens take over from there */
+	VDP_DISPMODE = (uint16_t)((VDP_DISPMODE & (0x8000 | DISP_PRI_TEXT)) | DISP_MODE_256);
 
 	for (int i = 0; i < 2; ++i)
 	{
@@ -214,11 +215,15 @@ void plat_mars_entry(void)
 
 	plat_log("C++ START-UP");
 	cxx_start();
+	set_genesis_text(0);
 	boot_test();
 
 	static char arg0[] = "openjazz";
 	static char *argv[] = { arg0, NULL };
 	plat_log("MAIN()");
+	/* HW9: state 4B10 = the game runs - the Sub-CPU stops reprinting its diagnostic rows
+	 * (each print goes through the 68000 and would slow the pad replies) */
+	MARS_COMM12 = 0x4B10;
 	plat_exit(main(1, argv));
 }
 
@@ -496,7 +501,8 @@ void plat_exit(int code)
 {
 	set_sr(0xF0);
 	static char code_line[24] = "EXIT CODE ";
-	dec(code_line + 10, (uint32_t)code);
+	if (code < 0) { code_line[10] = '-'; dec(code_line + 11, (uint32_t)-code); }
+	else dec(code_line + 10, (uint32_t)code);
 	const char *lines[] = { "OPENJAZZ 32X", "", code == 0 ? "THE GAME HAS ENDED." : "THE GAME STOPPED WITH AN ERROR.",
 	                        code_line, "", "LAST LOG:", last_log, "", heap_line() };
 	text_screen(0x2800 /* dark blue */, 0x7FFF, lines, 9);
@@ -522,15 +528,15 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J4A  " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J4B  " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&
 	              CART_BYTES[0x102] == 'G' && CART_BYTES[0x103] == 'A' &&
 	              CART_BYTES[0x3C0] == 'O' && CART_BYTES[0x3C1] == 'p';
-	line_add(l_cart, "CART READ (SEGA + OPENJAZZ HEADER): ", cart_ok, "");
+	line_add(l_cart, "CART READ: ", cart_ok, "");
 
-	line_add(l_ctor, "C++ GLOBAL CONSTRUCTORS: ", oj32x_test_ctor(), "");
+	line_add(l_ctor, "C++ CONSTRUCTORS: ", oj32x_test_ctor(), "");
 	line_add(l_new, "C++ NEW/DELETE: ", oj32x_test_new(), "");
 
 	/* if the throw is not caught, the C++ runtime calls abort(): the blue end screen then
@@ -539,7 +545,7 @@ static void boot_test(void)
 	int t = oj32x_test_throw();
 	plat_log("EXCEPTION TEST: DONE");
 	hex(tmp, (uint32_t)t, 4);
-	line_add(l_throw, "C++ EXCEPTION THROW/CATCH: ", t == 0x0123, tmp);
+	line_add(l_throw, "C++ EXCEPTIONS: ", t == 0x0123, tmp);
 
 	strcpy(l_heap, heap_line());
 
@@ -551,12 +557,12 @@ static void boot_test(void)
 		pad = plat_read_pad();
 		strcpy(l_pad, "PAD ");
 		hex(l_pad + 4, pad, 4);
-		strcat(l_pad, "   PRESS START TO RUN THE GAME");
+		strcat(l_pad, "  START = RUN THE GAME");
 		strcpy(l_time, "CLOCK ");
 		dec(l_time + 6, plat_ticks_ms());
-		strcat(l_time, " MS   VBLANKS ");
+		strcat(l_time, " MS  VBL ");
 		dec(l_time + strlen(l_time), vblank_count);
-		strcat(l_time, "   FRAME ");
+		strcat(l_time, "  FR ");
 		dec(l_time + strlen(l_time), frames++);
 		const char *lines[] = { "OPENJAZZ 32X - BOOT TEST", l_build, "", l_cart, l_ctor, l_new, l_throw,
 		                        "", l_heap, "", l_pad, l_time };
