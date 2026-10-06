@@ -94,3 +94,6 @@ $(OBJDIR)/port/%.o: $(PORT)/%.c
 clean:
 	rm -rf obj openjazz32x.elf openjazz32x.bin openjazz32x.map OPENJAZZ.32X report.txt
 .PHONY: all clean
+
+# J4c3: a changed Makefile (compiler settings) rebuilds every object
+$(OBJS) $(OBJDIR)/crt0_oj.o: Makefile

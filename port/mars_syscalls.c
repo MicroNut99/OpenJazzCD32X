@@ -93,3 +93,40 @@ clock_t _times(struct tms *buf)
 	buf->tms_utime = t; buf->tms_stime = 0; buf->tms_cutime = 0; buf->tms_cstime = 0;
 	return t;
 }
+
+/* ---- J4c3: heap check (diagnostic) -------------------------------------------------------
+ * newlib's malloc (dlmalloc) keeps its blocks one after another from the first _sbrk address:
+ * [prev size][size | flags][data...], sizes multiples of 8, the last block ("top") ending at
+ * the current break. Walking them shows when a block header has been overwritten. Called at a
+ * few points (port/sdl_oj.cpp, plat_log); the first one that finds damage stops with a red
+ * screen naming that point, so the damage happened between it and the check before. */
+void oj32x_heap_check(const char *where)
+{
+	static int busy;
+	if (busy || heap_brk == NULL) return;
+	busy = 1;
+	char *p = heap_start;
+	int n = 0;
+	while (p + 8 <= heap_brk)
+	{
+		uint32_t size = ((volatile uint32_t *)p)[1] & ~7u;
+		if (size < 16 || (size & 7) || p + size > heap_brk)
+		{
+			static char msg[96];
+			char *m = msg;
+			const char *t = "HEAP DAMAGED, FOUND AT ";
+			while (*t) *m++ = *t++;
+			for (t = where; *t && m < msg + 60; ) *m++ = *t++;
+			t = " BLOCK ";
+			while (*t) *m++ = *t++;
+			int v = n, d = 1; while (v / d >= 10) d *= 10;
+			for (; d; d /= 10) *m++ = (char)('0' + (v / d) % 10);
+			*m = 0;
+			busy = 0;
+			plat_fatal(msg);
+		}
+		p += size;
+		n++;
+	}
+	busy = 0;
+}

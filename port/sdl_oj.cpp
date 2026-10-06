@@ -22,6 +22,15 @@ extern "C" {
 #include <stdlib.h>
 #include <stdio.h>
 
+/* J4c3: heap check points on the 32X (port/mars_syscalls.c oj32x_heap_check) */
+#ifdef OJ32X_MARS
+extern "C" void oj32x_heap_check(const char *where);
+#define HEAP_CHECK(w) oj32x_heap_check(w)
+#else
+#define HEAP_CHECK(w) ((void)0)
+#endif
+
+
 /* ------------------------------------------------------------------ init/time */
 
 static const char *last_error = "";
@@ -108,6 +117,7 @@ SDL_Surface *SDL_CreateRGBSurface(Uint32 flags, int w, int h, int bpp, Uint32 r,
 {
 	(void)flags; (void)r; (void)g; (void)b; (void)a;
 	if (bpp != 8) { last_error = "only 8-bit surfaces"; return nullptr; }
+	HEAP_CHECK("CREATESURFACE");
 	Surf *u = new_surface(w, h, nullptr);
 	if (!u->s.pixels) { delete u; last_error = "out of memory"; return nullptr; }
 	return &u->s;
@@ -116,6 +126,7 @@ SDL_Surface *SDL_CreateRGBSurface(Uint32 flags, int w, int h, int bpp, Uint32 r,
 void SDL_FreeSurface(SDL_Surface *s)
 {
 	if (!s) return;
+	HEAP_CHECK("FREESURFACE");
 	Surf *u = surf_of(s);
 	if (u->owns_pixels) free(u->s.pixels);
 	if (u->in_cart) cart_free(u->s.pixels);
@@ -284,6 +295,7 @@ int SDL_UpperBlit(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rec
 		dstrect->w = (Uint16)(w > 0 ? w : 0); dstrect->h = (Uint16)(h > 0 ? h : 0);
 	}
 	if (w <= 0 || h <= 0) return 0;
+	HEAP_CHECK("BLIT");
 
 	const Surf *su = surf_of(src);
 	const Surf *du = surf_of(dst);

@@ -477,8 +477,11 @@ void plat_mem_mark(const char *label)
 static char last_log[80];
 static char prev_log[2][80];   /* J4c2: the two lines before the last one */
 
+void oj32x_heap_check(const char *where);
+
 void plat_log(const char *msg)
 {
+	oj32x_heap_check("LOG");
 	/* Kept for the error screens: the last three lines */
 	strcpy(prev_log[0], prev_log[1]);
 	strcpy(prev_log[1], last_log);
@@ -653,7 +656,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J4C2 " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J4C3 " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&

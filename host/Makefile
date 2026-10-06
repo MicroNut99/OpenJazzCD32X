@@ -77,3 +77,6 @@ test: test_sdl_oj
 test_sdl_oj: test_sdl_oj.cpp $(OBJDIR)/port/sdl_oj.o $(OBJDIR)/port/host_new.o $(OBJDIR)/port/plat_host.o $(OBJDIR)/port/mixer.o $(OBJDIR)/port/cart.o $(OBJDIR)/port/pack.o $(OBJDIR)/port/pack_bake.o
 	$(CXX) $(CXXFLAGS) -no-pie -o $@ $^ -lm -Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc,--wrap=free
 .PHONY: test
+
+# J4c3: a changed Makefile (compiler settings) rebuilds every object
+$(OBJS): Makefile

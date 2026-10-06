@@ -323,3 +323,18 @@ last log "PICTURE 56X48 NOT IN THE PACK", heap 130,816 used.
 - Diagnostics: red screens show PC, PR and up to 9 return addresses from the stack (crt0
   pri_err_go passes the old r15 and PR: two added lines, OJ-J4C2) and the last three log lines;
   each pack file read logs "OPEN <name>". `tools/where.sh <address>` looks them up.
+
+## J4c2 console result and J4c3
+Same red screen: ADDRESS ERROR in newlib free_r; call chain (tools/where.sh on the photo's
+addresses): free_r <- SDL_FreeSurface <- Font::Font(unsigned char*, bool) (the panel font,
+freeing its single-character surfaces), last log "PICTURE 56X48 NOT IN THE PACK".
+- The 56x48 miss was still there because make did not rebuild stb_rect_pack.o after the
+  Makefile change (only sources were dependencies). J4c3: every object depends on its Makefile.
+- The free_r crash does not reproduce on the PC, also not with the 32X code paths under ASan
+  and with the font atlas misses forced (ties sorted the other way): the heap is damaged by
+  something only the SH2 build does. J4c3 adds a heap walker (port/mars_syscalls.c
+  oj32x_heap_check, newlib/dlmalloc block layout) at CREATESURFACE, FREESURFACE, BLIT and every
+  log line: the first check that finds a damaged block header stops with
+  "HEAP DAMAGED, FOUND AT <point> BLOCK <n>" - the damage happened since the check before.
+  Untested assumption: newlib's first block starts at __heap_start (16-aligned) - if the very
+  first check already fails, the assumption is wrong, not the heap.
