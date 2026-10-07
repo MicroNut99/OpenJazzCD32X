@@ -46,8 +46,7 @@ DEFS   := -DOJ32X -DOJ32X_MARS -DOJ_SDL1 -DPORTABLE -DNDEBUG \
 INCS   := -I$(PORT)/include -I$(PORT) -I$(SRC) -I$(EXT)/argparse -I$(EXT)/miniz -I$(EXT)/xmp -I$(EXT)/xmp/src -I$(EXT)/stb
 # J10: build.sh passes EXTRA_DEFS=-DOJ32X_MUSIC=1 when music/*.wav exist
 DEFS += $(EXTRA_DEFS)
-# J14: the frame profiler line in levels (remove for a release)
-DEFS += -DOJ32X_PROFILE
+# J14: the frame profiler box in levels - off (J15d); add -DOJ32X_PROFILE to bring it back
 # J15: the line-table scrolling renderer (remove for the old full-redraw renderer)
 DEFS += -DOJ32X_SCROLL
 CXXFLAGS := -std=gnu++14 $(OPT) $(DEFS) $(INCS) -fno-threadsafe-statics -Wall -Wno-unused-result -Wno-narrowing -MMD -MP

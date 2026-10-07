@@ -678,3 +678,7 @@ Frame pacing off (OJ32X_PACE 0): pace_before_flip held every frame to the third 
 last frames - at 4-6 vblanks per frame that wasted 1-2 vblanks on most frames. Now each frame is
 shown at the next vblank after it is finished. Measured J15 (game counter): 12-13 fps Diamondus,
 10 at the Tubelectric waterfalls (J8: 11).
+
+## J15d
+Profiler box off in the 32X build (Micronut99: the black block top left). The game's own FPS counter
+(set-up, gameplay, hud style) remains for measuring.
