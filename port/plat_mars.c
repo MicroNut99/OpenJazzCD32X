@@ -76,6 +76,11 @@
  * buffer (no 64 KB screen in SDRAM, no copy each frame); 0 = SDRAM screen + copy (J4). */
 /* SLAVE SH2 SWITCH (J10): 1 = the slave SH2 draws the bottom half of the level's tile layers
  * while the master draws the top half; 0 = the master draws both (one after the other). */
+/* FRAME PACING SWITCH (J15c): 1 = even frame times (Tyrian's pacing), 0 = as fast as possible */
+#ifndef OJ32X_PACE
+#define OJ32X_PACE 0
+#endif
+
 #ifndef OJ32X_SLAVE_DRAWS
 #define OJ32X_SLAVE_DRAWS 0   /* J15: off - J14 profiling: no gain (both SH2s wait on the same bus) */
 #endif
@@ -530,7 +535,10 @@ static int pace_n = 1;
 static void pace_before_flip(void)
 {
 	const uint32_t natural = vblank_count - last_flip_vblank + 1;
-	if (natural <= PACE_MAX)
+	/* J15c: OJ32X_PACE 0 = no holding back - the pacing kept every frame as long as the third
+	 * slowest of the recent ones, so at 4-6 vblanks a frame it threw away 1-2 vblanks almost
+	 * every frame. Off: each frame shows at the next vblank after it is done. */
+	if (OJ32X_PACE && natural <= PACE_MAX)
 	{
 		pace_history[pace_pos++ % PACE_HISTORY] = (uint8_t)natural;
 		uint8_t sorted[PACE_HISTORY];
@@ -862,7 +870,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J15B " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J15C " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&

@@ -672,3 +672,9 @@ Tubelectric. The profiler box was a plain blue box without letters and the sun a
 colours were sky entries (156-255), which the renderer turns every frame - the profiler now picks
 its dark/light colours below 156; the sun and the profiler letters are written with 16-bit
 read-modify-write (oj32x_put_pixel), as KOBO-BOOT rule 4 advises.
+
+## J15c
+Frame pacing off (OJ32X_PACE 0): pace_before_flip held every frame to the third slowest of the
+last frames - at 4-6 vblanks per frame that wasted 1-2 vblanks on most frames. Now each frame is
+shown at the next vblank after it is finished. Measured J15 (game counter): 12-13 fps Diamondus,
+10 at the Tubelectric waterfalls (J8: 11).
