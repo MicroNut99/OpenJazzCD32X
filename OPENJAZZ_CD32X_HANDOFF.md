@@ -636,3 +636,6 @@ Console videos (J14b): all values were multiples of ~18 / 15 ms = whole 91 ms pe
 by 4-6 frames - the free-running timer was not counting as assumed (reset/reprogrammed
 elsewhere). plat_prof_us now uses the watchdog counter of plat_ticks_ms (178 us steps). Mode did
 not switch to 1CPU in the videos; the profiler now alternates 2CPU / 1CPU every 10 s by itself.
+
+## J14e
+Demos off on the 32X (mainmenu.cpp: no demo macros unless built with -DOJ32X_DEMO).

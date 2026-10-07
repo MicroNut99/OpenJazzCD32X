@@ -288,7 +288,12 @@ int MainMenu::run () {
 	for (macro = 0; macro < 4; macro++) {
 		macroType[macro] = -1;
 
+#if defined(OJ32X_MARS) && !defined(OJ32X_DEMO)
+		// PORT32X (J14e): demos off on the 32X (Micronut99) - build with -DOJ32X_DEMO for them
+		if (false) {
+#else
 		if (File::exists(fileName, PATH_TYPE_GAME)) {
+#endif
 			FilePtr file = std::make_unique<File>(fileName, PATH_TYPE_GAME);
 			macroType[macro] = file->loadChar();
 		}
