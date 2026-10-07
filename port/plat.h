@@ -156,7 +156,10 @@ void plat_sfx(int id);
 /* J10: CD audio track n, repeating (0 = stop); only with OJ32X_MUSIC 1 (tracks on the disc) */
 void plat_music(int track);
 /* J14: a microsecond clock for profiling (wraps after ~71 minutes) */
-uint32_t plat_prof_us(void);   /* PC: mount T32X_PACK now if not yet; 32X: nothing */
+uint32_t plat_prof_us(void);
+/* J14b: slave SH2 drawing on/off at run time (PC: always "off" - one after the other) */
+void plat_slave_draws(int on);
+int plat_slave_draws_on(void);   /* PC: mount T32X_PACK now if not yet; 32X: nothing */
 const uint8_t *plat_cart_ptr(uint32_t cart_offset);
 
 /* Base of the ROM file system image (see tools/mkromfs.py). */

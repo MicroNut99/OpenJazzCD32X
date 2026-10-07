@@ -124,6 +124,11 @@ void sec_dma1_handler(void) { }
  * copy; the slave purges its cache before each job, so the level data it reads is current
  * (the SH2 caches write through: the master's writes are already in SDRAM). */
 typedef struct { void (*fn)(void *, int); void *arg; int go; int done; } SlaveJob;
+/* J14b: the slave's part can be switched off while playing (Mode button) to compare the two
+ * renderers with the profiler */
+static int slave_draws_now = 1;
+void plat_slave_draws(int on) { slave_draws_now = on; }
+int plat_slave_draws_on(void) { return OJ32X_SLAVE_DRAWS && slave_draws_now; }
 static SlaveJob slave_job;
 #define JOB ((volatile SlaveJob *)((uintptr_t)&slave_job | 0x20000000u))
 
@@ -141,7 +146,7 @@ void secondary(void)
 
 void plat_parallel(void (*fn)(void *, int), void *arg)
 {
-	if (!OJ32X_SLAVE_DRAWS)
+	if (!OJ32X_SLAVE_DRAWS || !slave_draws_now)
 	{
 		fn(arg, 0);
 		fn(arg, 1);
@@ -830,7 +835,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J14  " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J14B " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&

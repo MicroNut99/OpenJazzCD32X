@@ -616,3 +616,12 @@ oj32x_prof(slot) marks: 0 logic (all catch-up steps of the frame), 1 background 
 6 other (events, pad, palette effects). Once a second the per-frame averages go to a line drawn
 in the level's top-left corner with fontiny (OJ32X_PROFILE in mars/Makefile):
 "L B S F H P O T  <fps>FPS <steps>ST" in ms per frame. Regression 0 different.
+
+## J14b
+- Profiler shown in the level's own font (fontiny was invisible on the console), three lines:
+  "2CPU|1CPU <fps>FPS T<total>", "L B S F", "H P O" (whole ms per frame).
+- Mode (6-button pad) switches the slave SH2's drawing on/off while playing, to profile both
+  renderers on one disc (plat_slave_draws).
+- Credits: the PAD xxxx diagnostic removed (Micronut99).
+- Reported: lines in the clouds, waterfalls less smooth since the slave drawing - compare with Mode.
+- Cutscenes: next; ENDE6.0SC is 1.9 MB raw (more than the 1.4 MB slot) - needs splitting.

@@ -191,10 +191,6 @@ int runCredits32X () {
 		for (int i = 0; i < lines && showText; i++, y += step)
 			if (page[i][0]) font->showString(page[i], canvasW >> 1, y, alignX::Center);
 
-		// J13g: the pad bits as the console reports them (to see what Y / Mode send)
-		snprintf(line, sizeof line, "PAD %04X", oj32x_pad() & 0xFFFF);
-		fontiny->showString(line, 2, canvasH - 8);
-
 		snprintf(line, sizeof line, "%s %d  %s", playing ? "PLAYING" : "STOPPED", song + 2, songs[song].name);
 		font->showString(line, canvasW >> 1, canvasH - 2 * h - 4, alignX::Center);
 		if (pick != song) {

@@ -33,7 +33,7 @@ void oj32x_packs_ready(void);
 void oj32x_prof(int slot);
 void oj32x_prof_steps(int n);
 void oj32x_prof_frame(void);
-const char *oj32x_prof_text(void);
+const char *oj32x_prof_text(int line);   /* lines 0-2 */
 
 /* J13e: the pad bits as last read (PAD_* in plat.h) */
 unsigned int oj32x_pad(void);

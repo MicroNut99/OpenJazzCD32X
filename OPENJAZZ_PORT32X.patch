@@ -608,7 +608,7 @@ index 94a0081..33a0a8c 100644
  
  	public:
 diff --git a/oj/src/jj1/level/jj1levelframe.cpp b/oj/src/jj1/level/jj1levelframe.cpp
-index a4a5b02..c3aeac7 100644
+index a4a5b02..e3fe500 100644
 --- a/oj/src/jj1/level/jj1levelframe.cpp
 +++ b/oj/src/jj1/level/jj1levelframe.cpp
 @@ -38,6 +38,9 @@
@@ -798,7 +798,7 @@ index a4a5b02..c3aeac7 100644
  	// FIXME: Temporary lines showing the water level
  	video.drawRect(0, FTOI(waterLevel - viewY), canvasW, 2, 24);
  	video.drawRect(0, FTOI(waterLevel - viewY) + 3, canvasW, 1, 24);
-@@ -595,4 +737,12 @@ void JJ1Level::draw () {
+@@ -595,4 +737,14 @@ void JJ1Level::draw () {
  
  	// Fill in remaining energy bar space with black
  	video.drawRect(offsetX + dst.x, canvasH - 13, dst.w, 7, LEVEL_BLACK);
@@ -807,7 +807,9 @@ index a4a5b02..c3aeac7 100644
 +	oj32x_prof(4);   // J14: panel and the rest of the drawing
 +#ifdef OJ32X_PROFILE
 +	// J14: the profiler's line (ms per frame) in the top left corner of the level
-+	fontiny->showString(oj32x_prof_text(), 2, 2);
++	// (the level's own font, as "pause": its colours belong to the level palette - fontiny's
++	// were invisible on the console)
++	for (int i = 0; i < 3; i++) font->showString(oj32x_prof_text(i), 2, 2 + i * font->getHeight());
 +#endif
 +#endif
  }
@@ -1337,10 +1339,10 @@ index 71b7fff..3a716a4 100644
  		if (event.type == SDL_EVENT_QUIT) return E_QUIT;
 diff --git a/oj/src/menu/credits32x.cpp b/oj/src/menu/credits32x.cpp
 new file mode 100644
-index 0000000..4da4140
+index 0000000..8e03bf2
 --- /dev/null
 +++ b/oj/src/menu/credits32x.cpp
-@@ -0,0 +1,217 @@
+@@ -0,0 +1,213 @@
 +/**
 + * @file credits32x.cpp
 + *
@@ -1533,10 +1535,6 @@ index 0000000..4da4140
 +		int y = 4;
 +		for (int i = 0; i < lines && showText; i++, y += step)
 +			if (page[i][0]) font->showString(page[i], canvasW >> 1, y, alignX::Center);
-+
-+		// J13g: the pad bits as the console reports them (to see what Y / Mode send)
-+		snprintf(line, sizeof line, "PAD %04X", oj32x_pad() & 0xFFFF);
-+		fontiny->showString(line, 2, canvasH - 8);
 +
 +		snprintf(line, sizeof line, "%s %d  %s", playing ? "PLAYING" : "STOPPED", song + 2, songs[song].name);
 +		font->showString(line, canvasW >> 1, canvasH - 2 * h - 4, alignX::Center);

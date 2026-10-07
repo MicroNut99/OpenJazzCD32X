@@ -515,6 +515,12 @@ static void poll_pad(void)
 {
 	uint16_t now = plat_read_pad();
 	pad_now = now;   /* J13e: for buttons the game has no key for (Y in the credits) */
+	{	/* J14b: Mode switches the slave SH2's drawing on/off (profiling the two renderers) */
+		static bool modeWas;
+		const bool mode = (now & PAD_MODE) != 0;
+		if (mode && !modeWas) plat_slave_draws(!plat_slave_draws_on());
+		modeWas = mode;
+	}
 	pad_latched &= now;
 	now &= (uint16_t)~pad_latched;
 	uint16_t changed = now ^ pad_down;
@@ -649,7 +655,7 @@ void oj32x_packs_ready(void) { plat_packs_ready(); }
  * frame's marks add up to the whole frame. Every second the averages per frame are put
  * into a text line the level draws in its corner (OJ32X_PROFILE). */
 static uint32_t prof_last, prof_acc[8], prof_frames, prof_steps, prof_start;
-static char prof_line[192] = "PROFILING";
+static char prof_lines[3][48] = { "PROFILING", "", "" };
 void oj32x_prof(int slot)
 {
 	const uint32_t now = plat_prof_us();
@@ -672,19 +678,23 @@ void oj32x_prof_frame(void)
 	uint32_t total = 0;
 	for (int i = 0; i < 8; i++) total += prof_acc[i];
 	/* ms per frame, one decimal: logic, background, sprites, foreground, panel, present, other */
-	#define MS(x) (unsigned)((x) / f / 1000), (unsigned)((x) / f / 100 % 10)
-	snprintf(prof_line, sizeof prof_line, "L%u.%u B%u.%u S%u.%u F%u.%u H%u.%u P%u.%u O%u.%u T%u.%u %uFPS %u.%uST",
-	         MS(prof_acc[0]), MS(prof_acc[1]), MS(prof_acc[2]), MS(prof_acc[3]), MS(prof_acc[4]),
-	         MS(prof_acc[5]), MS(prof_acc[6]), MS(total),
-	         (unsigned)(prof_frames * 1000000u / (now - prof_start)),
-	         (unsigned)(prof_steps / f), (unsigned)(prof_steps * 10 / f % 10));
+	/* whole ms per frame, three short lines (the level font is wide): total and fps; logic,
+	 * background, sprites, foreground; panel, present, other */
+	#define MS(x) (unsigned)((x) / f / 1000)
+	snprintf(prof_lines[0], sizeof prof_lines[0], "%s %uFPS T%u",
+	         plat_slave_draws_on() ? "2CPU" : "1CPU",
+	         (unsigned)(prof_frames * 1000000u / (now - prof_start)), MS(total));
+	snprintf(prof_lines[1], sizeof prof_lines[1], "L%u B%u S%u F%u",
+	         MS(prof_acc[0]), MS(prof_acc[1]), MS(prof_acc[2]), MS(prof_acc[3]));
+	snprintf(prof_lines[2], sizeof prof_lines[2], "H%u P%u O%u",
+	         MS(prof_acc[4]), MS(prof_acc[5]), MS(prof_acc[6]));
 	#undef MS
 	for (int i = 0; i < 8; i++) prof_acc[i] = 0;
 	prof_frames = 0;
 	prof_steps = 0;
 	prof_start = now;
 }
-const char *oj32x_prof_text(void) { return prof_line; }
+const char *oj32x_prof_text(int line) { return prof_lines[line < 0 || line > 2 ? 0 : line]; }
 
 /* J13d: both 32X frame buffers' picture areas to colour 0 (PC: nothing) */
 void oj32x_clear_screens(void) { plat_clear_screens(); }
