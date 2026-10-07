@@ -84,6 +84,11 @@ void plat_present_scroll(const uint16_t *palette555, int row0, int xoff, int vie
 void plat_wait_flip(void);
 /* J17: 0 = Jazz Jackrabbit CD, 1 = Holiday Hare '95 (chosen on the splash; PC: T32X_HH95=1) */
 int plat_game(void);
+void plat_set_game(int g);           /* J18d */
+int plat_hh95_available(void);       /* J18d: OJ600.PAK on the disc */
+/* J19: the port's own settings (0 = FPS counter, 1 = A/B swap), kept in the RAM cart */
+int plat_port_setting(int key);
+void plat_port_setting_set(int key, int value);
 /* J13d: both frame buffers' picture areas cleared (32X); PC: nothing */
 void plat_clear_screens(void);
 

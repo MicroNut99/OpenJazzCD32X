@@ -69,6 +69,10 @@ bool oj32x_scroll_active(int *vY);
 void oj32xScrollReset();
 void oj32x_panel_reset(void);
 unsigned oj32x_plain_presents(void);
+void oj32x_set_game(int g);              /* J18d: 1 = Holiday Hare '95 (episode menu) */
+bool oj32x_hh95_available(void);
+int oj32x_port_setting(int key);            /* J19: 0 = FPS counter, 1 = A/B swap */
+void oj32x_port_setting_set(int key, int value);
 /* J13: A/B swap (set-up menu) */
 bool oj32x_ab_swapped(void);
 void oj32x_ab_swap(bool on);

@@ -38,6 +38,9 @@
 #include "util.h"
 #include "io/log.h"
 #include <memory>
+#ifdef OJ32X
+#include "oj32x.h"
+#endif
 
 static bool getSaveData(int slot, int &lvl, int &plnt, difficultyType &dffclty) {
 	// load save game
@@ -528,7 +531,16 @@ int GameMenu::selectEpisode (GameModeType mode, int episode) {
 
 	} else {
 
+#ifdef OJ32X_MARS
+		// PORT32X (J18d): this entry is Holiday Hare '95 on the 32X (its own world packs
+		// OJ600/OJ610, sound effects, music and save slots) - from world 50, level 1
+		oj32x_set_game(1);
+		const int ret = newGameDifficulty(mode, 0, 50);
+		oj32x_set_game(0);
+		if (ret == E_QUIT) return E_QUIT;
+#else
 		if (newGameLevel(mode) == E_QUIT) return E_QUIT;
+#endif
 
 	}
 
@@ -573,7 +585,11 @@ int GameMenu::newGameEpisode (GameModeType mode) {
 
 	} else exists[10] = false;
 
+#ifdef OJ32X_MARS
+	exists[MAX_EPISODES] = oj32x_hh95_available();   // PORT32X (J18d): Holiday Hare '95
+#else
 	exists[MAX_EPISODES] = true; // always possible to load custom level
+#endif
 
 	episode = 0;
 
@@ -634,6 +650,12 @@ int GameMenu::newGameEpisode (GameModeType mode) {
 		dst.x = (canvasW >> 1) + 16; // image is 144 pixels wide
 		dst.y = (canvasH - 110) >> 1;
 
+#ifdef OJ32X_MARS
+		if (episode == 11 && episodes > 9) {
+			// Holiday Hare '95: the Holiday Hare picture
+			SDL_BlitSurface(episodeScreens[9], NULL, canvas, &dst);
+		} else
+#endif
 		if ((episode < episodes - 1) || (episode < 6)) {
 
 			SDL_BlitSurface(episodeScreens[episode], NULL, canvas, &dst);
@@ -669,7 +691,11 @@ int GameMenu::newGameEpisode (GameModeType mode) {
 
 			case 11:
 				tag = " ";
+#ifdef OJ32X_MARS
+				title = "holiday hare 95";
+#else
 				title = "specific level";
+#endif
 				break;
 
 			default:

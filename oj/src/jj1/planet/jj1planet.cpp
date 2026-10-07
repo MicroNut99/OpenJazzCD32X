@@ -149,6 +149,13 @@ int JJ1Planet::play () {
 
 		video.clearScreen(0);
 
+#ifdef OJ32X_MARS
+		// PORT32X (J18d, Micronut99): the planet stays put at its full size - no growing in and
+		// no flying towards the screen; shown for as long as the original sequence lasts
+		if (globalTicks - tickOffset < F4 + FQ)
+			sprite.drawScaled(canvasW >> 1, canvasH >> 1, F2);
+		else return E_NONE;
+#else
 		if (globalTicks - tickOffset < F2)
 			sprite.drawScaled(canvasW >> 1, canvasH >> 1, globalTicks - tickOffset);
 		else if (globalTicks - tickOffset < F4)
@@ -156,6 +163,7 @@ int JJ1Planet::play () {
 		else if (globalTicks - tickOffset < F4 + FQ)
 			sprite.drawScaled(canvasW >> 1, canvasH >> 1, (globalTicks - tickOffset - F4) * 32 + F2);
 		else return E_NONE;
+#endif
 
 		fontmn1->showString("now approaching", (canvasW >> 1), 2, alignX::Center);
 		fontmn1->showString(name, (canvasW >> 1), canvasH - 2, alignX::Center, alignY::Bottom);

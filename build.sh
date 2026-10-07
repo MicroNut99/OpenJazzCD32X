@@ -57,29 +57,24 @@ else
   "$HERE/tools/bake_bonus.sh" "$DATA" "$ROMS/IMAGE8.RAW" "$ROMS"
 fi
 echo "==> sound effects"; python3 "$HERE/tools/make_oj_sfx.py" "$DATA/SOUNDS.000" "$ROMS/SFX00.BIN"
-# J17: Holiday Hare '95 - its own data folder next to this script (JAZZXMAS1995/): common pack
-# IMAGE9.RAW (cart 0x120000, at most 1.4 MB), world packs OJ600/OJ610, sound effects SFX01.BIN
+# J19: Holiday Hare '95 as an episode of the Jazz CD menu (in place of "specific level"): its two
+# world packs are baked against Jazz CD's common pack - of the files both use only MAINCHAR.000
+# differs (Jazz in his Christmas outfit), so that one is read from JAZZXMAS1995/ and goes into its
+# packs (T32X_BAKE_UNPACKED); a level pack is searched before the common pack
 HH95="${HH95:-$HERE/JAZZXMAS1995}"
+rm -f "$ROMS/IMAGE9.RAW"
 if [ -f "$HH95/PANEL.000" ]; then
   echo "==> Holiday Hare '95"
-  HTMP="$(mktemp -d)"
-  HTOUR="40:START,45:-,100:DOWN,103:-,110:DOWN,113:-,120:DOWN,123:-,130:DOWN,133:-,140:DOWN,143:-,150:DOWN,153:-,160:DOWN,163:-,170:DOWN,173:-,180:DOWN,183:-,210:START,215:-,310:START,315:-"
-  rm -f "$ROMS/IMAGE9.RAW"
-  ( cd "$HTMP" && T32X_HH95=1 T32X_SKIP_INTRO=1 T32X_BAKE="$ROMS/IMAGE9.RAW" T32X_BAKE_CATALOG="$HH95" \
-    T32X_BAKE_SKIP='*.PSM' T32X_SAVE_EVERY=0 T32X_FRAMES_DIR="$HTMP" T32X_MAX_FRAMES=300 T32X_MAX_SECONDS=100000 \
-    T32X_PAD="$HTOUR" "$HERE/host/openjazz32x_host" "$HH95" 2>&1 | grep "\[bake\]" )
-  HSIZE=$(stat -c %s "$ROMS/IMAGE9.RAW")
-  [ "$HSIZE" -le $((0x160000)) ] || { echo "*** IMAGE9.RAW is $HSIZE bytes: more than the 1.4 MB from 0x120000 - stopping"; exit 1; }
-  rm -rf "$HTMP"
-  if [ "${LEVEL_PACKS:-}" = keep ] && ls "$ROMS"/OJ6*.PAK >/dev/null 2>&1; then
+  if [ "${LEVEL_PACKS:-}" = keep ] && ls "$ROMS"/OJ6*.PAK >/dev/null 2>&1 && [ -f "$ROMS/.hh95_complete" ]; then
     echo "    world packs: kept ($(ls "$ROMS"/OJ6*.PAK | wc -l))"
   else
-    T32X_HH95=1 "$HERE/tools/bake_levels.sh" "$HH95" "$ROMS/IMAGE9.RAW" "$ROMS" 100
+    T32X_HH95=1 T32X_BAKE_UNPACKED=MAINCHAR.000 "$HERE/tools/bake_levels.sh" "$HH95" "$ROMS/IMAGE8.RAW" "$ROMS" 100
+    touch "$ROMS/.hh95_complete"
   fi
   python3 "$HERE/tools/make_oj_sfx.py" "$HH95/SOUNDS.000" "$ROMS/SFX01.BIN"
 else
-  echo "==> no JAZZXMAS1995/ folder: Jazz Jackrabbit CD only"
-  rm -f "$ROMS/IMAGE9.RAW" "$ROMS"/OJ6*.PAK "$ROMS/SFX01.BIN"
+  echo "==> no JAZZXMAS1995/ folder: no Holiday Hare '95"
+  rm -f "$ROMS"/OJ6*.PAK "$ROMS/SFX01.BIN" "$ROMS/.hh95_complete"
 fi
 # J10: music - WAVs in music/ (named like the game's music files, tools/music_tracks.txt)
 MUSIC_WAVS=$(ls "$HERE"/music/*.wav "$HERE"/music/*.WAV 2>/dev/null | wc -l)

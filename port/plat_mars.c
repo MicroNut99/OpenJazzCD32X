@@ -209,6 +209,11 @@ static void take_fb(void)
 
 static void flip_wait(void)
 {
+	/* J18d: a swap requested by the scrolling renderer (OJ32X_FLIP_ASYNC) must be finished and
+	 * forgotten first - otherwise this swap changes the buffer state under it, and the next
+	 * plat_wait_flip waits for a state that never comes again: the hang after "Setup options"
+	 * from the pause menu (black screen, music still playing) */
+	plat_wait_flip();
 	uint16_t cur = VDP_FBCTL & FBCTL_FS;
 	VDP_FBCTL = cur ^ FBCTL_FS;
 	while ((VDP_FBCTL & FBCTL_FS) == cur) { }
@@ -329,8 +334,30 @@ static int pack_bad_chunks;
 static int game_hh95;
 static int force_full_load;   /* J18b: A+B+C seen while choosing the game */
 int plat_game(void) { return game_hh95; }
-static uint32_t pack_slot(void)   { return game_hh95 ? 9 : PACK_SLOT; }
-static uint32_t pack_offset(void) { return game_hh95 ? 0x120000u : PLAT_CART_DATA_OFFSET; }
+static uint32_t pack_slot(void)   { return PACK_SLOT; }
+static uint32_t pack_offset(void) { return PLAT_CART_DATA_OFFSET; }
+static void sfx_load(void);
+
+/* J18d: Holiday Hare '95 from the episode menu - its world packs (+100), its sound effects
+ * (SFX01.BIN), its music and save slots while it runs; back to Jazz CD afterwards */
+void plat_set_game(int g)
+{
+	if (g == game_hh95) return;
+	game_hh95 = g;
+	sfx_load();
+}
+
+int plat_hh95_available(void)
+{
+	static int known = -1;
+	if (known < 0)
+	{
+		MARS_COMM2 = 800;                  /* OJ600.PAK (CMD 38 ids 200+: OJ<id-200>.PAK) */
+		MARS_COMM8_32 = 0;
+		known = send_cmd(CMD_OPEN_FILE, 2000000UL) && (int32_t)MARS_COMM8_32 > 0;
+	}
+	return known;
+}
 
 /* text on the splash in the error screens' 3x5 font, drawn 2x with 16-bit writes */
 static void splash_text(int x0, int y0, const char *t)
@@ -352,7 +379,7 @@ static void splash_text(int x0, int y0, const char *t)
 	}
 }
 
-static void choose_game(void)
+static __attribute__((unused)) void choose_game(void)
 {
 	MARS_COMM2 = 9;                        /* is Holiday Hare '95 on the disc? */
 	MARS_COMM8_32 = 0;
@@ -466,8 +493,7 @@ void plat_mars_entry(void)
 	cxx_start();
 	{ void oj32x_cxx_handlers(void); oj32x_cxx_handlers(); }   /* J7: name what stops the game */
 	plat_log("PACK LOADING");
-	choose_game();
-	pack_load();
+	pack_load();   /* J18d: always Jazz CD's common pack - Holiday Hare '95 is an episode */
 	sfx_load();
 	if (OJ32X_SPLASH)
 		while (vblank_count - splash_from < OJ32X_SPLASH_HOLD) { }
@@ -970,7 +996,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J18C " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J19  " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&
@@ -1140,4 +1166,25 @@ int plat_save_piece(int piece)
 	if (MARS_COMM12 == 0) { plat_log("SAVE: WRITING THE CART SAVE AREA FAILED"); return 0; }
 	*(volatile uint8_t *)0xFFFFFE92 = 0x11;   /* purge: the 68000 wrote the cart */
 	return 1;
+}
+
+/* J19: the port's own settings (0 = FPS counter shown, 1 = A/B swapped): save-area piece 10,
+ * written at once when one changes - OpenJazz's settings file has no place for them */
+#define PORT_SET_PIECE 10
+int plat_port_setting(int key)
+{
+	const volatile uint8_t *p = (const volatile uint8_t *)(0x223F0000u + PORT_SET_PIECE * 4096u);
+	if (p[0] != 'O' || p[1] != 'J' || p[2] != 'P' || p[3] != 'S' || key < 0 || key > 7) return 0;
+	return p[4 + key];
+}
+void plat_port_setting_set(int key, int value)
+{
+	if (key < 0 || key > 7 || plat_port_setting(key) == value) return;
+	uint8_t v[8];
+	for (int i = 0; i < 8; i++) v[i] = (uint8_t)plat_port_setting(i);
+	v[key] = (uint8_t)value;
+	plat_save_put_word(0, 'O' << 8 | 'J');
+	plat_save_put_word(1, 'P' << 8 | 'S');
+	for (int i = 0; i < 8; i += 2) plat_save_put_word(2 + i / 2, v[i] << 8 | v[i + 1]);
+	plat_save_piece(PORT_SET_PIECE);
 }

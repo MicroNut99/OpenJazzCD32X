@@ -91,7 +91,7 @@ static int piece_of(const char *path)
 	char n[12];
 	base_name(path, n);
 	const int base = plat_game() == 1 ? 5 : 0;   /* J17: Holiday Hare '95 keeps its own (5-9) */
-	if (memcmp(n, "OPENJAZZ.CFG", 12) == 0) return base;
+	if (memcmp(n, "OPENJAZZ.CFG", 12) == 0) return 0;   /* J18d: one settings file for both */
 	if (n[0] == 'S' && n[1] == 'A' && n[2] == 'V' && n[3] == 'E' && n[4] == '.' && n[5] >= '0' && n[5] <= '3' && n[6] == 0)
 		return base + 1 + (n[5] - '0');
 	return -1;

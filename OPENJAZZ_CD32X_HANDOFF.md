@@ -745,3 +745,19 @@ there (Jazz CD + full load) instead of being lost when the choice waits for the 
    the ring and every other frame showed old level pictures. The mapping now lasts one frame (from
    scrollBegin to its present); after any plain present the level redraws both rings and the panel.
 PC (scrolling build): the save screen no longer alternates between two pictures.
+
+## J19 (includes the J18d work)
+- No game choice at start (Micronut99). Holiday Hare '95 is the last entry of the episode menu, in
+  place of "specific level": plat_set_game(1) for its run (world packs +100, SFX01.BIN, music
+  mapping, save pieces 6-9), back to 0 afterwards. Its world packs are baked against Jazz CD's
+  common pack; of the files both use only MAINCHAR.000 differs (read from JAZZXMAS1995/ via
+  T32X_BAKE_UNPACKED, so it lands in OJ600/OJ610); level packs are searched before the common
+  pack. No IMAGE9.RAW any more. Settings file: one for both (piece 0).
+- Planet screen: the planet stays at its full size for the whole sequence (no zoom in/out).
+- Hang after "Setup options" from the pause menu (black screen, music on): an asynchronous swap
+  was still pending when the menu's synchronous swaps started, and the next plat_wait_flip
+  waited for a buffer state that never came again. flip_wait now finishes a pending swap first.
+- Z (the game's statistics key) is what shows the FPS counter - not the HUD style setting. Its
+  state and the A/B swap are now kept in save-area piece 10 ("OJPS", plat_port_setting).
+- PC, 32X paths: episode menu -> Holiday Hare 95 -> Candion (planet still) -> level with the
+  Christmas Jazz sprite.

@@ -590,6 +590,10 @@ int SDL_UpperBlit(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rec
 
 SDL_Surface *SDL_SetVideoMode(int w, int h, int bpp, Uint32 flags)
 {
+	{	/* J19: the A/B swap as it was left */
+		static bool once;
+		if (!once) { once = true; if (plat_port_setting(1)) oj32x_ab_swap(true); }
+	}
 	(void)flags;
 	if (bpp != 8 || w != PLAT_SCREEN_W || h != PLAT_GAME_H) {
 		static char msg[64];
@@ -743,6 +747,7 @@ bool oj32x_ab_swapped(void) { return ab_swapped; }
 void oj32x_ab_swap(bool on)
 {
 	ab_swapped = on;
+	plat_port_setting_set(1, on ? 1 : 0);   /* J19: kept across power-off */
 	for (auto &k : pad_keys) {
 		if (k.bit == PAD_A) k.play = on ? SDLK_LALT : SDLK_SPACE;
 		if (k.bit == PAD_B) k.play = on ? SDLK_SPACE : SDLK_LALT;
@@ -990,6 +995,10 @@ static const char *prof_text_line(int line) { return oj32x_prof_text(line); }
 void oj32x_clear_screens(void) { plat_clear_screens(); }
 
 void oj32x_sfx(int id) { plat_sfx(id); }
+void oj32x_set_game(int g) { plat_set_game(g); }
+bool oj32x_hh95_available(void) { return plat_hh95_available() != 0; }
+int oj32x_port_setting(int key) { return plat_port_setting(key); }
+void oj32x_port_setting_set(int key, int value) { plat_port_setting_set(key, value); }
 
 /* J11: a CD audio track directly (the credits' CD player); 0 = stop */
 void oj32x_music_track(int track) { plat_music(track); }

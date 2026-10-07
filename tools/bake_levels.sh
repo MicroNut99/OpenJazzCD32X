@@ -15,7 +15,8 @@ if [ "$KOFF" = 0 ]; then rm -f "$OUT"/OJ[0-5]*.PAK; else rm -f "$OUT"/OJ6*.PAK "
 n=0
 for f in $(ls "$DATA" | grep -i '^LEVEL[0-9]\.[0-9][0-9][0-9]$' | sort -t. -k2,2 -k1,1); do
   l=${f:5:1}; w=$((10#${f:7:3})); k=$(printf '%03d' $((w * 10 + KOFF)))
-  ( cd "$TMP" && T32X_PACK="$COMMON" T32X_BAKE="$OUT/OJ$k.PAK" T32X_BAKE_MERGE=1 \
+  if [ "$COMMON" = "-" ]; then PACKENV=""; else PACKENV="T32X_PACK=$COMMON"; fi   # J19: "-" = complete packs
+  ( cd "$TMP" && env $PACKENV T32X_BAKE="$OUT/OJ$k.PAK" T32X_BAKE_MERGE=1 \
     T32X_BAKE_SKIP='*.PSM' \
     T32X_SAVE_EVERY=0 T32X_FRAMES_DIR="$TMP" T32X_MAX_FRAMES=400 T32X_MAX_SECONDS=100000 T32X_PAD="100:START,105:-" \
     "$HERE/host/openjazz32x_host" -w $w -l $l "$DATA" > "$TMP/log.txt" 2>&1 ) || true

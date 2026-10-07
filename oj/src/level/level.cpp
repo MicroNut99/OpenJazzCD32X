@@ -67,6 +67,9 @@ Level::Level (Game* owner) :
 	// Set the level stage
 	stage = LS_NORMAL;
 	sprites = tickOffset = steps = prevTicks = ticks = endTime = items = stats = 0;
+#ifdef OJ32X_MARS
+	if (oj32x_port_setting(0)) stats = S_SCREEN;   // PORT32X (J19): the FPS counter as last left
+#endif
 	multiplayer = false;
 }
 
@@ -473,6 +476,9 @@ int Level::loop (bool& menu, int& option, bool& message) {
 
 		if (!multiplayer) stats ^= S_SCREEN;
 		else stats = (stats + 1) & 3;
+#ifdef OJ32X_MARS
+		oj32x_port_setting_set(0, (stats & S_SCREEN) ? 1 : 0);   // PORT32X (J19): Z remembered
+#endif
 
 	}
 

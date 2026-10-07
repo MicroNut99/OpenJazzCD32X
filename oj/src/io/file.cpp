@@ -25,6 +25,8 @@
 
 
 #include "file.h"
+#include <strings.h>
+#include <stdlib.h>
 #ifdef OJ32X
 #include "pack.h"
 #include "oj32x.h"
@@ -62,7 +64,24 @@ File::File (const char* name, int pathType, bool write) :
 	if (!write) {
 		const uint8_t* data;
 		uint32_t size;
-		if (pack_file(name, &data, &size)) {
+		bool fromPack = true;
+#ifndef OJ32X_MARS
+		// PORT32X (J19): PC bake - T32X_BAKE_UNPACKED=<A,B> reads these files from the data folder
+		// even when a mounted pack has a file of that name (Holiday Hare '95's MAINCHAR.000)
+		{
+			const char* un = getenv("T32X_BAKE_UNPACKED");
+			if (un) {
+				const size_t n = strlen(name);
+				for (const char* p = un; *p; ) {
+					const char* e = strchr(p, ',');
+					const size_t l = e ? (size_t)(e - p) : strlen(p);
+					if (l == n && strncasecmp(p, name, n) == 0) fromPack = false;
+					p += l + (e ? 1 : 0);
+				}
+			}
+		}
+#endif
+		if (fromPack && pack_file(name, &data, &size)) {
 			file = pack_fopen(name);
 			if (file) {
 				packData = data;
