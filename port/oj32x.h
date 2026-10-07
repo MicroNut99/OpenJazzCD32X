@@ -39,6 +39,17 @@ void oj32x_music_track(int track);
 
 /* J10: music as CD audio (fileName NULL = stop) */
 void oj32x_music(const char *fileName, bool restart);
+#ifdef __cplusplus
+}
+/* J13: A/B swap (set-up menu) */
+bool oj32x_ab_swapped(void);
+void oj32x_ab_swap(bool on);
+extern "C" {
+#endif
+
+/* J13: volume 0 stops the CD music, more starts it again; remember = the song to come back to */
+void oj32x_music_volume(int volume);
+void oj32x_music_remember(const char *fileName);
 
 /* J10: run fn(arg, 0) and fn(arg, 1); on the 32X on both SH2s at the same time */
 void oj32x_parallel(void (*fn)(void *, int), void *arg);

@@ -56,100 +56,77 @@ void _exit(int code) { plat_exit(code); }
  * "character device" for ANY fd and left st_blksize uninitialised - newlib then sized the
  * stream buffer from that garbage. Now: unknown fd = EBADF, so newlib uses BUFSIZ. */
 
-/* ---- J11: saves and settings in the Sega CD's backup RAM --------------------------------
- * OpenJazz writes openjazz.cfg and SAVE.0-3 as files. Here they live in one 4 KB store that is
- * the backup-RAM file of main.c (CMD 56 load / 57 get word / 58 put word / 59 save - OpenLara's
- * OL-5 path; file name OPENJAZZ_JJ). Read at start-up; written back each time a file that was
- * opened for writing is closed. Layout: "OJSV", u16 count, then per file name[12] (NUL
- * padded), u16 size, data. A file that does not fit is not saved (the write fails). */
+/* ---- J13: saves and settings in the RAM cart's save area ---------------------------------
+ * J11 used the Sega CD's backup RAM (4 KB file): it did not work on the console (the internal
+ * backup RAM is 8 KB for every game, a JJ1 save alone is up to ~2 KB) and its 8 KB of buffers
+ * cost SDRAM. Now OpenLara's OL-9 path: the save area at cart 0x3F0000, one 4 KB piece per file
+ * (piece 0 openjazz.cfg, 1-4 SAVE.0-SAVE.3). Writing: the bytes go word by word into the
+ * Sub-CPU's buffer (CMD 58), closing the file writes the piece into the cart (CMD 61, through
+ * the 68000, read back and compared). Reading: straight from the cart (the SH2 can read it).
+ * Piece layout: "OJSF", u16 size, name[12], data (at most 4096 - 18 bytes). No SDRAM buffers. */
 #include <fcntl.h>
-#define STORE_BYTES 4096
-#define STORE_FILES 8
+#define PIECE_BYTES 4096
+#define PIECE_HEAD  18
 #define FD_BASE 10
-int plat_bram_read(uint8_t *buf, int bytes);    /* plat_mars.c */
-int plat_bram_write(const uint8_t *buf, int bytes);
+int plat_save_put_word(int index, int value);     /* plat_mars.c: CMD 58 */
+int plat_save_piece(int piece);                   /* plat_mars.c: CMD 61 */
+#define SAVE_AREA ((const volatile uint8_t *)0x223F0000u)   /* cart 0x3F0000, cache-through */
 
-typedef struct { char name[12]; int off, size, used; } StoreFile;
-static StoreFile store[STORE_FILES];
-static uint8_t pool[STORE_BYTES];     /* the files' bytes, one after another */
-static int pool_used;
-static int store_loaded;
-typedef struct { int file; int pos; int writing; int open; } StoreFd;
-static StoreFd fds[4];
-static uint8_t raw[STORE_BYTES];      /* the backup-RAM image (load / save) */
+typedef struct { int piece; int pos; int size; int writing; int open; int odd; uint8_t pending; } SaveFd;
+static SaveFd fds[4];
 
 static void base_name(const char *path, char out[12])
 {
 	const char *b = path;
 	for (const char *p = path; *p; ++p) if (*p == '/' || *p == '\\') b = p + 1;
 	int i = 0;
-	for (; b[i] && i < 11; ++i) out[i] = (char)((b[i] >= 'a' && b[i] <= 'z') ? b[i] - 32 : b[i]);
+	for (; b[i] && i < 12; ++i) out[i] = (char)((b[i] >= 'a' && b[i] <= 'z') ? b[i] - 32 : b[i]);   /* 12 = OPENJAZZ.CFG */
 	for (; i < 12; ++i) out[i] = 0;
 }
 
-static void store_load(void)
+/* which piece a file name belongs to (-1: not a file we keep) */
+static int piece_of(const char *path)
 {
-	if (store_loaded) return;
-	store_loaded = 1;
-	int n = plat_bram_read(raw, STORE_BYTES);
-	if (n < 6 || raw[0] != 'O' || raw[1] != 'J' || raw[2] != 'S' || raw[3] != 'V') return;
-	int count = raw[4] << 8 | raw[5], at = 6;
-	for (int i = 0; i < count && i < STORE_FILES && at + 14 <= n; i++)
-	{
-		StoreFile *f = &store[i];
-		memcpy(f->name, raw + at, 12);
-		f->size = raw[at + 12] << 8 | raw[at + 13];
-		at += 14;
-		if (at + f->size > n || pool_used + f->size > STORE_BYTES) break;
-		f->off = pool_used;
-		memcpy(pool + pool_used, raw + at, (size_t)f->size);
-		pool_used += f->size;
-		at += f->size;
-		f->used = 1;
-	}
+	char n[12];
+	base_name(path, n);
+	if (memcmp(n, "OPENJAZZ.CFG", 12) == 0) return 0;
+	if (n[0] == 'S' && n[1] == 'A' && n[2] == 'V' && n[3] == 'E' && n[4] == '.' && n[5] >= '0' && n[5] <= '3' && n[6] == 0)
+		return 1 + (n[5] - '0');
+	return -1;
+}
+
+static const volatile uint8_t *piece_at(int piece) { return SAVE_AREA + piece * PIECE_BYTES; }
+
+/* size of a stored file, -1 if the piece does not hold that file */
+static int piece_size(int piece, const char *path)
+{
+	const volatile uint8_t *p = piece_at(piece);
+	if (p[0] != 'O' || p[1] != 'J' || p[2] != 'S' || p[3] != 'F') return -1;
+	char n[12];
+	base_name(path, n);
+	for (int i = 0; i < 12; i++) if (p[6 + i] != (uint8_t)n[i]) return -1;
+	int size = p[4] << 8 | p[5];
+	return size <= PIECE_BYTES - PIECE_HEAD ? size : -1;
 }
 
 static int store_find(const char *path)
 {
-	store_load();
-	char n[12];
-	base_name(path, n);
-	for (int i = 0; i < STORE_FILES; i++)
-		if (store[i].used && memcmp(store[i].name, n, 12) == 0) return i;
-	return -1;
+	int piece = piece_of(path);
+	return piece >= 0 && piece_size(piece, path) >= 0 ? piece : -1;
 }
 
-/* remove file i's bytes from the pool (the others move down) */
-static void store_cut(int i)
+/* the Sub-CPU buffer is filled byte pairs at a time: the data starts at byte 18 (even) */
+static int put_byte(SaveFd *d, uint8_t b)
 {
-	StoreFile *f = &store[i];
-	memmove(pool + f->off, pool + f->off + f->size, (size_t)(pool_used - f->off - f->size));
-	for (int k = 0; k < STORE_FILES; k++)
-		if (store[k].used && store[k].off > f->off) store[k].off -= f->size;
-	pool_used -= f->size;
-	f->size = 0;
-	f->off = pool_used;
+	const int at = PIECE_HEAD + d->pos;
+	if (at >= PIECE_BYTES) return 0;
+	if (at & 1) { plat_save_put_word(at >> 1, d->pending << 8 | b); d->odd = 0; }
+	else { d->pending = b; d->odd = 1; }
+	d->pos++;
+	return 1;
 }
 
-static int store_commit(void)
-{
-	int count = 0, at = 6;
-	for (int i = 0; i < STORE_FILES; i++)
-	{
-		if (!store[i].used) continue;
-		if (at + 14 + store[i].size > STORE_BYTES) return 0;
-		memcpy(raw + at, store[i].name, 12);
-		raw[at + 12] = (uint8_t)(store[i].size >> 8);
-		raw[at + 13] = (uint8_t)store[i].size;
-		at += 14;
-		memcpy(raw + at, pool + store[i].off, (size_t)store[i].size);
-		at += store[i].size;
-		count++;
-	}
-	raw[0] = 'O'; raw[1] = 'J'; raw[2] = 'S'; raw[3] = 'V';
-	raw[4] = (uint8_t)(count >> 8); raw[5] = (uint8_t)count;
-	return plat_bram_write(raw, at);
-}
+static char open_name[4][12];
 
 int _open(const char *name, int flags, int mode)
 {
@@ -157,32 +134,30 @@ int _open(const char *name, int flags, int mode)
 	int slot = -1;
 	for (int i = 0; i < 4; i++) if (!fds[i].open) { slot = i; break; }
 	if (slot < 0) { errno = EMFILE; return -1; }
-	int f = store_find(name);
+	const int piece = piece_of(name);
+	if (piece < 0) { errno = ENOENT; return -1; }
 	const int writing = (flags & O_ACCMODE) != O_RDONLY;
 	if (writing)
 	{
-		/* one file is written at a time, at the end of the pool (OpenJazz writes whole files) */
 		for (int i = 0; i < 4; i++) if (fds[i].open && fds[i].writing) { errno = EBUSY; return -1; }
-		if (f < 0)
-		{
-			for (int i = 0; i < STORE_FILES; i++) if (!store[i].used) { f = i; break; }
-			if (f < 0) { errno = ENOSPC; return -1; }
-			base_name(name, store[f].name);
-			store[f].used = 1;
-			store[f].size = 0;
-			store[f].off = pool_used;
-		}
-		else store_cut(f);   /* rewritten from the start (OpenJazz never appends) */
+		fds[slot].size = 0;
 	}
-	else if (f < 0) { errno = ENOENT; return -1; }
-	fds[slot].file = f;
+	else
+	{
+		const int size = piece_size(piece, name);
+		if (size < 0) { errno = ENOENT; return -1; }
+		fds[slot].size = size;
+	}
+	base_name(name, open_name[slot]);
+	fds[slot].piece = piece;
 	fds[slot].pos = 0;
 	fds[slot].writing = writing;
+	fds[slot].odd = 0;
 	fds[slot].open = 1;
 	return FD_BASE + slot;
 }
 
-static StoreFd *fd_of(int fd)
+static SaveFd *fd_of(int fd)
 {
 	if (fd < FD_BASE || fd >= FD_BASE + 4 || !fds[fd - FD_BASE].open) return NULL;
 	return &fds[fd - FD_BASE];
@@ -190,57 +165,60 @@ static StoreFd *fd_of(int fd)
 
 int _read(int fd, char *buf, int len)
 {
-	StoreFd *d = fd_of(fd);
-	if (!d) return 0;
-	StoreFile *f = &store[d->file];
-	int n = f->size - d->pos;
+	SaveFd *d = fd_of(fd);
+	if (!d || d->writing) return 0;
+	int n = d->size - d->pos;
 	if (n > len) n = len;
 	if (n < 0) n = 0;
-	memcpy(buf, pool + f->off + d->pos, (size_t)n);
+	const volatile uint8_t *p = piece_at(d->piece) + PIECE_HEAD + d->pos;
+	for (int i = 0; i < n; i++) buf[i] = (char)p[i];
 	d->pos += n;
 	return n;
 }
 
 int _write(int fd, const char *buf, int len)
 {
-	StoreFd *d = fd_of(fd);
+	SaveFd *d = fd_of(fd);
 	if (!d) return len;                          /* the console streams: nowhere to go */
-	StoreFile *f = &store[d->file];
-	if (d->pos != f->size) { errno = EINVAL; return -1; }   /* only appending (see _open) */
-	if (pool_used + len > STORE_BYTES) { errno = ENOSPC; return -1; }
-	memcpy(pool + pool_used, buf, (size_t)len);
-	pool_used += len;
-	f->size += len;
-	d->pos += len;
+	if (!d->writing) { errno = EBADF; return -1; }
+	for (int i = 0; i < len; i++)
+		if (!put_byte(d, (uint8_t)buf[i])) { errno = ENOSPC; return -1; }
+	if (d->pos > d->size) d->size = d->pos;
 	return len;
 }
 
 int _lseek(int fd, int off, int whence)
 {
-	StoreFd *d = fd_of(fd);
+	SaveFd *d = fd_of(fd);
 	if (!d) return 0;
-	int base = whence == SEEK_SET ? 0 : whence == SEEK_CUR ? d->pos : store[d->file].size;
-	if (base + off < 0 || (d->writing && base + off != store[d->file].size)) { if (!d->writing) { errno = EINVAL; return -1; } return d->pos; }
+	int base = whence == SEEK_SET ? 0 : whence == SEEK_CUR ? d->pos : d->size;
+	if (d->writing)
+		return (base + off == d->pos) ? d->pos : (errno = EINVAL, -1);   /* only where we are */
+	if (base + off < 0 || base + off > d->size) { errno = EINVAL; return -1; }
 	d->pos = base + off;
 	return d->pos;
 }
 
 int _close(int fd)
 {
-	StoreFd *d = fd_of(fd);
+	SaveFd *d = fd_of(fd);
 	if (!d) return -1;
 	d->open = 0;
-	if (d->writing && !store_commit())
-	{
-		errno = EIO;
-		return -1;
-	}
+	if (!d->writing) return 0;
+	if (d->odd) plat_save_put_word((PIECE_HEAD + d->pos - 1) >> 1, d->pending << 8);
+	/* the header last: magic, size, name */
+	plat_save_put_word(0, 'O' << 8 | 'J');
+	plat_save_put_word(1, 'S' << 8 | 'F');
+	plat_save_put_word(2, d->size);
+	const char *n = open_name[d - fds];
+	for (int i = 0; i < 12; i += 2) plat_save_put_word(3 + i / 2, (uint8_t)n[i] << 8 | (uint8_t)n[i + 1]);
+	if (!plat_save_piece(d->piece)) { errno = EIO; return -1; }
 	return 0;
 }
 
 int _fstat(int fd, struct stat *st)
 {
-	if (fd_of(fd)) { memset(st, 0, sizeof *st); st->st_mode = S_IFREG; st->st_size = store[fds[fd - FD_BASE].file].size; st->st_blksize = 512; return 0; }
+	if (fd_of(fd)) { memset(st, 0, sizeof *st); st->st_mode = S_IFREG; st->st_size = fds[fd - FD_BASE].size; st->st_blksize = 512; return 0; }
 	if (fd < 0 || fd > 2) { errno = EBADF; return -1; }
 	memset(st, 0, sizeof *st);
 	st->st_mode = S_IFCHR;

@@ -248,6 +248,14 @@ int SDL_SetPalette(SDL_Surface *s, int flags, const SDL_Color *colors, int first
 			uint16_t v = (uint16_t)((c.r >> 3) | (c.g >> 3) << 5 | (c.b >> 3) << 10);
 			phys555[first + i] = v;
 		}
+		/* J13: the 12 lines above and below the 200-line picture show one palette entry; colour 0
+		 * is white in some levels' palettes (the white bars) - use the darkest one instead */
+		int best = 0, bestv = 1 << 30;
+		for (int i = 0; i < 256; ++i) {
+			const int v = (phys555[i] & 31) + (phys555[i] >> 5 & 31) + (phys555[i] >> 10 & 31);
+			if (v < bestv) { bestv = v; best = i; }
+		}
+		plat_border_colour(best);
 	}
 	return 1;
 }
@@ -432,7 +440,7 @@ char *SDL_GetKeyName(SDLKey key)
 /* Pad layouts (PORT32X). Play: C or A jump, B fire, X or Y change weapon, Start = the level
  * menu (OpenJazz's Escape), Z statistics. Menu: C, A or Start = Enter, B = back (Escape). */
 struct PadKey { uint16_t bit; SDLKey play, menu; };
-static const PadKey pad_keys[] = {
+static PadKey pad_keys[] = {
 	{PAD_UP,    SDLK_UP,     SDLK_UP},
 	{PAD_DOWN,  SDLK_DOWN,   SDLK_DOWN},
 	{PAD_LEFT,  SDLK_LEFT,   SDLK_LEFT},
@@ -467,6 +475,18 @@ static void push_key(Uint8 type, SDLKey sym)
 	e.key.state = type == SDL_KEYDOWN ? SDL_PRESSED : SDL_RELEASED;
 	e.key.keysym.sym = sym;
 	q_tail = next;
+}
+
+/* J13: the set-up's one button choice: A and B trade jump and fire (C always jumps) */
+static bool ab_swapped;
+bool oj32x_ab_swapped(void) { return ab_swapped; }
+void oj32x_ab_swap(bool on)
+{
+	ab_swapped = on;
+	for (auto &k : pad_keys) {
+		if (k.bit == PAD_A) k.play = on ? SDLK_LALT : SDLK_SPACE;
+		if (k.bit == PAD_B) k.play = on ? SDLK_SPACE : SDLK_LALT;
+	}
 }
 
 void oj32x_pad_mode(int mode)
@@ -623,8 +643,24 @@ void oj32x_music_track(int track) { plat_music(track); }
 
 /* J10: music as CD audio. The game's 35 music files in alphabetical order are disc tracks 2-36
  * (tools/music_tracks.txt - Micronut99 provides the WAVs); NULL = stop. */
+static char music_last[16];   /* J13: the song asked for last, for volume 0 -> on */
+
+void oj32x_music_remember(const char *fileName)
+{
+	if (fileName) { strncpy(music_last, fileName, sizeof music_last - 1); music_last[sizeof music_last - 1] = 0; }
+}
+
+void oj32x_music_volume(int volume)
+{
+	static int was = -1;
+	if (volume == 0 && was != 0) { oj32x_music(nullptr, false); }
+	else if (volume > 0 && was == 0 && music_last[0]) { oj32x_music(music_last, true); }
+	was = volume;
+}
+
 void oj32x_music(const char *fileName, bool restart)
 {
+	if (fileName) oj32x_music_remember(fileName);
 	static const char *const songs[] = {
 		"BONUS",
 		"BOSS",

@@ -298,7 +298,12 @@ void startUp (const char *argv0, int pathCount, char *paths[]) {
 
 	}
 
+#ifdef OJ32X
+	bool panelMapped;  // PORT32X (J13): from the cart pack when it is there
+	pixels = file->loadRLEPacked(46272, panelMapped);
+#else
 	pixels = file->loadRLE(46272);
+#endif
 
 	delete file;
 
@@ -328,6 +333,9 @@ void startUp (const char *argv0, int pathCount, char *paths[]) {
 		if (fontiny) delete fontiny;
 		if (fontmn1) delete fontmn1;
 
+#ifdef OJ32X
+		if (!panelMapped)
+#endif
 		delete[] pixels;
 
 		closeAudio();
@@ -344,6 +352,9 @@ void startUp (const char *argv0, int pathCount, char *paths[]) {
 	fontmn1->saveAtlasAsBMP("fontmn1.bmp");
 	#endif
 
+#ifdef OJ32X
+	if (!panelMapped)
+#endif
 	delete[] pixels;
 
 	// Establish arbitrary timing

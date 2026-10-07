@@ -464,6 +464,28 @@ const unsigned char* File::packPicture (int width, int height, int length) {
 }
 
 
+unsigned char* File::loadRLEPacked (int length, bool& mapped) {
+
+	mapped = false;
+	const int start = tell();
+	if (packData) {
+		int w, h;
+		uint32_t end;
+		const uint8_t* p = pack_file_picture_any(filePath, start, &w, &h, &end);
+		if (p && w * h == length) {
+			seek(end, true);
+			mapped = true;
+			return const_cast<unsigned char*>(p);
+		}
+	}
+	unsigned char* pixels = loadRLE(length);
+	// a block as a picture of one line (or 2 x length/2 when longer than 65535)
+	if (length <= 65535) bakePicture(start, pixels, length, 1);
+	return pixels;
+
+}
+
+
 const unsigned char* File::packPictureAny (int* width, int* height, uint32_t* end) {
 
 	if (!packData) return nullptr;

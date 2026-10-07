@@ -16,7 +16,7 @@ index da9278b..d6dca7d 100644
  
  		try {
 diff --git a/oj/src/io/file.cpp b/oj/src/io/file.cpp
-index 9791b29..7e49841 100644
+index 9791b29..1a9377e 100644
 --- a/oj/src/io/file.cpp
 +++ b/oj/src/io/file.cpp
 @@ -25,6 +25,10 @@
@@ -87,7 +87,7 @@ index 9791b29..7e49841 100644
  	Path* path = gamePaths.paths;
  	while (path) {
  		// skip other paths
-@@ -392,6 +432,54 @@ void File::storeData (const void* data, int length) {
+@@ -392,6 +432,76 @@ void File::storeData (const void* data, int length) {
   *
   * @return Buffer containing the block of data
   */
@@ -123,6 +123,28 @@ index 9791b29..7e49841 100644
 +}
 +
 +
++unsigned char* File::loadRLEPacked (int length, bool& mapped) {
++
++	mapped = false;
++	const int start = tell();
++	if (packData) {
++		int w, h;
++		uint32_t end;
++		const uint8_t* p = pack_file_picture_any(filePath, start, &w, &h, &end);
++		if (p && w * h == length) {
++			seek(end, true);
++			mapped = true;
++			return const_cast<unsigned char*>(p);
++		}
++	}
++	unsigned char* pixels = loadRLE(length);
++	// a block as a picture of one line (or 2 x length/2 when longer than 65535)
++	if (length <= 65535) bakePicture(start, pixels, length, 1);
++	return pixels;
++
++}
++
++
 +const unsigned char* File::packPictureAny (int* width, int* height, uint32_t* end) {
 +
 +	if (!packData) return nullptr;
@@ -142,7 +164,7 @@ index 9791b29..7e49841 100644
  unsigned char * File::loadBlock (int length) {
  
  	unsigned char *buffer;
-@@ -581,8 +669,26 @@ SDL_Surface* File::loadSurface (int width, int height, bool checkSize) {
+@@ -581,8 +691,26 @@ SDL_Surface* File::loadSurface (int width, int height, bool checkSize) {
  	SDL_Surface* surface;
  	unsigned char* pixels;
  
@@ -170,7 +192,7 @@ index 9791b29..7e49841 100644
  
  	delete[] pixels;
 diff --git a/oj/src/io/file.h b/oj/src/io/file.h
-index cf009ca..1e05ebe 100644
+index cf009ca..dfd0286 100644
 --- a/oj/src/io/file.h
 +++ b/oj/src/io/file.h
 @@ -52,6 +52,9 @@ class File {
@@ -183,7 +205,7 @@ index cf009ca..1e05ebe 100644
  
  		bool open (const char* path, const char* name, bool write);
  
-@@ -77,6 +80,18 @@ class File {
+@@ -77,6 +80,21 @@ class File {
  		void               storeString (const char *string);
  		void               storeData   (const void* data, int length);
  		unsigned char*     loadBlock   (int length);
@@ -196,6 +218,9 @@ index cf009ca..1e05ebe 100644
 +		const unsigned char* packPicture (int width, int height, int length);
 +		/// PORT32X: the picture at the current position in a cart pack, any size
 +		const unsigned char* packPictureAny (int* width, int* height, uint32_t* end);
++		/// PORT32X (J13): an RLE block of <length> bytes - in place from a cart pack (mapped = true,
++		/// never delete[] it) or decoded as loadRLE does (mapped = false); the PC build records it
++		unsigned char*     loadRLEPacked (int length, bool& mapped);
 +		/// PORT32X: PC build - record the picture decoded from <start>..now (T32X_BAKE)
 +		void               bakePicture (int start, const unsigned char* pixels, int width, int height);
 +#endif
@@ -315,7 +340,7 @@ index 9d2ea85..a0f1198 100644
  	// get current time
  	time_t t = time(nullptr);
 diff --git a/oj/src/io/sound.cpp b/oj/src/io/sound.cpp
-index 9f5be2d..abc0816 100644
+index 9f5be2d..5c4ee57 100644
 --- a/oj/src/io/sound.cpp
 +++ b/oj/src/io/sound.cpp
 @@ -24,6 +24,9 @@
@@ -342,19 +367,20 @@ index 9f5be2d..abc0816 100644
  
  #if OJ_SDL3
  	SDL_CloseAudioDevice(SDL_GetAudioStreamDevice(audioStream));
-@@ -325,6 +334,11 @@ void closeAudio () {
+@@ -325,6 +334,12 @@ void closeAudio () {
   * @param restart Restart music when same file is played.
   */
  void playMusic (const char * fileName, bool restart) {
 +#ifdef OJ32X_MARS
 +	// PORT32X (J10): CD audio - track n for the n-th music file (tools/music_tracks.txt)
-+	oj32x_music(fileName, restart);
++	if (musicVolume > 0) oj32x_music(fileName, restart);   // J13: volume 0 = off
++	else oj32x_music_remember(fileName);
 +	return;
 +#endif
  	/* Only stop any existing music playing, if a different file
  	   should be played or a restart has been requested. */
  	if ((currentMusic && (strcmp(fileName, currentMusic) == 0)) && !restart)
-@@ -397,6 +411,10 @@ void pauseMusic (bool pause) {
+@@ -397,6 +412,10 @@ void pauseMusic (bool pause) {
   * Stop the current music.
   */
  void stopMusic () {
@@ -365,13 +391,25 @@ index 9f5be2d..abc0816 100644
  	// Stop the music playing
  	LockAudio();
  
-@@ -664,6 +682,11 @@ void freeSounds() {
+@@ -435,6 +454,11 @@ int getMusicVolume () {
+  */
+ void setMusicVolume (int volume) {
+ 	musicVolume = CLAMP(volume, 0, MAX_VOLUME);
++#ifdef OJ32X_MARS
++	// PORT32X (J13): CD audio has no volume control here - 0 stops the music, more plays it
++	oj32x_music_volume(musicVolume);
++	return;
++#endif
+ 
+ 	// only access music player settings when playing
+ 	if (xmpC && xmp_get_player(xmpC, XMP_PLAYER_STATE) == XMP_STATE_PLAYING)
+@@ -664,6 +688,11 @@ void freeSounds() {
   * @param index Number of the sound to play
   */
  void playSound(SE::Type index) {
 +#ifdef OJ32X_MARS
 +	// PORT32X (J10): the Sega CD's PCM chip plays it (SFX00.BIN, tools/make_oj_sfx.py)
-+	if (index != SE::NONE) oj32x_sfx(static_cast<int>(index));
++	if (index != SE::NONE && soundVolume > 0) oj32x_sfx(static_cast<int>(index));  // J13: 0 = off
 +	return;
 +#endif
  	// silently ignore
@@ -707,7 +745,7 @@ index a4a5b02..43c8d52 100644
  	video.drawRect(0, FTOI(waterLevel - viewY), canvasW, 2, 24);
  	video.drawRect(0, FTOI(waterLevel - viewY) + 3, canvasW, 1, 24);
 diff --git a/oj/src/jj1/level/jj1levelload.cpp b/oj/src/jj1/level/jj1levelload.cpp
-index cfc4d66..646256f 100644
+index cfc4d66..e8274a4 100644
 --- a/oj/src/jj1/level/jj1levelload.cpp
 +++ b/oj/src/jj1/level/jj1levelload.cpp
 @@ -41,6 +41,9 @@
@@ -720,7 +758,18 @@ index cfc4d66..646256f 100644
  
  #include <string.h>
  
-@@ -70,7 +73,13 @@ int JJ1Level::loadPanel () {
+@@ -66,11 +69,24 @@ int JJ1Level::loadPanel () {
+ 
+ 	}
+ 
++#ifdef OJ32X
++	// PORT32X (J13): the panel's 46 KB comes decoded from the cart pack (no 46 KB block in
++	// SDRAM at every level start: on the console that block failed after a few levels)
++	bool panelMapped;
++	unsigned char* pixels = file->loadRLEPacked(46272, panelMapped);
++#else
+ 	unsigned char* pixels = file->loadRLE(46272);
++#endif
  
  
  	// Create the panel background
@@ -734,7 +783,19 @@ index cfc4d66..646256f 100644
  
  
  	// De-scramble the panel's ammo graphics
-@@ -345,6 +354,23 @@ int JJ1Level::loadTiles (char* fileName) {
+@@ -85,7 +101,11 @@ int JJ1Level::loadPanel () {
+ 	}
+ 
+ 	delete[] sorted;
++#ifdef OJ32X
++	if (!panelMapped) delete[] pixels;
++#else
+ 	delete[] pixels;
++#endif
+ 
+ 	// Create the panel borders in FPS HUD mode
+ 	panelBG[0] = video.createSurface(nullptr, TTOI(1), TTOI(1));
+@@ -345,6 +365,23 @@ int JJ1Level::loadTiles (char* fileName) {
  	   FIXME: These are actually alternating, needs rewritten `SkyPaletteEffect` */
  	file->skipRLE();
  
@@ -758,7 +819,7 @@ index cfc4d66..646256f 100644
  	// Load the tile pixel indices
  	int tiles = 0;
  	unsigned char* pixels[TSETS * TNUM] = {0};
-@@ -384,6 +410,9 @@ int JJ1Level::loadTiles (char* fileName) {
+@@ -384,6 +421,9 @@ int JJ1Level::loadTiles (char* fileName) {
  		delete[] pixels[i];
  	}
  
@@ -768,7 +829,7 @@ index cfc4d66..646256f 100644
  	tileSet = video.createSurface(buffer, TTOI(1), TTOI(tiles));
  	video.enableColorKey(tileSet, TKEY);
  	delete[] buffer;
-@@ -409,6 +438,11 @@ int JJ1Level::loadTiles (char* fileName) {
+@@ -409,6 +449,11 @@ int JJ1Level::loadTiles (char* fileName) {
  int JJ1Level::load (char* fileName, bool checkpoint) {
  	unsigned char* buffer;
  
@@ -780,7 +841,7 @@ index cfc4d66..646256f 100644
  	// Load font
  	try {
  
-@@ -585,7 +619,13 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
+@@ -585,7 +630,13 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
  
  	delete[] ext;
  
@@ -794,7 +855,7 @@ index cfc4d66..646256f 100644
  
  	delete[] string;
  
-@@ -603,6 +643,9 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
+@@ -603,6 +654,9 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
  
  	string = createFileName("SPRITES", worldNum);
  	res = loadSprites(string);
@@ -804,7 +865,7 @@ index cfc4d66..646256f 100644
  
  	delete[] string;
  
-@@ -623,8 +666,27 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
+@@ -623,8 +677,27 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
  
  	// Load tile and event references
  
@@ -832,7 +893,7 @@ index cfc4d66..646256f 100644
  	// Create grid from data
  	for (int x = 0; x < LW; x++) {
  
-@@ -634,13 +696,22 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
+@@ -634,13 +707,22 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
  			grid[y][x].bg = buffer[((y + (x * LH)) << 1) + 1] >> 7;
  			grid[y][x].event = buffer[((y + (x * LH)) << 1) + 1] & 127;
  			grid[y][x].hits = 0;
@@ -855,7 +916,7 @@ index cfc4d66..646256f 100644
  
  	// Ignore tile transparency settings, these are applied based on event type/behaviour
  
-@@ -1091,6 +1162,9 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
+@@ -1091,6 +1173,9 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
  	ammoType = 0;
  	ammoOffset = -1;
  
@@ -1127,7 +1188,7 @@ index 1ab7284..2c34cc4 100644
  
  
 diff --git a/oj/src/main.cpp b/oj/src/main.cpp
-index 71b7fff..e5c8a6f 100644
+index 71b7fff..3a716a4 100644
 --- a/oj/src/main.cpp
 +++ b/oj/src/main.cpp
 @@ -30,6 +30,10 @@
@@ -1141,7 +1202,40 @@ index 71b7fff..e5c8a6f 100644
  #if OJ_SDL3
  #include <SDL3/SDL_main.h>
  #endif
-@@ -432,6 +436,10 @@ int play () {
+@@ -294,7 +298,12 @@ void startUp (const char *argv0, int pathCount, char *paths[]) {
+ 
+ 	}
+ 
++#ifdef OJ32X
++	bool panelMapped;  // PORT32X (J13): from the cart pack when it is there
++	pixels = file->loadRLEPacked(46272, panelMapped);
++#else
+ 	pixels = file->loadRLE(46272);
++#endif
+ 
+ 	delete file;
+ 
+@@ -324,6 +333,9 @@ void startUp (const char *argv0, int pathCount, char *paths[]) {
+ 		if (fontiny) delete fontiny;
+ 		if (fontmn1) delete fontmn1;
+ 
++#ifdef OJ32X
++		if (!panelMapped)
++#endif
+ 		delete[] pixels;
+ 
+ 		closeAudio();
+@@ -340,6 +352,9 @@ void startUp (const char *argv0, int pathCount, char *paths[]) {
+ 	fontmn1->saveAtlasAsBMP("fontmn1.bmp");
+ 	#endif
+ 
++#ifdef OJ32X
++	if (!panelMapped)
++#endif
+ 	delete[] pixels;
+ 
+ 	// Establish arbitrary timing
+@@ -432,6 +447,10 @@ int play () {
  
  	// Load and play the startup cutscene
  
@@ -1152,7 +1246,7 @@ index 71b7fff..e5c8a6f 100644
  	try {
  
  		scene = new JJ1Scene("STARTUP.0SC");
-@@ -451,6 +459,9 @@ int play () {
+@@ -451,6 +470,9 @@ int play () {
  	}
  
  	delete scene;
@@ -1162,7 +1256,7 @@ index 71b7fff..e5c8a6f 100644
  
  
  	// Load and run the menu
-@@ -532,6 +543,11 @@ int loop (LoopType type, PaletteEffect* paletteEffects, bool effectsStopped) {
+@@ -532,6 +554,11 @@ int loop (LoopType type, PaletteEffect* paletteEffects, bool effectsStopped) {
  
  
  	// Process system events
@@ -1415,4 +1509,45 @@ index cea5afb..4d2a07a 100644
 +#endif
  
  #define MAX_EPISODES 11
+ 
+diff --git a/oj/src/menu/setupmenu.cpp b/oj/src/menu/setupmenu.cpp
+index 6989d64..bafabab 100644
+--- a/oj/src/menu/setupmenu.cpp
++++ b/oj/src/menu/setupmenu.cpp
+@@ -26,6 +26,9 @@
+ 
+ 
+ #include "menu.h"
++#ifdef OJ32X_MARS
++#include "oj32x.h"
++#endif
+ 
+ #include "io/controls.h"
+ #include "io/gfx/font.h"
+@@ -675,12 +678,26 @@ int SetupMenu::run () {
+ 
+ 	while (true) {
+ 
++#ifdef OJ32X_MARS
++		// PORT32X (J13): a pad console - no keyboard, no joystick set-up, no video modes; the
++		// one button choice is which of A and B jumps and which fires (C always jumps)
++		const char* setup32x[4] = { "character", oj32x_ab_swapped() ? "buttons: a fire b jump" : "buttons: a jump b fire", "audio", "gameplay" };
++		static const int map32x[4] = { 0, -1, 4, 5 };
++		int option32x = option < 4 ? option : 0;
++		ret = generic("SETUP OPTIONS", setup32x, 4, option32x);
++		option = option32x;
++		if (ret == E_RETURN) return E_NONE;
++		if (ret < 0) return ret;
++		if (map32x[option32x] < 0) { oj32x_ab_swap(!oj32x_ab_swapped()); continue; }
++		switch (map32x[option32x]) {
++#else
+ 		ret = generic("SETUP OPTIONS", setupOptions, 6, option);
+ 
+ 		if (ret == E_RETURN) return E_NONE;
+ 		if (ret < 0) return ret;
+ 
+ 		switch (option) {
++#endif
+ 
+ 			case 0:
  

@@ -531,3 +531,27 @@ each CD track (CMD 45 repeat).
   screen and level 1 from it.
 - Next for real preloading: a second cart slot (needs room: free 0x06E000-0x100000 0.57 MB +
   what the slimmer common pack frees, 0x250000-0x280000).
+
+## J11 console test (photos/videos 1006261906-1930) and J13
+- Red screens after deaths / level changes: OUT OF MEMORY: NEW OF 46,272 BYTES (heap top
+  195,312 of 217,840), last log OPEN PANEL.000 = JJ1Level::loadPanel decoding PANEL.000 at every
+  level start. Not a leak (PC, 32X paths: a second level load leaves +240 bytes) - the 32X heap
+  gets fragmented, no 46 KB hole left. J13: File::loadRLEPacked - the decoded block comes from
+  the pack (baked as a one-line "file picture"); also at start-up. Plus 8 KB more heap (below).
+- Saves: J11's backup-RAM store did not work (the internal backup RAM is shared by all games;
+  and base_name cut "OPENJAZZ.CFG" to 11 characters, so the settings never matched). J13: the
+  RAM cart's save area, OpenLara's OL-9 path - one 4 KB piece per file at 0x3F0000 (0 cfg,
+  1-4 SAVE.0-3), written word by word (CMD 58) and committed per file (CMD 61, read back),
+  read straight from the cart. No SDRAM buffers (J11's 8 KB of .bss are gone). Tested on the PC
+  in a harness (write cfg + a 2,001-byte save, read both back).
+- White bars above/below the picture: the 24 border lines showed palette entry 0, which is
+  white in some palettes; now the darkest entry of the current palette (plat_border_colour).
+- Sound effects: envelope 96 instead of 255, samples at 3/4 scale (too loud, distorted).
+- Volumes: CD audio and the PCM effects have no volume control on this path - set-up volume
+  0 = off (music stops / no effects), above 0 = on.
+- Set-up menu on the 32X: character, buttons (A/B swap: A fire + B jump, C always jumps),
+  audio, gameplay. No keyboard, joystick or video entries.
+- FPS: Micronut99 sees no change from the slave SH2 drawing half - next: measure where the
+  frame time goes on the console before more speed work; the scrolling rebuild is the real fix.
+- Next: warm boot - skip copying engine and common pack when the cart already holds them
+  (verify with a checksum on the SH2); hold a button at boot to force the full load.

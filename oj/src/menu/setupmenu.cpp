@@ -26,6 +26,9 @@
 
 
 #include "menu.h"
+#ifdef OJ32X_MARS
+#include "oj32x.h"
+#endif
 
 #include "io/controls.h"
 #include "io/gfx/font.h"
@@ -675,12 +678,26 @@ int SetupMenu::run () {
 
 	while (true) {
 
+#ifdef OJ32X_MARS
+		// PORT32X (J13): a pad console - no keyboard, no joystick set-up, no video modes; the
+		// one button choice is which of A and B jumps and which fires (C always jumps)
+		const char* setup32x[4] = { "character", oj32x_ab_swapped() ? "buttons: a fire b jump" : "buttons: a jump b fire", "audio", "gameplay" };
+		static const int map32x[4] = { 0, -1, 4, 5 };
+		int option32x = option < 4 ? option : 0;
+		ret = generic("SETUP OPTIONS", setup32x, 4, option32x);
+		option = option32x;
+		if (ret == E_RETURN) return E_NONE;
+		if (ret < 0) return ret;
+		if (map32x[option32x] < 0) { oj32x_ab_swap(!oj32x_ab_swapped()); continue; }
+		switch (map32x[option32x]) {
+#else
 		ret = generic("SETUP OPTIONS", setupOptions, 6, option);
 
 		if (ret == E_RETURN) return E_NONE;
 		if (ret < 0) return ret;
 
 		switch (option) {
+#endif
 
 			case 0:
 

@@ -16,6 +16,8 @@ All 22 sounds must fit the 64 KB: they are played at RATE and cut at MAX_SECS.""
 import struct, sys
 
 SRC_RATE, RATE, MAX_SECS, RAM, PAGE, TAIL = 11025, 5000, 1.0, 65536, 256, 16
+VOLUME = 96    # J13: PCM envelope (255 = full) - full volume was far too loud and distorted
+AMP = 0.75     # J13: samples at 3/4 of full scale (headroom against clipping)
 
 def sm8(v):
     m = min(126, int(round(abs(v) * 127)))       # 127 would give the 0xFF loop marker
@@ -44,7 +46,7 @@ def main():
         name = e[:12].split(b"\0")[0].decode("latin1")
         off, = struct.unpack("<i", e[12:16])
         ln, = struct.unpack("<H", e[16:18])
-        a = [(b - 128) / 128.0 for b in d[off:off + ln]][: int(MAX_SECS * SRC_RATE)]
+        a = [AMP * (b - 128) / 128.0 for b in d[off:off + ln]][: int(MAX_SECS * SRC_RATE)]
         fade = min(len(a), int(0.02 * SRC_RATE))
         for k in range(fade):
             a[len(a) - fade + k] *= 1 - (k + 1) / fade
@@ -56,7 +58,7 @@ def main():
         image += bytes([0x80]) * (start - len(image)) + pcm
         loop = len(image)
         image += bytes([0x80]) * TAIL + b"\xff"
-        table.append((start // PAGE, 255, int(round(RATE * 2048 / 32552)), loop, len(pcm)))
+        table.append((start // PAGE, VOLUME, int(round(RATE * 2048 / 32552)), loop, len(pcm)))
         smap[i] = len(table)
     hdr = bytearray(b"KSFX") + struct.pack(">HH", len(table), len(image) & 0xFFFF)
     for t in table:

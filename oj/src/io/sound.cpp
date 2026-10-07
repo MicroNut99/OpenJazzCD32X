@@ -336,7 +336,8 @@ void closeAudio () {
 void playMusic (const char * fileName, bool restart) {
 #ifdef OJ32X_MARS
 	// PORT32X (J10): CD audio - track n for the n-th music file (tools/music_tracks.txt)
-	oj32x_music(fileName, restart);
+	if (musicVolume > 0) oj32x_music(fileName, restart);   // J13: volume 0 = off
+	else oj32x_music_remember(fileName);
 	return;
 #endif
 	/* Only stop any existing music playing, if a different file
@@ -453,6 +454,11 @@ int getMusicVolume () {
  */
 void setMusicVolume (int volume) {
 	musicVolume = CLAMP(volume, 0, MAX_VOLUME);
+#ifdef OJ32X_MARS
+	// PORT32X (J13): CD audio has no volume control here - 0 stops the music, more plays it
+	oj32x_music_volume(musicVolume);
+	return;
+#endif
 
 	// only access music player settings when playing
 	if (xmpC && xmp_get_player(xmpC, XMP_PLAYER_STATE) == XMP_STATE_PLAYING)
@@ -684,7 +690,7 @@ void freeSounds() {
 void playSound(SE::Type index) {
 #ifdef OJ32X_MARS
 	// PORT32X (J10): the Sega CD's PCM chip plays it (SFX00.BIN, tools/make_oj_sfx.py)
-	if (index != SE::NONE) oj32x_sfx(static_cast<int>(index));
+	if (index != SE::NONE && soundVolume > 0) oj32x_sfx(static_cast<int>(index));  // J13: 0 = off
 	return;
 #endif
 	// silently ignore

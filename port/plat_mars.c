@@ -498,10 +498,17 @@ static void pace_before_flip(void)
 }
 
 /* -------------------------------------------------------------- display */
+static uint32_t border_fill;   /* J13: four pixels of the darkest palette entry */
+
+void plat_border_colour(int index)
+{
+	border_fill = (uint32_t)(index & 255) * 0x01010101u;
+}
+
 static void present_finish(volatile uint32_t *blank_line, const uint16_t *palette555)
 {
 	for (int x = 0; x < PLAT_SCREEN_W / 4; ++x)
-		blank_line[x] = 0;
+		blank_line[x] = border_fill;
 	pace_before_flip();
 	flip_wait();
 	last_flip_vblank = vblank_count;
@@ -760,7 +767,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J12  " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J13  " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&
@@ -909,51 +916,25 @@ int32_t plat_load_pack(int id, uint32_t cart_offset, uint32_t max_bytes)
 
 void plat_packs_ready(void) { }
 
-/* ---- J11: the backup-RAM file (main.c CMD 56 load / 57 get word / 58 put word / 59 save) */
-#define CMD_BRAM_LOAD 56
-#define CMD_BRAM_GET  57
-#define CMD_BRAM_PUT  58
-#define CMD_BRAM_SAVE 59
+/* ---- J13: the save area in the RAM cart (main.c OL-9: CMD 58 put one word of the Sub-CPU's
+ * 4 KB buffer, CMD 61 buffer -> cart 0x3F0000 + COMM2 * 4 KB through the 68000, read back and
+ * compared; reply COMM12 1 = ok). The SH2 reads the area directly (port/mars_syscalls.c). */
+#define CMD_SAVE_PUT   58
+#define CMD_SAVE_PIECE 61
 
-static int bram_word(int index)
+int plat_save_put_word(int index, int value)
 {
+	MARS_COMM8 = (uint16_t)value;
 	MARS_COMM2 = (uint16_t)index;
-	send_cmd(CMD_BRAM_GET, 400000UL);
-	return MARS_COMM8;
+	return send_cmd(CMD_SAVE_PUT, 400000UL);
 }
 
-/* Reads only as far as the store needs: "OJSV", count, then name[12] size[2] data per file */
-int plat_bram_read(uint8_t *buf, int bytes)
+int plat_save_piece(int piece)
 {
+	MARS_COMM2 = (uint16_t)piece;
 	MARS_COMM12 = 0;
-	send_cmd(CMD_BRAM_LOAD, 4000000UL);
-	if (MARS_COMM12 == 0) return 0;              /* no file yet (first start) or no backup RAM */
-	int have = 0;
-	#define NEED(n) while (have < (n) && have < bytes) { int w = bram_word(have >> 1); buf[have] = (uint8_t)(w >> 8); buf[have + 1] = (uint8_t)w; have += 2; }
-	NEED(6);
-	if (buf[0] != 'O' || buf[1] != 'J' || buf[2] != 'S' || buf[3] != 'V') return have;
-	int count = buf[4] << 8 | buf[5], at = 6;
-	for (int i = 0; i < count && at + 14 <= bytes; i++)
-	{
-		NEED(at + 14);
-		int size = buf[at + 12] << 8 | buf[at + 13];
-		at += 14 + size;
-		NEED(at);
-	}
-	#undef NEED
-	return have;
-}
-
-int plat_bram_write(const uint8_t *buf, int bytes)
-{
-	for (int i = 0; i < bytes; i += 2)
-	{
-		MARS_COMM8 = (uint16_t)(buf[i] << 8 | (i + 1 < bytes ? buf[i + 1] : 0));
-		MARS_COMM2 = (uint16_t)(i >> 1);
-		send_cmd(CMD_BRAM_PUT, 400000UL);
-	}
-	MARS_COMM12 = 0;
-	send_cmd(CMD_BRAM_SAVE, 8000000UL);
-	if (MARS_COMM12 == 0) { plat_log("SAVE: BACKUP RAM WRITE FAILED"); return 0; }
+	send_cmd(CMD_SAVE_PIECE, 8000000UL);
+	if (MARS_COMM12 == 0) { plat_log("SAVE: WRITING THE CART SAVE AREA FAILED"); return 0; }
+	*(volatile uint8_t *)0xFFFFFE92 = 0x11;   /* purge: the 68000 wrote the cart */
 	return 1;
 }

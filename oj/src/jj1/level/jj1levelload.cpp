@@ -69,7 +69,14 @@ int JJ1Level::loadPanel () {
 
 	}
 
+#ifdef OJ32X
+	// PORT32X (J13): the panel's 46 KB comes decoded from the cart pack (no 46 KB block in
+	// SDRAM at every level start: on the console that block failed after a few levels)
+	bool panelMapped;
+	unsigned char* pixels = file->loadRLEPacked(46272, panelMapped);
+#else
 	unsigned char* pixels = file->loadRLE(46272);
+#endif
 
 
 	// Create the panel background
@@ -94,7 +101,11 @@ int JJ1Level::loadPanel () {
 	}
 
 	delete[] sorted;
+#ifdef OJ32X
+	if (!panelMapped) delete[] pixels;
+#else
 	delete[] pixels;
+#endif
 
 	// Create the panel borders in FPS HUD mode
 	panelBG[0] = video.createSurface(nullptr, TTOI(1), TTOI(1));
