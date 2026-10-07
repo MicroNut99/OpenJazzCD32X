@@ -592,3 +592,14 @@ and clears both 32X frame buffers (plat_clear_screens). Regression 0 different.
   at the main menu a demo plays - PC with 32X paths: MACRO.2 -> LEVEL0.000 from OJ000, heap as
   in a level. The main menu "flicker" about every 45 s was the demo timer finding no demo.
 - Credits: Y shows / hides the text (oj32x_pad: pad bits as last read).
+
+## J13f
+- Audio set-up on the 32X: "music: on/off", "sound effects: on/off" instead of volume bars.
+- Credits: Up/Down toggle the text too (3-button pads have no Y); the playlist skips songs with no
+  WAV (XMAS2/3: they stopped the list) and starts over after the last.
+- Sound effects: two-pass moving average (width src/dst) before resampling to 5 kHz - the high
+  parts aliased ("modulated").
+- "<B> BACK": the menu font has no < > [ ] { } = glyphs (tested), only letters, digits, ( ) - /.
+- Right-edge strip: not the see-through black either (J13e did not remove it); it also spans the
+  border lines, which are fully rewritten every frame - so probably not frame-buffer content.
+  Open: does it show on the text screens (boot test, blue/red)?

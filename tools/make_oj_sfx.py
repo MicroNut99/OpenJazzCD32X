@@ -23,6 +23,20 @@ def sm8(v):
     m = min(126, int(round(abs(v) * 127)))       # 127 would give the 0xFF loop marker
     return (0x80 | m) if v >= 0 else m
 
+def lowpass(a, src, dst):
+    # J13f: remove what 5 kHz cannot hold before resampling (moving average over src/dst
+    # samples, twice) - without it the high parts folded back as a metallic, "modulated" sound
+    w = max(1, int(round(src / dst)))
+    for _ in range(2):
+        out, acc = [], 0.0
+        for i, v in enumerate(a):
+            acc += v
+            if i >= w:
+                acc -= a[i - w]
+            out.append(acc / min(i + 1, w))
+        a = out
+    return a
+
 def resample(a, src, dst):
     n = max(1, int(round(len(a) * dst / src)))
     out = []
@@ -50,7 +64,7 @@ def main():
         fade = min(len(a), int(0.02 * SRC_RATE))
         for k in range(fade):
             a[len(a) - fade + k] *= 1 - (k + 1) / fade
-        pcm = bytes(sm8(v) for v in resample(a, SRC_RATE, RATE))
+        pcm = bytes(sm8(v) for v in resample(lowpass(a, SRC_RATE, RATE), SRC_RATE, RATE))
         start = (len(image) + PAGE - 1) // PAGE * PAGE
         if start + len(pcm) + TAIL + 1 > RAM or len(table) >= 31:
             print("  %-12s does not fit - left out" % name)

@@ -570,6 +570,22 @@ int SetupMenu::setupVideo () {
  */
 int SetupMenu::setupAudio () {
 
+#ifdef OJ32X_MARS
+	// PORT32X (J13f): CD audio and the PCM chip have no volume control on this path - two
+	// on/off switches instead of the volume bars (Micronut99)
+	int choice = 0;
+	while (true) {
+		const char* opts[2] = {
+			getMusicVolume() > 0 ? "music: on" : "music: off",
+			getSoundVolume() > 0 ? "sound effects: on" : "sound effects: off" };
+		int ret = generic("AUDIO", opts, 2, choice);
+		if (ret == E_QUIT) return E_QUIT;
+		if (ret < 0) return E_NONE;
+		if (choice == 0) setMusicVolume(getMusicVolume() > 0 ? 0 : MAX_VOLUME);
+		else setSoundVolume(getSoundVolume() > 0 ? 0 : MAX_VOLUME);
+	}
+#endif
+
 	int x, y;
 	bool soundActive;
 

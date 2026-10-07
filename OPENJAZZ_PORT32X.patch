@@ -1295,10 +1295,10 @@ index 71b7fff..3a716a4 100644
  		if (event.type == SDL_EVENT_QUIT) return E_QUIT;
 diff --git a/oj/src/menu/credits32x.cpp b/oj/src/menu/credits32x.cpp
 new file mode 100644
-index 0000000..cee0562
+index 0000000..9ed12e6
 --- /dev/null
 +++ b/oj/src/menu/credits32x.cpp
-@@ -0,0 +1,204 @@
+@@ -0,0 +1,212 @@
 +/**
 + * @file credits32x.cpp
 + *
@@ -1308,7 +1308,8 @@ index 0000000..cee0562
 + * alphabetical, tools/music_tracks.txt) with the names of their planets.
 + *   Left / Right: choose a song (the selector only)   A, C or Start: play the chosen song
 + *   (on the one that plays: stop / play)   no choice = no change   B: back
-+ *   Each track plays once, then the next (J13c). Y: credits text on / off (J13e).
++ *   Each track plays once, then the next, round and round (J13c/f). Y, Up or Down: credits
++ *   text on / off (J13e/f).
 + */
 +
 +#ifdef OJ32X
@@ -1435,9 +1436,11 @@ index 0000000..cee0562
 +
 +		// J13e (Micronut99): Y shows / hides the credits text (the background and player stay)
 +		{
-+			const bool y = (oj32x_pad() & 0x0200) != 0;    // PAD_Y
++			const bool y = (oj32x_pad() & 0x0200) != 0;    // PAD_Y (6-button pads)
 +			if (y && !yWas) showText = !showText;
 +			yWas = y;
++			// J13f: Up / Down do the same (a 3-button pad has no Y)
++			if (controls.release(C_UP) || controls.release(C_DOWN)) showText = !showText;
 +		}
 +
 +		// Left/Right only move the selector; A/C/Start plays the choice. J13c (Micronut99): no
@@ -1467,7 +1470,12 @@ index 0000000..cee0562
 +		}
 +		// the end of a track: the next one
 +		if (playing && music_length_ms[song + 2] && (int)(globalTicks - ends) >= 0) {
-+			song = (song + 1) % nSongs;
++			// J13f: on to the next track that is on the disc (a song without a WAV has no
++			// length - XMAS2/3 until Holiday Hare '95 comes); after the last, the first again
++			for (int n = 0; n < nSongs; n++) {
++				song = (song + 1) % nSongs;
++				if (music_length_ms[song + 2]) break;
++			}
 +			if (!pickTime) pick = song;
 +			ends = play(song);
 +		}
@@ -1672,7 +1680,7 @@ index 7b90515..9afd1e8 100644
  }
 +#endif
 diff --git a/oj/src/menu/setupmenu.cpp b/oj/src/menu/setupmenu.cpp
-index 6989d64..bafabab 100644
+index 6989d64..6a1257d 100644
 --- a/oj/src/menu/setupmenu.cpp
 +++ b/oj/src/menu/setupmenu.cpp
 @@ -26,6 +26,9 @@
@@ -1685,7 +1693,30 @@ index 6989d64..bafabab 100644
  
  #include "io/controls.h"
  #include "io/gfx/font.h"
-@@ -675,12 +678,26 @@ int SetupMenu::run () {
+@@ -567,6 +570,22 @@ int SetupMenu::setupVideo () {
+  */
+ int SetupMenu::setupAudio () {
+ 
++#ifdef OJ32X_MARS
++	// PORT32X (J13f): CD audio and the PCM chip have no volume control on this path - two
++	// on/off switches instead of the volume bars (Micronut99)
++	int choice = 0;
++	while (true) {
++		const char* opts[2] = {
++			getMusicVolume() > 0 ? "music: on" : "music: off",
++			getSoundVolume() > 0 ? "sound effects: on" : "sound effects: off" };
++		int ret = generic("AUDIO", opts, 2, choice);
++		if (ret == E_QUIT) return E_QUIT;
++		if (ret < 0) return E_NONE;
++		if (choice == 0) setMusicVolume(getMusicVolume() > 0 ? 0 : MAX_VOLUME);
++		else setSoundVolume(getSoundVolume() > 0 ? 0 : MAX_VOLUME);
++	}
++#endif
++
+ 	int x, y;
+ 	bool soundActive;
+ 
+@@ -675,12 +694,26 @@ int SetupMenu::run () {
  
  	while (true) {
  

@@ -7,7 +7,8 @@
  * alphabetical, tools/music_tracks.txt) with the names of their planets.
  *   Left / Right: choose a song (the selector only)   A, C or Start: play the chosen song
  *   (on the one that plays: stop / play)   no choice = no change   B: back
- *   Each track plays once, then the next (J13c). Y: credits text on / off (J13e).
+ *   Each track plays once, then the next, round and round (J13c/f). Y, Up or Down: credits
+ *   text on / off (J13e/f).
  */
 
 #ifdef OJ32X
@@ -134,9 +135,11 @@ int runCredits32X () {
 
 		// J13e (Micronut99): Y shows / hides the credits text (the background and player stay)
 		{
-			const bool y = (oj32x_pad() & 0x0200) != 0;    // PAD_Y
+			const bool y = (oj32x_pad() & 0x0200) != 0;    // PAD_Y (6-button pads)
 			if (y && !yWas) showText = !showText;
 			yWas = y;
+			// J13f: Up / Down do the same (a 3-button pad has no Y)
+			if (controls.release(C_UP) || controls.release(C_DOWN)) showText = !showText;
 		}
 
 		// Left/Right only move the selector; A/C/Start plays the choice. J13c (Micronut99): no
@@ -166,7 +169,12 @@ int runCredits32X () {
 		}
 		// the end of a track: the next one
 		if (playing && music_length_ms[song + 2] && (int)(globalTicks - ends) >= 0) {
-			song = (song + 1) % nSongs;
+			// J13f: on to the next track that is on the disc (a song without a WAV has no
+			// length - XMAS2/3 until Holiday Hare '95 comes); after the last, the first again
+			for (int n = 0; n < nSongs; n++) {
+				song = (song + 1) % nSongs;
+				if (music_length_ms[song + 2]) break;
+			}
 			if (!pickTime) pick = song;
 			ends = play(song);
 		}
