@@ -94,6 +94,7 @@
 #define CMD_GET_PAD      48
 #define CMD_OPEN_FILE    38      /* main.c: COMM2 = n opens IMAGE<n>.RAW for cart slot n; length -> COMM8 (32 bit) */
 #define CMD_CHUNK_TO_CART 46     /* main.c: COMM2 = chunk (bit 15: no read-back, OL-13); reply COMM12 = bad */
+#define CMD_CHUNK_COMPARE 47     /* main.c: the same, but only compared with the cart (D32X M1c) */
 #define PACK_SLOT        8       /* IMAGE8.RAW -> cart 8 * 128 KB = 0x100000 = PLAT_CART_DATA_OFFSET */
 #define CMD_CHUNK_TO_FB  51
 #define CMD_LOAD_SFX     53      /* main.c: SFX<COMM2>.BIN -> PCM chip; COMM12 = number of effects */      /* main.c: file chunk -> frame buffer (the loader's splash) */
@@ -303,6 +304,34 @@ static void pack_load(void)
 	if (len > PLAT_CART_DATA_END - PLAT_CART_DATA_OFFSET) { plat_log("PACK: TOO BIG FOR THE CART"); return; }
 	MARS_COMM8_32 = len;                   /* main.c CMD 46 reads the length from COMM8 */
 	const uint32_t chunks = (len + 32767) >> 15;
+
+	/* J13c: quick check, as the loader's (CMD 47 = compare a chunk with the cart, nothing
+	 * written): a pack header in the cart with this length and the first, middle and last chunk
+	 * the same -> the pack from an earlier boot is still there: no copy. A+B+C held at power-on
+	 * copies it anyway. */
+	{
+		const volatile uint8_t *h = (const volatile uint8_t *)(0x22000000u + PLAT_CART_DATA_OFFSET);
+		const uint32_t have = (uint32_t)h[16] << 24 | (uint32_t)h[17] << 16 | (uint32_t)h[18] << 8 | h[19];
+		int same = h[0] == 'O' && h[1] == 'J' && h[2] == 'P' && h[3] == 'K' && have == len;
+		const uint32_t probe[3] = { 0, chunks >> 1, chunks - 1 };
+		for (int i = 0; i < 3 && same; i++)
+		{
+			MARS_COMM2 = (uint16_t)probe[i];
+			MARS_COMM8_32 = len;
+			MARS_COMM12 = 0;
+			if (!send_cmd(CMD_CHUNK_COMPARE, 2000000UL) || MARS_COMM12 != 0) same = 0;
+		}
+		MARS_COMM8_32 = len;
+		if (same && (plat_read_pad() & (PAD_A | PAD_B | PAD_C)) != (PAD_A | PAD_B | PAD_C))
+		{
+			splash_progress(2 * chunks, 2 * chunks);
+			pack_bytes = len;
+			pack_mount((const uint8_t *)(0x02000000u + PLAT_CART_DATA_OFFSET));
+			plat_log("PACK: ALREADY IN THE CART");
+			return;
+		}
+	}
+
 	/* J4d: one bar for the whole boot - the loader filled the first half (the engine), the pack
 	 * fills the second */
 	splash_progress(chunks, 2 * chunks);
@@ -767,7 +796,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J13  " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J13C " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&

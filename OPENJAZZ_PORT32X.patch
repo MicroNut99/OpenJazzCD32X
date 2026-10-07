@@ -1270,10 +1270,10 @@ index 71b7fff..3a716a4 100644
  		if (event.type == SDL_EVENT_QUIT) return E_QUIT;
 diff --git a/oj/src/menu/credits32x.cpp b/oj/src/menu/credits32x.cpp
 new file mode 100644
-index 0000000..653b982
+index 0000000..bc5ca60
 --- /dev/null
 +++ b/oj/src/menu/credits32x.cpp
-@@ -0,0 +1,178 @@
+@@ -0,0 +1,196 @@
 +/**
 + * @file credits32x.cpp
 + *
@@ -1282,7 +1282,8 @@ index 0000000..653b982
 + * the game's own font, and below them the CD player: the game's 35 songs (CD audio tracks 2-36,
 + * alphabetical, tools/music_tracks.txt) with the names of their planets.
 + *   Left / Right: choose a song (the selector only)   A, C or Start: play the chosen song
-+ *   (on the one that plays: stop / play)   a choice left alone for 3.5 s plays too   B: back
++ *   (on the one that plays: stop / play)   no choice = no change   B: back
++ *   Each track plays once, then the next (J13c).
 + */
 +
 +#ifdef OJ32X
@@ -1298,6 +1299,7 @@ index 0000000..653b982
 +#include "loop.h"
 +
 +#include <stdio.h>
++#include "music_lengths.h"
 +#include <stdlib.h>
 +
 +namespace {
@@ -1346,7 +1348,7 @@ index 0000000..653b982
 +		{ "XMAS3",    "BLOXONIUS" }
 +	};
 +	const int nSongs = sizeof(songs) / sizeof(songs[0]);
-+	const int firstSong = 19;   // SONG5 (Micronut99)
++	const int firstSong = 29;   // track 31 = SONGCD5 Deckstar (Micronut99, J13c)
 +
 +	// Two pages, each shown for 8 seconds
 +	const char* const page1[] = {
@@ -1384,12 +1386,19 @@ index 0000000..653b982
 +	const char* fe = getenv("T32X_CREDITS_FONT");
 +	Font* font = fonts[fe ? atoi(fe) % 5 : 1];
 +	int song = firstSong;      // the track that plays
-+	int pick = firstSong;      // J13b: the track the selector points at (Left/Right)
-+	unsigned int pickTime = 0; // when the selector last moved
++	int pick = firstSong;      // the track the selector points at (Left/Right)
++	unsigned int pickTime = 0; // when the selector last moved (0 = not moved)
 +	bool playing = true;
 +	char line[64];
 +
-+	oj32x_music_track(song + 2);
++	// J13c: each track plays once, then the next one (the lengths come from the WAVs:
++	// port/music_lengths.h, tools/music_lengths.py); unknown length = the track repeats
++	auto play = [&](int s) {
++		const unsigned int ms = music_length_ms[s + 2];
++		oj32x_music_track(ms ? ((s + 2) | 0x8000) : (s + 2));
++		return globalTicks + (ms ? ms + 2000 : 0);
++	};
++	unsigned int ends = play(song);
 +	unsigned int start = globalTicks;
 +
 +	while (true) {
@@ -1398,8 +1407,8 @@ index 0000000..653b982
 +
 +		if (controls.release(C_ESCAPE)) break;
 +
-+		// J13b (Micronut99): Left/Right only move the selector - the music changes when A/C/
-+		// Start confirms it, or when the selector stays on a track for 3.5 seconds
++		// Left/Right only move the selector; A/C/Start plays the choice. J13c (Micronut99): no
++		// choice made = nothing changes - after 5 s the selector goes back to the playing track
 +		if (controls.release(C_LEFT)) {
 +			pick = (pick + nSongs - 1) % nSongs;
 +			pickTime = globalTicks;
@@ -1408,17 +1417,26 @@ index 0000000..653b982
 +			pick = (pick + 1) % nSongs;
 +			pickTime = globalTicks;
 +		}
-+		const bool settled = pick != song && pickTime && globalTicks - pickTime >= 3500;
-+		if (controls.release(C_ENTER) || settled) {
++		if (pickTime && globalTicks - pickTime >= 5000) {
++			pick = song;
++			pickTime = 0;
++		}
++		if (controls.release(C_ENTER)) {
 +			if (pick != song || !playing) {
 +				song = pick;
 +				playing = true;
-+				oj32x_music_track(song + 2);
++				ends = play(song);
 +			} else {
 +				playing = false;           // A on the track that plays: stop
 +				oj32x_music_track(0);
 +			}
 +			pickTime = 0;
++		}
++		// the end of a track: the next one
++		if (playing && music_length_ms[song + 2] && (int)(globalTicks - ends) >= 0) {
++			song = (song + 1) % nSongs;
++			if (!pickTime) pick = song;
++			ends = play(song);
 +		}
 +
 +		plasma.draw();
@@ -1528,6 +1546,98 @@ index cea5afb..4d2a07a 100644
  
  #define MAX_EPISODES 11
  
+diff --git a/oj/src/menu/plasma.cpp b/oj/src/menu/plasma.cpp
+index 7b90515..9afd1e8 100644
+--- a/oj/src/menu/plasma.cpp
++++ b/oj/src/menu/plasma.cpp
+@@ -21,6 +21,11 @@
+ 
+ 
+ #include "plasma.h"
++#ifdef OJ32X
++#include "oj32x.h"
++#include <string.h>
++#include <stdint.h>
++#endif
+ 
+ #include "SDL_wrapper.h"
+ #include "level/level.h"
+@@ -47,6 +52,70 @@ Plasma::Plasma(){
+  *
+  * @return Error code
+  */
++#ifdef OJ32X
++/*
++ * PORT32X (J13c): the same picture, much faster. The colour of a pixel is
++ *   ((row term + column term) >> 10) & 15
++ * where the column term depends only on x - so it is worked out once per frame for the 320
++ * columns, and each pixel is one add and one shift; four pixels go out in one 32-bit write.
++ * The two halves of the screen are drawn by the two SH2s at the same time (oj32x_parallel).
++ */
++namespace {
++	struct PlasmaJob { unsigned char* px; int w, h, pitch, p0, p1; const unsigned int* col; };
++	void plasmaRows (void* arg, int part) {
++		PlasmaJob* j = static_cast<PlasmaJob*>(arg);
++		const int y0 = part ? j->h / 2 : 0, y1 = part ? j->h : j->h / 2;
++		int t1 = j->p0 + 2 * y0, t2 = j->p1 + y0;
++		for (int y = y0; y < y1; y++, t1 += 2, t2 += 1) {
++			const unsigned int colb = (fCos(t1 * 4) << 3) + (fCos(t2 * 4) << 3) + (32 << 10);
++			unsigned char* row = j->px + y * j->pitch;
++			int x = 0;
++			if (((uintptr_t)row & 3) == 0) {
++				for (; x + 4 <= j->w; x += 4) {
++					unsigned char c[4];
++					for (int k = 0; k < 4; k++) c[k] = ((colb + j->col[x + k]) >> 10) & 0xF;
++					uint32_t v;
++					memcpy(&v, c, 4);
++					*reinterpret_cast<uint32_t*>(row + x) = v;
++				}
++			}
++			for (; x < j->w; x++) row[x] = ((colb + j->col[x]) >> 10) & 0xF;
++		}
++	}
++}
++
++int Plasma::draw(){
++
++	static unsigned int col[1024];
++
++	SDL_LockSurface(canvas);
++
++	PlasmaJob job;
++	job.px = static_cast<unsigned char*>(canvas->pixels);
++	job.w = canvas->w < 1024 ? canvas->w : 1024;
++	job.h = canvas->h;
++	job.pitch = canvas->pitch;
++	job.p0 = p0;
++	job.p1 = p1;
++	job.col = col;
++
++	int t3 = p2, t4 = p3;
++	for (int x = 0; x < job.w; x++, t3 += 3, t4 += 2)
++		col[x] = (fCos(t3 * 4) << 3) + (fCos(t4 * 4) << 3);
++
++	oj32x_parallel(plasmaRows, &job);
++
++	p0 = p0 < 256 ? p0+1 : 1;
++	p1 = p1 < 256 ? p1+2 : 2;
++	p2 = p2 < 256 ? p2+3 : 3;
++	p3 = p3 < 256 ? p3+4 : 4;
++
++	SDL_UnlockSurface(canvas);
++
++	return E_NONE;
++
++}
++#else
+ int Plasma::draw(){
+ 	int x,y;
+ 
+@@ -95,3 +164,4 @@ int Plasma::draw(){
+ 	return E_NONE;
+ 
+ }
++#endif
 diff --git a/oj/src/menu/setupmenu.cpp b/oj/src/menu/setupmenu.cpp
 index 6989d64..bafabab 100644
 --- a/oj/src/menu/setupmenu.cpp

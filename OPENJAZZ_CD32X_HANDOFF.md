@@ -560,3 +560,21 @@ each CD track (CMD 45 repeat).
 Left/Right only move a selector ("SELECT 24 FANOLINT"); the song changes when A/C/Start
 confirms it or after the selector rests 3.5 s on a track; A on the playing track = stop/play.
 Credit lines spaced to end above the two player lines. Checked on the PC (frames).
+
+## J13b console test and J13c
+SFX volume and the volume bars OK. Saving/loading still not working; quick start not working.
+- Saves: OpenJazz adds its settings/save directory only if access() says the directory exists
+  and is writeable - our access() said "no such file" for "/" (from getcwd), so the game had no
+  place to save at all (J11-J13). Now access() accepts directories.
+- Quick start: there was none yet - the loader's 3-chunk quick check (D32X M1c) was switched
+  off by OpenLara ("if (same && 0)"). OJ-J13C: on, unless A+B+C are held at power-on (CMD 48);
+  the engine does the same for the common pack (CMD 47 on first/middle/last chunk + the pack
+  header with the same length in the cart). World packs are still loaded each session.
+- CD player: starts at track 31 (SONGCD5 Deckstar); no auto-play on selecting - the selector
+  returns to the playing track after 5 s without A; each track plays once (CMD 45 bit 15) and
+  then the next one (lengths from the WAVs: tools/music_lengths.py -> port/music_lengths.h,
+  made by build.sh before the engine; unknown length = repeat).
+- Plasma (credits background): column term once per frame, 32-bit writes, both SH2s
+  (oj32x_parallel) - same picture (regression includes the main menu plasma on the PC).
+- Open: "junk pixels when the text changes" and "a chunk of graphics on the right side" - need
+  close-up photos.

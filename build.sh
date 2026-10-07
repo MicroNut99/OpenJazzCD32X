@@ -55,6 +55,7 @@ echo "==> sound effects"; python3 "$HERE/tools/make_oj_sfx.py" "$DATA/SOUNDS.000
 MUSIC_WAVS=$(ls "$HERE"/music/*.wav "$HERE"/music/*.WAV 2>/dev/null | wc -l)
 if [ "$MUSIC_WAVS" -gt 0 ]; then MUSIC_DEFS="-DOJ32X_MUSIC=1"; else MUSIC_DEFS=""; fi
 rm -f "$HERE/mars/obj/port/plat_mars.o" "$HERE/mars/obj/port/plat_mars.d"   # the switch lives there
+python3 "$HERE/tools/music_lengths.py" "$HERE/tools/music_tracks.txt" "$HERE/music" "$HERE/port/music_lengths.h"   # J13c: CD player
 echo "==> engine";      make -C "$HERE/mars" EXTRA_DEFS="$MUSIC_DEFS"
 [ -f "$HERE/mars/OPENJAZZ.32X" ] || { echo "*** mars/OPENJAZZ.32X was not made - stopping"; exit 1; }
 echo "==> ROM check";   python3 "$HERE/cd32x/ref/openlara/tools/prep_openlara_cd.py" "$HERE/mars/OPENJAZZ.32X" "$ROMS/OPENLARA.32X"

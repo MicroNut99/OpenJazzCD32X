@@ -6,7 +6,8 @@
  * the game's own font, and below them the CD player: the game's 35 songs (CD audio tracks 2-36,
  * alphabetical, tools/music_tracks.txt) with the names of their planets.
  *   Left / Right: choose a song (the selector only)   A, C or Start: play the chosen song
- *   (on the one that plays: stop / play)   a choice left alone for 3.5 s plays too   B: back
+ *   (on the one that plays: stop / play)   no choice = no change   B: back
+ *   Each track plays once, then the next (J13c).
  */
 
 #ifdef OJ32X
@@ -22,6 +23,7 @@
 #include "loop.h"
 
 #include <stdio.h>
+#include "music_lengths.h"
 #include <stdlib.h>
 
 namespace {
@@ -70,7 +72,7 @@ namespace {
 		{ "XMAS3",    "BLOXONIUS" }
 	};
 	const int nSongs = sizeof(songs) / sizeof(songs[0]);
-	const int firstSong = 19;   // SONG5 (Micronut99)
+	const int firstSong = 29;   // track 31 = SONGCD5 Deckstar (Micronut99, J13c)
 
 	// Two pages, each shown for 8 seconds
 	const char* const page1[] = {
@@ -108,12 +110,19 @@ int runCredits32X () {
 	const char* fe = getenv("T32X_CREDITS_FONT");
 	Font* font = fonts[fe ? atoi(fe) % 5 : 1];
 	int song = firstSong;      // the track that plays
-	int pick = firstSong;      // J13b: the track the selector points at (Left/Right)
-	unsigned int pickTime = 0; // when the selector last moved
+	int pick = firstSong;      // the track the selector points at (Left/Right)
+	unsigned int pickTime = 0; // when the selector last moved (0 = not moved)
 	bool playing = true;
 	char line[64];
 
-	oj32x_music_track(song + 2);
+	// J13c: each track plays once, then the next one (the lengths come from the WAVs:
+	// port/music_lengths.h, tools/music_lengths.py); unknown length = the track repeats
+	auto play = [&](int s) {
+		const unsigned int ms = music_length_ms[s + 2];
+		oj32x_music_track(ms ? ((s + 2) | 0x8000) : (s + 2));
+		return globalTicks + (ms ? ms + 2000 : 0);
+	};
+	unsigned int ends = play(song);
 	unsigned int start = globalTicks;
 
 	while (true) {
@@ -122,8 +131,8 @@ int runCredits32X () {
 
 		if (controls.release(C_ESCAPE)) break;
 
-		// J13b (Micronut99): Left/Right only move the selector - the music changes when A/C/
-		// Start confirms it, or when the selector stays on a track for 3.5 seconds
+		// Left/Right only move the selector; A/C/Start plays the choice. J13c (Micronut99): no
+		// choice made = nothing changes - after 5 s the selector goes back to the playing track
 		if (controls.release(C_LEFT)) {
 			pick = (pick + nSongs - 1) % nSongs;
 			pickTime = globalTicks;
@@ -132,17 +141,26 @@ int runCredits32X () {
 			pick = (pick + 1) % nSongs;
 			pickTime = globalTicks;
 		}
-		const bool settled = pick != song && pickTime && globalTicks - pickTime >= 3500;
-		if (controls.release(C_ENTER) || settled) {
+		if (pickTime && globalTicks - pickTime >= 5000) {
+			pick = song;
+			pickTime = 0;
+		}
+		if (controls.release(C_ENTER)) {
 			if (pick != song || !playing) {
 				song = pick;
 				playing = true;
-				oj32x_music_track(song + 2);
+				ends = play(song);
 			} else {
 				playing = false;           // A on the track that plays: stop
 				oj32x_music_track(0);
 			}
 			pickTime = 0;
+		}
+		// the end of a track: the next one
+		if (playing && music_length_ms[song + 2] && (int)(globalTicks - ends) >= 0) {
+			song = (song + 1) % nSongs;
+			if (!pickTime) pick = song;
+			ends = play(song);
 		}
 
 		plasma.draw();

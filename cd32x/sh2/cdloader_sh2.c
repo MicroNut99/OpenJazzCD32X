@@ -334,7 +334,15 @@ int main(void) {
             wait_cmd(CMD_CHUNK_COMPARE);
             if (SC_COMM12 != 0) same = 0;
         }
-        if (same && 0) { show_status(0x4D07); goto loaded; }   /* OpenLara: quick check OFF - always copy */              /* already there */
+        /* OJ-J13C: quick check ON (OpenLara had it off) - the engine already in the cart from an
+           earlier boot is not copied again. Holding A+B+C at power-on copies it anyway: CMD 48
+           (pad -> COMM8, main.c K32), bits A 0x40 B 0x10 C 0x20. */
+        if (same) {
+            uint16_t pad;
+            wait_cmd(48);
+            pad = (uint16_t)(SC_COMM8_32 >> 16);
+            if ((pad & 0x0070) != 0x0070) { show_status(0x4D07); goto loaded; }   /* already there */
+        }
     }
 
     for (c = 0; c < nchunks; c++) {
