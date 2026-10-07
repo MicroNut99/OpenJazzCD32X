@@ -865,8 +865,8 @@ void oj32x_level_pack(const char *levelFile)
 		if (!isdigit((unsigned char)ext[0]) || !isdigit((unsigned char)ext[1]) || !isdigit((unsigned char)ext[2])) return -1;
 		return (ext[0] - '0') * 100 + (ext[1] - '0') * 10 + (ext[2] - '0');
 	};
-	if (strncasecmp(b, "BONUSMAP.", 9) == 0) {
-		k = PACK_BONUS_K;   /* J9: every bonus map uses the one bonus pack */
+	if (strncasecmp(b, "BONUSMAP.", 9) == 0 && world_of(b + 9) >= 0) {
+		k = PACK_BONUS_K + world_of(b + 9);   /* J18: one pack per bonus map, OJ800-OJ829 */
 	} else if (strncasecmp(b, "PLANET.", 7) == 0 && world_of(b + 7) >= 0) {
 		k = world_of(b + 7) * 10;
 	} else if (strncasecmp(b, "LEVEL", 5) == 0 && isdigit((unsigned char)b[5]) && b[6] == '.' && world_of(b + 7) >= 0) {

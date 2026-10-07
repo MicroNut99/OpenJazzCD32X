@@ -72,7 +72,24 @@ class JJ1BonusLevel : public Level {
 		Sprite*                  spriteSet; ///< Sprite images
 		Anim                     animSet[BANIMS]; ///< Animations
 		JJ1BonusEventType        eventSet[BEVENTS]; ///< Event types
+#ifdef OJ32X
+		// PORT32X (J18): the map's tiles and events straight from the cart pack (2 x 64 KB that
+		// SDRAM cannot hold), collected events in a bit table (8 KB)
+		const unsigned char* mapTiles;
+		const unsigned char* mapEvents;
+		bool tilesMapped, eventsMapped;
+		unsigned char clearedEvents[BLW * BLH / 8];
+	public:
+		unsigned char tileAt (int y, int x) const { unsigned char t = mapTiles[(y << 8) + x]; return t > 59 ? 59 : t; }
+		unsigned char eventAt (int y, int x) const {
+			const int i = (y << 8) + x;
+			return (clearedEvents[i >> 3] & (1 << (i & 7))) ? 0 : mapEvents[i];
+		}
+		void clearEvent (int y, int x) { const int i = (y << 8) + x; clearedEvents[i >> 3] |= (unsigned char)(1 << (i & 7)); }
+	private:
+#else
 		JJ1BonusLevelGridElement grid[BLH][BLW]; ///< Level grid
+#endif
 		char                     mask[60][64]; ///< Tile masks (at most 60 tiles, all with 8 * 8 masks)
 		fixed                    direction; ///< Player's direction
 

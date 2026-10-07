@@ -204,9 +204,8 @@ int Game::playLevel (char* fileName, bool intro, bool checkpoint) {
 
 	} else if (levelType == LT_JJ1BONUS) {
 
-#ifdef OJ32X_MARS
-		// PORT32X: no bonus levels on the 32X yet - their map alone needs 128 KB of SDRAM
-		// (J9, measured on the PC with the 32X code paths: 236 KB at the peak, 218 KB there)
+#if defined(OJ32X_MARS) && defined(OJ32X_NO_BONUS)
+		// PORT32X: bonus levels off (J9-J17); J18 reads their map from the cart instead
 		return E_NONE;
 #endif
 

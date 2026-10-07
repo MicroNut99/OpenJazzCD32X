@@ -24,6 +24,8 @@
 
 #include "jj1bonuslevelplayer.h"
 #include "jj1bonuslevel.h"
+#include <stdlib.h>
+#include <stdio.h>
 #ifdef OJ32X
 #include "oj32x.h"
 #endif
@@ -146,7 +148,12 @@ int JJ1BonusLevel::loadTiles (char *fileName) {
 	}
 
 	// Load background
+#ifdef OJ32X
+	bool bgMapped, tsMapped;
+	pixels = file->loadRLEPacked(832 * 20, bgMapped);   // PORT32X (J18): decoded from the pack
+#else
 	pixels = file->loadRLE(832 * 20);
+#endif
 	sorted = new unsigned char[512 * 20];
 
 	for (count = 0; count < 20; count++) memcpy(sorted + (count * 512), pixels + (count * 832), 512);
@@ -154,13 +161,20 @@ int JJ1BonusLevel::loadTiles (char *fileName) {
 	background = video.createSurface(sorted, 512, 20);
 
 	delete[] sorted;
+#ifdef OJ32X
+	if (!bgMapped)
+#endif
 	delete[] pixels;
 
 	// Load palette
 	file->loadPalette(palette);
 
 	// Load tile graphics
+#ifdef OJ32X
+	pixels = file->loadRLEPacked(1024 * 60, tsMapped);
+#else
 	pixels = file->loadRLE(1024 * 60);
+#endif
 	tileSet = video.createSurface(pixels, 32, 32 * 60);
 
 	// Create mask
@@ -181,6 +195,9 @@ int JJ1BonusLevel::loadTiles (char *fileName) {
 
 	}
 
+#ifdef OJ32X
+	if (!tsMapped)
+#endif
 	delete[] pixels;
 
 	return E_NONE;
@@ -205,7 +222,15 @@ JJ1BonusLevel::JJ1BonusLevel (Game* owner, char * fileName, bool multi) : Level(
 	int count, x, y;
 
 #ifdef OJ32X
-	// PORT32X: the bonus levels' files and pictures come into the cart (one pack for all)
+#ifndef OJ32X_MARS
+	// PORT32X (J18): PC bake - T32X_BONUS_MAP=n plays BONUSMAP.n (tools/bake_bonus.sh)
+	char bonusOverride[16];
+	if (getenv("T32X_BONUS_MAP")) {
+		snprintf(bonusOverride, sizeof bonusOverride, "BONUSMAP.%03d", atoi(getenv("T32X_BONUS_MAP")));
+		fileName = bonusOverride;
+	}
+#endif
+	// PORT32X (J18): this bonus map's pack (OJ8nn.PAK: map, graphics, pictures) into the cart
 	oj32x_level_pack(fileName);
 #endif
 
@@ -314,6 +339,10 @@ JJ1BonusLevel::JJ1BonusLevel (Game* owner, char * fileName, bool multi) : Level(
 
 
 	// Load tiles
+#ifdef OJ32X
+	mapTiles = file->loadRLEPacked(BLW * BLH, tilesMapped);   // (clipped to 59 in tileAt)
+	memset(clearedEvents, 0, sizeof clearedEvents);
+#else
 	buffer = file->loadRLE(BLW * BLH);
 
 	for (y = 0; y < BLH; y++) {
@@ -329,6 +358,7 @@ JJ1BonusLevel::JJ1BonusLevel (Game* owner, char * fileName, bool multi) : Level(
 	}
 
 	delete[] buffer;
+#endif
 
 
 	// Load event properties
@@ -362,6 +392,9 @@ JJ1BonusLevel::JJ1BonusLevel (Game* owner, char * fileName, bool multi) : Level(
 
 
 	// Load event mapping
+#ifdef OJ32X
+	mapEvents = file->loadRLEPacked(BLW * BLH, eventsMapped);
+#else
 	buffer = file->loadRLE(BLW * BLH);
 
 	for (y = 0; y < BLW; y++) {
@@ -373,6 +406,7 @@ JJ1BonusLevel::JJ1BonusLevel (Game* owner, char * fileName, bool multi) : Level(
 	}
 
 	delete[] buffer;
+#endif
 
 
 	// Load sound map
@@ -445,6 +479,10 @@ JJ1BonusLevel::~JJ1BonusLevel () {
 
 	video.destroySurface(tileSet);
 	video.destroySurface(background);
+#ifdef OJ32X
+	if (!tilesMapped) delete[] const_cast<unsigned char*>(mapTiles);
+	if (!eventsMapped) delete[] const_cast<unsigned char*>(mapEvents);
+#endif
 
 	delete[] spriteSet;
 
@@ -483,14 +521,24 @@ bool JJ1BonusLevel::isEvent (fixed x, fixed y) {
  */
 bool JJ1BonusLevel::checkMask (fixed x, fixed y) {
 
+#ifdef OJ32X
+	const unsigned char gev = eventAt(FTOT(y) & 255, FTOT(x) & 255);
+	// Bounce back
+	if ((eventSet[gev].used) && !(eventSet[gev].passable) && isEvent(x, y))
+#else
 	JJ1BonusLevelGridElement *ge = grid[FTOT(y) & 255] + (FTOT(x) & 255);
 
 	// Bounce back
 	if ((eventSet[ge->event].used) && !(eventSet[ge->event].passable) && isEvent(x, y))
+#endif
 		return true;
 
 	// Check the mask in the tile in question
+#ifdef OJ32X
+	return mask[tileAt(FTOT(y) & 255, FTOT(x) & 255)][((y >> 9) & 56) + ((x >> 12) & 7)];
+#else
 	return mask[ge->tile][((y >> 9) & 56) + ((x >> 12) & 7)];
+#endif
 
 }
 
@@ -517,9 +565,11 @@ void JJ1BonusLevel::receive (unsigned char* buffer) {
 
 		case MT_L_GRID:
 
+#ifndef OJ32X
 			if (buffer[4] == 0) grid[buffer[3]][buffer[2]].tile = buffer[5];
 			else if (buffer[4] == 2)
 				grid[buffer[3]][buffer[2]].event = buffer[5];
+#endif
 
 			break;
 
@@ -567,21 +617,36 @@ int JJ1BonusLevel::step () {
 			int gridY = FTOT(playerY) & 255;
 
 			// Play sound if available
+#ifdef OJ32X
+			const unsigned char gev = eventAt(gridY, gridX);
+			playSound(eventSet[gev].sound);
+
+			switch (eventSet[gev].type) {
+#else
 			playSound(eventSet[grid[gridY][gridX].event].sound);
 
 			switch (eventSet[grid[gridY][gridX].event].type) {
+#endif
 
 				case 1: // Extra time
 
 					addTimer(60);
+#ifdef OJ32X
+					clearEvent(gridY, gridX);
+#else
 					grid[gridY][gridX].event = 0;
+#endif
 
 					break;
 
 				case 2: // Gem
 
 					bonusPlayer->addGem();
+#ifdef OJ32X
+					clearEvent(gridY, gridX);
+#else
 					grid[gridY][gridX].event = 0;
+#endif
 
 					if (bonusPlayer->getGems() >= items) {
 
@@ -679,7 +744,11 @@ void JJ1BonusLevel::draw () {
 			int levelY = FTOI(fwdY + MUL(nX, sideY));
 
 			row[x] = static_cast<unsigned char*>(tileSet->pixels)
+#ifdef OJ32X
+				[(tileAt(ITOT(levelY) & 255, ITOT(levelX) & 255) << 10) +
+#else
 				[(grid[ITOT(levelY) & 255][ITOT(levelX) & 255].tile << 10) +
+#endif
 					((levelY & 31) * tileSet->pitch) + (levelX & 31)];
 
 		}
@@ -702,8 +771,12 @@ void JJ1BonusLevel::draw () {
 			fixed divisor = F16 + MUL(sX, playerSin) - MUL(sY, playerCos);
 
 			if (FTOI(divisor) > 8) {
+#ifdef OJ32X
+				unsigned char event = eventAt((evY + FTOT(playerY)) & 255, (evX + FTOT(playerX)) & 255);
+#else
 				unsigned char event = grid
 					[(evY + FTOT(playerY)) & 255][(evX + FTOT(playerX)) & 255].event;
+#endif
 
 				if (eventSet[event].type > 0) {
 					anim = animSet + eventSet[event].anim;

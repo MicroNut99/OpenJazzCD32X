@@ -47,8 +47,14 @@ rm -rf "$BAKE_TMP"
 if [ "${LEVEL_PACKS:-}" = keep ] && ls "$ROMS"/OJ*.PAK >/dev/null 2>&1; then
   echo "    level packs: kept ($(ls "$ROMS"/OJ*.PAK | wc -l))"
 else
-  rm -f "$ROMS"/OJ*.PAK
+  rm -f "$ROMS"/OJ[0-5]*.PAK
   "$HERE/tools/bake_levels.sh" "$DATA" "$ROMS/IMAGE8.RAW" "$ROMS"
+fi
+# J18: the 30 bonus levels, one pack each (OJ800-OJ829)
+if [ "${LEVEL_PACKS:-}" = keep ] && ls "$ROMS"/OJ8*.PAK >/dev/null 2>&1; then
+  echo "    bonus packs: kept ($(ls "$ROMS"/OJ8*.PAK | wc -l))"
+else
+  "$HERE/tools/bake_bonus.sh" "$DATA" "$ROMS/IMAGE8.RAW" "$ROMS"
 fi
 echo "==> sound effects"; python3 "$HERE/tools/make_oj_sfx.py" "$DATA/SOUNDS.000" "$ROMS/SFX00.BIN"
 # J17: Holiday Hare '95 - its own data folder next to this script (JAZZXMAS1995/): common pack

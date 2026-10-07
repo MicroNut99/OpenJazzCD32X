@@ -717,3 +717,16 @@ A second game on the disc, from JAZZXMAS1995/ (its own complete data set, same f
 - In the game: New game -> episode "X Holiday Hare" (the others are greyed out).
 - PC, 32X paths, packs only: menus -> Candion level 1 plays (heap peak 267 KB incl. the PC's
   64 KB screen; ~20 KB more small blocks than Jazz CD levels).
+
+## J18: bonus levels
+Micronut99's Jazz_JackrabbitG.zip = the same GOG collection, unpatched (7 level files + MENU.000
+differ; our data has the community patch - Orbitus 2, hoverboards, Jungrock, Battleships 2,
+episode previews). The bonus maps were always there; they were skipped for memory.
+- JJ1BonusLevel (OJ32X): tiles and events of the 256x256 map read from the pack
+  (loadRLEPacked, 2 x 64 KB), collected events in an 8 KB bit table (eventAt / tileAt /
+  clearEvent); background and tile graphics also from the pack. Network grid changes ignored.
+- One pack per map: BONUSMAP.nnn -> OJ<800+nnn>.PAK (CMD 38 ids 1000-1029), made by
+  tools/bake_bonus.sh (PC, menu "Z Bonus levels" with T32X_BONUS_MAP=nnn): 30 packs, 19 MB, about
+  650 KB each. Game::playLevel no longer skips bonus levels (OJ32X_NO_BONUS would).
+- PC, 32X paths, packs only: bonus level 1 plays; heap peak 245 KB incl. the PC's 64 KB screen
+  (was 300 KB).
