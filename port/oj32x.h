@@ -28,6 +28,9 @@ extern "C" {
 /* J5: the packs are mounted (PC build: T32X_PACK at the first file look-up) */
 void oj32x_packs_ready(void);
 
+/* J13d: clear both frame buffers (leaving a level) */
+void oj32x_clear_screens(void);
+
 /* J5: load the cart pack for a level file (JJ1Level::load) */
 void oj32x_level_pack(const char *levelFile);
 

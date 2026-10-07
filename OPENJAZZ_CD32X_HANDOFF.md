@@ -578,3 +578,8 @@ SFX volume and the volume bars OK. Saving/loading still not working; quick start
   (oj32x_parallel) - same picture (regression includes the main menu plasma on the PC).
 - Open: "junk pixels when the text changes" and "a chunk of graphics on the right side" - need
   close-up photos.
+
+## J13d
+Right-edge strip on menus = leftover level graphics: the level left its view clip rectangle on
+the screen and clearScreen only fills inside it. JJ1Level::~JJ1Level resets the clip, clears,
+and clears both 32X frame buffers (plat_clear_screens). Regression 0 different.

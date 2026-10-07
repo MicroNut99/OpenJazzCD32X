@@ -69,6 +69,8 @@ uint8_t *plat_canvas(void);
 void plat_present_canvas(const uint16_t *palette555);
 /* J13: the palette entry the border lines above/below the picture show */
 void plat_border_colour(int index);
+/* J13d: both frame buffers' picture areas cleared (32X); PC: nothing */
+void plat_clear_screens(void);
 
 /* Like plat_present, but the playfield (x 0..263, rows 0..183) is already in
  * the back buffer's picture area (drawn there directly during levels, see

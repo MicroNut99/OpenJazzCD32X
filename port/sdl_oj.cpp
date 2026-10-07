@@ -636,6 +636,9 @@ void oj32x_level_pack(const char *levelFile)
 
 void oj32x_packs_ready(void) { plat_packs_ready(); }
 
+/* J13d: both 32X frame buffers' picture areas to colour 0 (PC: nothing) */
+void oj32x_clear_screens(void) { plat_clear_screens(); }
+
 void oj32x_sfx(int id) { plat_sfx(id); }
 
 /* J11: a CD audio track directly (the credits' CD player); 0 = stop */

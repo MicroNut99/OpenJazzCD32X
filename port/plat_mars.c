@@ -567,6 +567,18 @@ void plat_present(const uint8_t *pixels, int pitch, const uint16_t *palette555)
 	present_finish(dst, palette555);
 }
 
+void plat_clear_screens(void)
+{
+	for (int b = 0; b < 2; b++)
+	{
+		volatile uint32_t *px = FB32 + (FB_PIX_WORD * 2) / 4;
+		for (int i = 0; i < PLAT_SCREEN_W * PLAT_GAME_H / 4; i++)
+			px[i] = 0;
+		write_game_line_table();
+		flip_wait();
+	}
+}
+
 uint8_t *plat_canvas(void)
 {
 	return OJ32X_DIRECT_FB ? (uint8_t *)FB16 + FB_PIX_WORD * 2 : NULL;

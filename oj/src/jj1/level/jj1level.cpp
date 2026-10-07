@@ -37,6 +37,9 @@
 #include "jj1bullet.h"
 #include "event/jj1event.h"
 #include "jj1level.h"
+#ifdef OJ32X
+#include "oj32x.h"
+#endif
 #include "jj1levelplayer.h"
 #include "jj1/jj1episodeutils.h"
 #include "jj1/save/jj1save.h"
@@ -123,6 +126,14 @@ void JJ1Level::deletePanel () {
  * Delete the JJ1 level.
  */
 JJ1Level::~JJ1Level () {
+
+#ifdef OJ32X
+	// PORT32X (J13d): the level leaves its view clip rectangle on the screen; the menus' clear
+	// only fills inside it, so a strip of level graphics stayed at the right edge of every menu
+	video.setClipRect(canvas, nullptr);
+	video.clearScreen(0);
+	oj32x_clear_screens();
+#endif
 
 	// Free events
 	if (events) delete events;

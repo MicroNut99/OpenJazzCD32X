@@ -910,3 +910,4 @@ void plat_parallel(void (*fn)(void *, int), void *arg)
 void plat_sfx(int id) { (void)id; }
 void plat_music(int track) { (void)track; }
 void plat_border_colour(int index) { (void)index; }
+void plat_clear_screens(void) { }

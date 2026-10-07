@@ -442,10 +442,35 @@ index c868799..abbf555 100644
  
  		font = new Font(true);
 diff --git a/oj/src/jj1/level/jj1level.cpp b/oj/src/jj1/level/jj1level.cpp
-index 2d890c2..a83adb1 100644
+index 2d890c2..74d582b 100644
 --- a/oj/src/jj1/level/jj1level.cpp
 +++ b/oj/src/jj1/level/jj1level.cpp
-@@ -365,7 +365,15 @@ unsigned char JJ1Level::getEventHits (unsigned char gridX, unsigned char gridY)
+@@ -37,6 +37,9 @@
+ #include "jj1bullet.h"
+ #include "event/jj1event.h"
+ #include "jj1level.h"
++#ifdef OJ32X
++#include "oj32x.h"
++#endif
+ #include "jj1levelplayer.h"
+ #include "jj1/jj1episodeutils.h"
+ #include "jj1/save/jj1save.h"
+@@ -124,6 +127,14 @@ void JJ1Level::deletePanel () {
+  */
+ JJ1Level::~JJ1Level () {
+ 
++#ifdef OJ32X
++	// PORT32X (J13d): the level leaves its view clip rectangle on the screen; the menus' clear
++	// only fills inside it, so a strip of level graphics stayed at the right edge of every menu
++	video.setClipRect(canvas, nullptr);
++	video.clearScreen(0);
++	oj32x_clear_screens();
++#endif
++
+ 	// Free events
+ 	if (events) delete events;
+ 
+@@ -365,7 +376,15 @@ unsigned char JJ1Level::getEventHits (unsigned char gridX, unsigned char gridY)
   */
  unsigned int JJ1Level::getEventTime (unsigned char gridX, unsigned char gridY) {
  
@@ -461,7 +486,7 @@ index 2d890c2..a83adb1 100644
  
  }
  
-@@ -439,7 +447,11 @@ int JJ1Level::hitEvent (unsigned char gridX, unsigned char gridY, int hits, JJ1L
+@@ -439,7 +458,11 @@ int JJ1Level::hitEvent (unsigned char gridX, unsigned char gridY, int hits, JJ1L
  		}
  
  		ge->hits = (hits == 255)? 255: hitsToKill;
@@ -473,7 +498,7 @@ index 2d890c2..a83adb1 100644
  
  	} else {
  
-@@ -475,7 +487,29 @@ int JJ1Level::hitEvent (unsigned char gridX, unsigned char gridY, int hits, JJ1L
+@@ -475,7 +498,29 @@ int JJ1Level::hitEvent (unsigned char gridX, unsigned char gridY, int hits, JJ1L
   */
  void JJ1Level::setEventTime (unsigned char gridX, unsigned char gridY, unsigned int time) {
  
