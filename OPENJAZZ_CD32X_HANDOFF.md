@@ -639,3 +639,9 @@ not switch to 1CPU in the videos; the profiler now alternates 2CPU / 1CPU every 
 
 ## J14e
 Demos off on the 32X (mainmenu.cpp: no demo macros unless built with -DOJ32X_DEMO).
+
+## J14f
+J14e videos: 1CPU and 2CPU both 3-7 fps (the slave drawing gains nothing). The times were still
+in coarse steps: the watchdog overflow interrupt never comes on the console (that is why
+plat_ticks_ms falls back to vblanks), so the watchdog-only clock wrapped every 45.6 ms. Now:
+vblank_count x 16.683 ms + the watchdog counter since the last vblank (the VBI handler records it).

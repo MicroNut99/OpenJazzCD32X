@@ -114,7 +114,8 @@ volatile unsigned mars_pwdt_ovf_count = 0;
 volatile unsigned mars_swdt_ovf_count = 0;
 static volatile uint32_t vblank_count = 0;
 
-void pri_vbi_handler(void) { vblank_count++; }
+static volatile uint8_t vblank_wtcnt;   /* J14f: the watchdog counter at the last vblank */
+void pri_vbi_handler(void) { vblank_count++; vblank_wtcnt = SH2_WTCNT_R; }
 void pri_cmd_handler(void) { MARS_CMD_CLR = 0; }
 void sec_cmd_handler(void) { MARS_CMD_CLR = 0; }
 void sec_dma1_handler(void) { }
@@ -414,19 +415,22 @@ void plat_init(void)
 
 /* ---------------------------------------------------------------- clock */
 
-/* J14d: profiling clock from the same watchdog counter as plat_ticks_ms (one count = 4096
- * cycles = 178 us). J14's free-running-timer version gave times in steps of ~90 ms on the
- * console (its counter is evidently reset or reprogrammed elsewhere) - every reading was wrong. */
+/* J14f: profiling clock = vblanks (16.68 ms) + the watchdog counter since the last vblank
+ * (one count = 4096 cycles = 178 us; it wraps every 45.6 ms, longer than a vblank). The
+ * console does not deliver the watchdog's overflow interrupt (plat_ticks_ms falls back to
+ * vblanks for that reason), so J14d's watchdog-only clock wrapped every 45.6 ms - wrong again. */
 uint32_t plat_prof_us(void)
 {
-	uint32_t ovf, cnt;
+	uint32_t v;
+	uint8_t at, now;
 	do
 	{
-		ovf = mars_pwdt_ovf_count;
-		cnt = SH2_WTCNT_R;
-	} while (ovf != mars_pwdt_ovf_count);
-	const uint64_t counts = (uint64_t)ovf * 256u + cnt;
-	return (uint32_t)(counts * 4096u * 1000000u / PPHI_HZ);
+		v = vblank_count;
+		at = vblank_wtcnt;
+		now = SH2_WTCNT_R;
+	} while (v != vblank_count);
+	const uint32_t fine = (uint32_t)(uint8_t)(now - at) * 4096u * 1000u / (PPHI_HZ / 1000u);
+	return v * 16683u + (fine < 16683u ? fine : 16683u);
 }
 
 uint32_t plat_ticks_ms(void)
@@ -831,7 +835,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J14E " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J14F " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&
