@@ -698,3 +698,10 @@ Profiler box off in the 32X build (Micronut99: the black block top left). The ga
 Pacing back on (OJ32X_PACE 1) but to the median of the recent frame times instead of the third
 slowest, and now also before the asynchronous swap (it had none) - even motion without waiting a
 vblank on most frames.
+
+## J16c
+Settings were never saved on the console: OpenJazz writes openjazz.cfg (music/effects on-off,
+HUD style, character name and colours, game options) only in setup.save() at program exit
+(main.cpp), which a console never reaches. Now SetupMenu::run saves on leaving the set-up menu
+(OJ32X_MARS). The file is global (cart save area piece 0), separate from the saved games
+(pieces 1-4: level, planet, difficulty, score ...). The A/B swap is not part of the file.

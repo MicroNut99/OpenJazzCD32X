@@ -702,7 +702,11 @@ int SetupMenu::run () {
 		int option32x = option < 4 ? option : 0;
 		ret = generic("SETUP OPTIONS", setup32x, 4, option32x);
 		option = option32x;
-		if (ret == E_RETURN) return E_NONE;
+		// PORT32X (J16c): the settings file (music, effects, HUD style, character, game options)
+		// was only written when the program quits - which a console never does. Now on leaving
+		// the set-up menu, into the RAM cart's save area: global, for every saved game.
+		if (ret == E_RETURN) { setup.save(); return E_NONE; }
+		if (ret < 0) setup.save();
 		if (ret < 0) return ret;
 		if (map32x[option32x] < 0) { oj32x_ab_swap(!oj32x_ab_swapped()); continue; }
 		switch (map32x[option32x]) {
