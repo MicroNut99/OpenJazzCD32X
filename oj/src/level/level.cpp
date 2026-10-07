@@ -126,7 +126,7 @@ int Level::playScene (const char* file) {
 	int ret;
 
 #ifdef OJ32X_MARS
-	// PORT32X: no cutscenes on the 32X (Micronut99, J9)
+	// PORT32X: no cutscenes on the 32X (J9)
 	(void)file;
 	return E_NONE;
 #endif

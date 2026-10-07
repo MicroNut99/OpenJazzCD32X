@@ -2,7 +2,7 @@
 
 ## What it is
 Tomb Raider 1 (OpenLara's 32X engine) running from a **Sega CD disc** on real hardware:
-- the CD32X loader copies the engine into MicroNut99's **4 MB RAM cart** and starts both SH2s;
+- the CD32X loader copies the engine into the **4 MB RAM cart** and starts both SH2s;
 - every level is loaded **from the disc into the cart** when it is needed (21 levels on one disc);
 - **CD music** (one album piece per level), **PCM sound effects** (one pack per level),
   **saves** in the battery-backed cart, splash + red loading bar, full passport, all enemies

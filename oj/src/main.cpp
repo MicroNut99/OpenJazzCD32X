@@ -448,7 +448,7 @@ int play () {
 	// Load and play the startup cutscene
 
 #ifdef OJ32X
-	// PORT32X: the 32X skips the intro (Micronut99, J5); the PC build too with T32X_SKIP_INTRO=1
+	// PORT32X: the 32X skips the intro (J5); the PC build too with T32X_SKIP_INTRO=1
 	if (!oj32x_skip_intro()) {
 #endif
 	try {

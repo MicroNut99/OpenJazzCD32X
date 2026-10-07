@@ -572,7 +572,7 @@ int SetupMenu::setupAudio () {
 
 #ifdef OJ32X_MARS
 	// PORT32X (J13f): CD audio and the PCM chip have no volume control on this path - two
-	// on/off switches instead of the volume bars (Micronut99)
+	// on/off switches instead of the volume bars
 	int choice = 0;
 	while (true) {
 		const char* opts[2] = {

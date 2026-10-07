@@ -1,6 +1,6 @@
 #!/bin/bash
 # OpenJazz CD32X - fill music/ with the game's own 35 songs as WAV (J10b): the .PSM files of
-# the data folder played by OpenJazz's libxmp. J11d (Micronut99): each song = one complete pass,
+# the data folder played by OpenJazz's libxmp. J11d: each song = one complete pass,
 # faded over its last 2 s; the console repeats the CD track.
 #   tools/make_music_wavs.sh [data folder]        (then ./build.sh puts them on the disc)
 set -e

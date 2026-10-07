@@ -709,7 +709,7 @@ static PadKey pad_keys[] = {
 	{PAD_RIGHT, SDLK_RIGHT,  SDLK_RIGHT},
 	{PAD_C,     SDLK_SPACE,  SDLK_RETURN},
 	{PAD_B,     SDLK_LALT,   SDLK_ESCAPE},
-	{PAD_A,     SDLK_SPACE,  SDLK_RETURN},   /* J9 (Micronut99): A = C */
+	{PAD_A,     SDLK_SPACE,  SDLK_RETURN},   /* J9: A = C */
 	{PAD_START, SDLK_ESCAPE, SDLK_RETURN},
 	{PAD_X,     SDLK_RCTRL,  SDLK_UNKNOWN},  /* J9: change weapon moved to X / Y (6-button pad) */
 	{PAD_Y,     SDLK_RCTRL,  SDLK_UNKNOWN},
@@ -1004,7 +1004,7 @@ void oj32x_port_setting_set(int key, int value) { plat_port_setting_set(key, val
 void oj32x_music_track(int track) { plat_music(track); }
 
 /* J10: music as CD audio. The game's 35 music files in alphabetical order are disc tracks 2-36
- * (tools/music_tracks.txt - Micronut99 provides the WAVs); NULL = stop. */
+ * (tools/music_tracks.txt - the tester provides the WAVs); NULL = stop. */
 static char music_last[16];   /* J13: the song asked for last, for volume 0 -> on */
 
 void oj32x_music_remember(const char *fileName)

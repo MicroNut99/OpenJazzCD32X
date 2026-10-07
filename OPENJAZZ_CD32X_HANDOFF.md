@@ -5,7 +5,7 @@ Project folder: `/mnt/s/KoboPort/sega-toolchain-12.1/sega/OpenJazzCD32X`
 Working method: as in *Handoff: How We Work and the Kobo CD32X Framework* (PC host build
 first, memory budget, then the 32X; one zip per round; this file is the memory).
 
-## Target (proposed, waiting for Micronut99's decision)
+## Target (proposed, waiting for the tester's decision)
 The OpenLara model: the disc boots, `cdloader_sh2.c` copies the engine into the RAM cart,
 each level is loaded from the disc into a cart slot, CD audio for music. A cartridge-only
 build does not fit (memory table below).
@@ -26,7 +26,7 @@ build does not fit (memory table below).
 | `tools/level_mem.sh` | heap per level, all 79 levels → `tests/level_mem.txt` (J2) |
 | `port/host_new.cpp` | PC build: C++ `new`/`delete` through the counted heap (J2) |
 | `mars/Makefile`, `mars/trial_stub.c` | J3a: first SH2 compile + trial link (sizes, list of missing platform functions); nothing runs yet |
-| `JazzJackRabbitGame/` | Micronut99's Jazz 1 CD data (GOG collection), **not in git** |
+| `JazzJackRabbitGame/` | the tester's Jazz 1 CD data (GOG collection), **not in git** |
 | `cd32x/ref/` | uploaded references, **unchanged**: `cdloader_sh2.c` (OpenLara loader), `cdl_crt0.s` (its CD boot table start-up), `subcpu_crt0.s`, `APP.BIN` (**Kobo's** Sub-CPU program, not OpenLara's) |
 
 ## Measurements (J1)
@@ -69,7 +69,7 @@ it is let go (otherwise Start, held while the menu opens, would select at once).
 | J2 | `jj1/level/jj1levelload.cpp` | memory marks (before tiles / tiles / sprites / loaded) |
 
 ## J2 results (PC build with the game data)
-**Reproducible across machines:** Micronut99's `last.png` (his PC) and the sandbox's are
+**Reproducible across machines:** the tester's `last.png` (his PC) and the sandbox's are
 pixel-identical.
 
 **What runs:** intro cutscene → title → main menu → demo 1 (all of episode 1 level 1,
@@ -116,7 +116,7 @@ read: 761 KB (menus, fonts, level object).
 - No sound (the shim's audio does not open; OpenJazz carries on silently).
 - No 32X build: waits for the toolchain answer and the OpenLara Sub-CPU sources.
 
-## Waiting for (Micronut99)
+## Waiting for
 1. Output of `bash tools/check_toolchain.sh` (still open).
 2. From `OpenLaraCD32X`: `subcpu/main.c`, `subcpu/hw_md.s`, `subcpu/Makefile`,
    `subcpu/make_mixed_cd2.py`, the loader's `cdloader.ld` + `Makefile.cdloader`, and
@@ -124,7 +124,7 @@ read: 761 KB (menus, fonts, level object).
 3. The target decision (RAM cart, proposed).
 
 ## J3a (SH2 compile: all files compile after one fix; link fix J3b sent)
-Toolchain (Micronut99's check): sh-elf-g++ 12.1 with libstdc++/libsupc++ for SH2 (`!m2`);
+Toolchain (the tester's check): sh-elf-g++ 12.1 with libstdc++/libsupc++ for SH2 (`!m2`);
 a test with exceptions, unique_ptr and std::list compiles and links (~100 KB with the
 libraries). `mars/Makefile` compiles the game for the SH2 (-m2 -mb -Os) and trial-links it.
 Dry run with the PC compiler: game 174 KB, ext 30 KB, xmp 98 KB, port 5 KB; trial link
@@ -133,7 +133,7 @@ J3a log: only `jj1save.cpp` failed (`<time.h>` missing; glibc includes it throug
 headers, newlib does not) - fixed. Trial link then failed: libc.a's own SH simulator
 syscalls (lib_a-syscalls.o) clash with reent.o over `errno`. J3b: our own system calls
 (`port/mars_syscalls.c`, from Tyrian's port/mars/syscalls.c + _stat, _rename, mkdir).
-**J3b result (Micronut99's build): the whole game compiles and links for the SH2.**
+**J3b result (the tester's build): the whole game compiles and links for the SH2.**
 | Part (-Os, before unused code is removed) | text | data | bss |
 |---|---|---|---|
 | game | 165,941 | 520 | 7,739 |
@@ -160,7 +160,7 @@ the 32X), HUD panel 10 KB, ~65 KB small blocks. Loading still peaks at up to 777
 Cart layout (proposed): 0x000000 engine (≤ 1 MB), 0x100000-0x3EFFFF graphics,
 0x3F0000 settings and saves.
 
-`cd32x/ref/APP_openlara.BIN`: a second APP.BIN from Micronut99 - an early OpenLara loader
+`cd32x/ref/APP_openlara.BIN`: a second APP.BIN from the tester - an early OpenLara loader
 build (marker SH2-OPENLARA-CD-OL1-LOADER; files D32XR.32X, IMAGE.RAW, Kobo's names), binary only.
 
 ## OpenLara sources (received; key files kept in `cd32x/ref/openlara/`, unchanged)
@@ -173,7 +173,7 @@ cdloader_sh2.c, cdl_crt0.s, cdloader.ld, Makefile.cdloader), `tools/prep_openlar
   to ≤ SDRAM+0x38000, SH2 entries in SDRAM, marker 'CDB2' at 0x3BC.
 - **Commands as they are:** 38 open file, 46 file chunk → cart, 48 pad, 45/54 CD audio,
   51 file → frame buffer, 52 Genesis display, 58/61 saves.
-- **Decision (Micronut99): only proven paths, nothing invented.** The SH2 never writes the
+- **Decision: only proven paths, nothing invented.** The SH2 never writes the
   cart. Graphics are decoded on the PC at build time into disc files and copied into the
   cart with the proven CMD 38 + CMD 46, exactly like OpenLara's levels. (A frame buffer →
   68000 → cart path was considered and dropped: no proof it works on the console.)
@@ -205,7 +205,7 @@ cdloader_sh2.c, cdl_crt0.s, cdloader.ld, Makefile.cdloader), `tools/prep_openlar
 - Untested: everything SH2-side (no SH2 compiler in the sandbox); expect a fix round.
 
 ## J4a: the first disc (boot test) - sent
-**One boot path (Micronut99): the CD32X boot is OpenLara's, unchanged; the game is attached
+**One boot path: the CD32X boot is OpenLara's, unchanged; the game is attached
 at its end** as the payload the loader copies into the cart and starts (file 20).
 - `cd32x/sh2/`, `cd32x/subcpu/`: OpenLara's loader and Sub-CPU program, byte-identical copies
   (cdl_crt0.s differs only in line endings). The engine goes on the disc as `OPENLARA.32X`,
@@ -225,13 +225,13 @@ at its end** as the payload the loader copies into the cart and starts (file 20)
 - Untested on SH2 here (no compiler in the sandbox): plat_mars.c, crt0/oj.ld link, C++
   start-up. Expect one fix round from the build log.
 
-## J4a console result (Micronut99's video, real Sega CD + 32X + RAM cart)
+## J4a console result (the tester's video, real Sega CD + 32X + RAM cart)
 SEGA logo -> splash (no bar) -> boot test: cart read OK, C++ constructors OK, new/delete OK,
 exceptions OK (0123), heap 12,176 used of 219,024 before the game -> Start -> blue screen
 "Unable to find game data files", exactly as expected. Seen: a strip of the splash's bottom
 line under the text screens (to look at).
 
-## J4b: splash with progress bar, diagnostics on (Micronut99's request)
+## J4b: splash with progress bar, diagnostics on (the tester's request)
 Boot path edits, each marked `OJ-J4B`, only switching back what the docs/ comments show:
 - `cd32x/sh2/cdloader_sh2.c`: the progress bar again (OL-7 had removed it): empty bar drawn
   with the splash, `splash_progress` after every chunk; bar moved to x 56-236, y 186-198
@@ -249,7 +249,7 @@ Boot path edits, each marked `OJ-J4B`, only switching back what the docs/ commen
 |---|---|---|---|
 | `OJ_DIAG_TEXT` | `cd32x/sh2/cdloader_sh2.c` | 1 (text on, in front of the splash) | 0 |
 
-**Now set (J4b5, Micronut99): only Chilly's white text** - KOBO_BOOT_TEXT 1, KOBO_DIAG_TEXT 0 (green off);
+**Now set (J4b5, the tester): only Chilly's white text** - KOBO_BOOT_TEXT 1, KOBO_DIAG_TEXT 0 (green off);
 OJ_DIAG_TEXT 1 and OJ32X_DIAG_TEXT 1 keep the Genesis display on so the white text can show
 (with 0 the loader's CMD 52 would switch the whole Genesis display off).
 
@@ -338,7 +338,7 @@ freeing its single-character surfaces), last log "PICTURE 56X48 NOT IN THE PACK"
   "HEAP DAMAGED, FOUND AT <point> BLOCK <n>" - the damage happened since the check before.
   Untested assumption: newlib's first block starts at __heap_start (16-aligned) - if the very
   first check already fails, the assumption is wrong, not the heap.
-- J4c3b (Micronut99): `OJ32X_BOOT_TEST 0` in port/plat_mars.c - the boot test checks still
+- J4c3b: `OJ32X_BOOT_TEST 0` in port/plat_mars.c - the boot test checks still
   run, but its screen (and the wait for Start) only appears when a check fails; otherwise the
   game starts straight after the splash. 1 = the screen as before.
 
@@ -370,9 +370,9 @@ Menu reached, no crash any more (no demos), menus slow, intro still vertical str
   run includes the whole intro).
 - Menu speed: the plasma background (four cosines per pixel, 64,000 pixels a frame) is off on
   the 32X (OJ32X_MARS): plain background colour 28 (the line upstream had commented out).
-- Next (Micronut99: "focus on adding content"): levels - fitting a level into SDRAM.
+- Next ("focus on adding content"): levels - fitting a level into SDRAM.
 
-## J5: no intro, no demos, every level (Micronut99: "skip the intro, load the first level, add
+## J5: no intro, no demos, every level ("skip the intro, load the first level, add
 all levels, no demo mode")
 - Intro skipped on the 32X (oj32x_skip_intro; PC build: T32X_SKIP_INTRO=1). Demos: MACRO.1-4
   stay out of the packs, so the menu never starts one.
@@ -407,7 +407,7 @@ all levels, no demo mode")
 - Not in the packs yet: music (no sound), cutscenes between episodes, bonus levels.
 
 ## Round names
-Micronut99 already had a zip named J5: the J5 above was renamed on his side. The next delivery is **J7**
+the tester already had a zip named J5: the J5 above was renamed on his side. The next delivery is **J7**
 (no J6), and later zips count on from there.
 
 ## J5 console result and J7
@@ -434,7 +434,7 @@ rebuilds every object once).
 
 ## J8 console result and J9
 Level 1 plays on the console (video 1006261545): level menu, save/load screens work; the
-in-game FPS counter shows about 11. Micronut99: all remaining content, no cutscenes, no Exit
+in-game FPS counter shows about 11. all remaining content, no cutscenes, no Exit
 Game, A = C, more frames per second without changing the game's speed.
 - Cutscenes off on the 32X (Level::playScene returns at once; OJ32X_MARS).
 - Main menu "Exit game" does nothing on the 32X.
@@ -462,7 +462,7 @@ Game, A = C, more frames per second without changing the game's speed.
   OpenJazz's playSound puts the effect on the next pad request (COMM0 = 48 | n << 8, n = SE::Type)
   - main.c's proven K33/OL-6 path, unchanged.
 - Music: CD audio, tracks 2-36 = the 35 music files in alphabetical order
-  (tools/music_tracks.txt). Micronut99 provides WAVs in music/ named like the files; then
+  (tools/music_tracks.txt). the tester provides WAVs in music/ named like the files; then
   build.sh makes the tracks (make_music_tracks.py) and builds with OJ32X_MUSIC 1 (CMD 45 to
   play, 54 to stop). Without WAVs the engine asks for no tracks.
 - Menus: "(esc) quits" is text (fontbig) -> "(b) back" on the 32X.
@@ -473,7 +473,7 @@ linked with the PC build's xmp objects) into music/<NAME>.wav, 44.1 kHz 16-bit s
 at most 80 s each (MAX_SECONDS): 35 songs = 433 MB, the console repeats each track. build.sh then
 makes tracks 2-36 (+ silent 37-80 from make_music_tracks.py) and builds with OJ32X_MUSIC 1.
 Tested here: all 35 render (40-80 s, real signal), make_music_tracks.py maps all 35.
-Later: a cloned project for the line-table scrolling renderer (Micronut99).
+Later: a cloned project for the line-table scrolling renderer.
 
 ## J11
 - Saving: OpenJazz's files (openjazz.cfg, SAVE.0-3) live in a 4 KB store in the Sega CD's
@@ -485,7 +485,7 @@ Later: a cloned project for the line-table scrolling renderer (Micronut99).
   save is up to ~2 KB (its random filler), so 1-2 saves fit next to the settings; a save that
   does not fit fails (log "SAVE: ..." or the game's own message).
 - Credits + CD player: main menu "Exit game" -> menu/credits32x.cpp (both builds): the main
-  menu's plasma, two credit pages (Jazz Jackrabbit / OpenJazz; D32XR, Chilly Willy, Micronut99)
+  menu's plasma, two credit pages (Jazz Jackrabbit / OpenJazz; D32XR, Chilly Willy, the tester)
   in fontbig, switching every 8 s; CD player under them: tracks 2-36 alphabetical, starting at
   SONG5 (Nippius), planet names read from the game's level files (tools: song per world -
   e.g. SONG0 Diamondus, SONG5 Nippius, SONGCD6 Ceramicus, XM2/XM3 Holidaius). A/C/Start play/
@@ -504,19 +504,19 @@ cuts land in the silences. tools/music_tracks.txt: XMAS2/XMAS3 = tracks 37/38 (t
 numbers do not move); make_music_tracks.py leaves a missing song silent instead of stopping.
 
 ## J11c: longer music from the game's own data
-Micronut99's videoplayback.mp4 is 445 s = only track 1 (Main Menu) of the playlist, so
+the tester's videoplayback.mp4 is 445 s = only track 1 (Main Menu) of the playlist, so
 cut_ost.py stopped (its length check). Instead tools/psm2wav.c now lets each song loop as in
 the game up to MAX_SECONDS (default 110) with a 3 s fade (ENDLEVEL: 8 s, one pass):
 34 x 110 s + 8 s = 62.5 min of audio, about 71 min with the data and the silent tracks.
 cut_ost.py stays for a complete playlist video.
 
-## J11d (Micronut99: "a single complete track, fade and loop that")
+## J11d ("a single complete track, fade and loop that")
 psm2wav's 4th argument 1 = one complete pass of the song (measured first, then played), faded
 over its last 2 s; make_music_wavs.sh uses it for every song (600 s only as a safety limit).
 One pass: 7 s (ENDLEVEL) to 196 s (SECRET), 35 songs = about 53 minutes. The console repeats
 each CD track (CMD 45 repeat).
 
-## J12: world packs (Micronut99: "add 3, make 1 and 2 happen")
+## J12: world packs ("add 3, make 1 and 2 happen")
 - (2)+(3) One pack per WORLD (planet), OJ<world*10>.PAK: both levels of the planet, the shared
   tile set and sprites (once instead of twice), the planet screen. A level of the same world as
   the pack in the cart loads nothing - the second level of every planet starts without a
@@ -551,12 +551,12 @@ each CD track (CMD 45 repeat).
   0 = off (music stops / no effects), above 0 = on.
 - Set-up menu on the 32X: character, buttons (A/B swap: A fire + B jump, C always jumps),
   audio, gameplay. No keyboard, joystick or video entries.
-- FPS: Micronut99 sees no change from the slave SH2 drawing half - next: measure where the
+- FPS: the tester sees no change from the slave SH2 drawing half - next: measure where the
   frame time goes on the console before more speed work; the scrolling rebuild is the real fix.
 - Next: warm boot - skip copying engine and common pack when the cart already holds them
   (verify with a checksum on the SH2); hold a button at boot to force the full load.
 
-## J13b: CD player selector (Micronut99)
+## J13b: CD player selector
 Left/Right only move a selector ("SELECT 24 FANOLINT"); the song changes when A/C/Start
 confirms it or after the selector rests 3.5 s on a track; A on the playing track = stop/play.
 Credit lines spaced to end above the two player lines. Checked on the PC (frames).
@@ -607,7 +607,7 @@ and clears both 32X frame buffers (plat_clear_screens). Regression 0 different.
 ## J13g
 Y did not toggle the credits text on a 6-button pad. Now any of Y, X, Z, Mode (0x0F00) or
 Up/Down toggles it, and the credits screen shows "PAD xxxx" (the bits as read) at the bottom left
-to see what the extra buttons really send. "(B) BACK" stays (Micronut99).
+to see what the extra buttons really send. "(B) BACK" stays.
 
 ## J14: frame profiler
 plat_prof_us (master SH2 free-running timer, phi/32, 1.39 us; PC: clock_gettime) and
@@ -622,7 +622,7 @@ in the level's top-left corner with fontiny (OJ32X_PROFILE in mars/Makefile):
   "2CPU|1CPU <fps>FPS T<total>", "L B S F", "H P O" (whole ms per frame).
 - Mode (6-button pad) switches the slave SH2's drawing on/off while playing, to profile both
   renderers on one disc (plat_slave_draws).
-- Credits: the PAD xxxx diagnostic removed (Micronut99).
+- Credits: the PAD xxxx diagnostic removed.
 - Reported: lines in the clouds, waterfalls less smooth since the slave drawing - compare with Mode.
 - Cutscenes: next; ENDE6.0SC is 1.9 MB raw (more than the 1.4 MB slot) - needs splitting.
 
@@ -680,7 +680,7 @@ shown at the next vblank after it is finished. Measured J15 (game counter): 12-1
 10 at the Tubelectric waterfalls (J8: 11).
 
 ## J15d
-Profiler box off in the 32X build (Micronut99: the black block top left). The game's own FPS counter
+Profiler box off in the 32X build (the black block top left). The game's own FPS counter
 (set-up, gameplay, hud style) remains for measuring.
 
 ## J16: speed switches (mars/Makefile)
@@ -719,7 +719,7 @@ A second game on the disc, from JAZZXMAS1995/ (its own complete data set, same f
   64 KB screen; ~20 KB more small blocks than Jazz CD levels).
 
 ## J18: bonus levels
-Micronut99's Jazz_JackrabbitG.zip = the same GOG collection, unpatched (7 level files + MENU.000
+the tester's Jazz_JackrabbitG.zip = the same GOG collection, unpatched (7 level files + MENU.000
 differ; our data has the community patch - Orbitus 2, hoverboards, Jungrock, Battleships 2,
 episode previews). The bonus maps were always there; they were skipped for memory.
 - JJ1BonusLevel (OJ32X): tiles and events of the 256x256 map read from the pack
@@ -747,7 +747,7 @@ there (Jazz CD + full load) instead of being lost when the choice waits for the 
 PC (scrolling build): the save screen no longer alternates between two pictures.
 
 ## J19 (includes the J18d work)
-- No game choice at start (Micronut99). Holiday Hare '95 is the last entry of the episode menu, in
+- No game choice at start. Holiday Hare '95 is the last entry of the episode menu, in
   place of "specific level": plat_set_game(1) for its run (world packs +100, SFX01.BIN, music
   mapping, save pieces 6-9), back to 0 afterwards. Its world packs are baked against Jazz CD's
   common pack; of the files both use only MAINCHAR.000 differs (read from JAZZXMAS1995/ via

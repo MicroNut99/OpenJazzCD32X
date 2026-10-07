@@ -139,13 +139,13 @@ void print_diag(char *temp, const char *msg, int x, int y) {
  *       start-up cart check (accessing a missing cart crashes the console).  The SH2 reads
  *       KOBOGFX.BIN straight from CD with CMD 38 (open) + CMD 50 (one 32 KB chunk into the
  *       frame buffer).  Runs in Fusion and on the console, cart plugged in or not.
- *   0 = CART (real hardware + MicroNut99 cart): KOBOGFX.BIN is stored in the cart at
+ *   0 = CART (real hardware + the cart maker cart): KOBOGFX.BIN is stored in the cart at
  *       offset 2 MB with CMD 38 + CMD 46 (Chilly's rules, verified), the SH2 reads it at
  *       0x22000000.  Proven on hardware.
  * ===================================================================================== */
 #define KOBO_NOCART     0          /* HW1: CART MODE - real hardware WITH the cart plugged in */
 
-#define CART_TARGET     0              /* MicroNut99 cart layout (only used when KOBO_NOCART 0) */
+#define CART_TARGET     0              /* the cart maker cart layout (only used when KOBO_NOCART 0) */
 #define KOBO_PACK_NAME  "KOBOGFX.BIN"
 #define KOBO_PACK_SLOT  16             /* cart mode: 16 * CART_SLOT = 2 MB into the 4 MB cart */
 #define CART_WINDOW_READS    1   

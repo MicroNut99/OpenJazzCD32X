@@ -150,7 +150,7 @@ int JJ1Planet::play () {
 		video.clearScreen(0);
 
 #ifdef OJ32X_MARS
-		// PORT32X (J18d, Micronut99): the planet stays put at its full size - no growing in and
+		// PORT32X (J18d, the tester): the planet stays put at its full size - no growing in and
 		// no flying towards the screen; shown for as long as the original sequence lasts
 		if (globalTicks - tickOffset < F4 + FQ)
 			sprite.drawScaled(canvasW >> 1, canvasH >> 1, F2);

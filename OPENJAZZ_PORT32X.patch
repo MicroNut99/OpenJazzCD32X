@@ -15,7 +15,7 @@ index da9278b..c7152c4 100644
  
  		try {
 diff --git a/oj/src/io/file.cpp b/oj/src/io/file.cpp
-index 9791b29..e45bee2 100644
+index 9791b29..22d6e28 100644
 --- a/oj/src/io/file.cpp
 +++ b/oj/src/io/file.cpp
 @@ -25,6 +25,12 @@
@@ -105,7 +105,7 @@ index 9791b29..e45bee2 100644
  	Path* path = gamePaths.paths;
  	while (path) {
  		// skip other paths
-@@ -392,6 +451,76 @@ void File::storeData (const void* data, int length) {
+@@ -392,6 +451,79 @@ void File::storeData (const void* data, int length) {
   *
   * @return Buffer containing the block of data
   */
@@ -156,8 +156,11 @@ index 9791b29..e45bee2 100644
 +		}
 +	}
 +	unsigned char* pixels = loadRLE(length);
-+	// a block as a picture of one line (or 2 x length/2 when longer than 65535)
++	// a block as a picture: one line - or 256 wide when it is longer than a picture line can be
++	// (J19b: the bonus maps' 65,536-byte blocks were never baked, so the 32X decoded them into
++	// SDRAM and ran out of memory)
 +	if (length <= 65535) bakePicture(start, pixels, length, 1);
++	else if (length % 256 == 0 && length / 256 <= 65535) bakePicture(start, pixels, 256, length / 256);
 +	return pixels;
 +
 +}
@@ -182,7 +185,7 @@ index 9791b29..e45bee2 100644
  unsigned char * File::loadBlock (int length) {
  
  	unsigned char *buffer;
-@@ -581,8 +710,26 @@ SDL_Surface* File::loadSurface (int width, int height, bool checkSize) {
+@@ -581,8 +713,26 @@ SDL_Surface* File::loadSurface (int width, int height, bool checkSize) {
  	SDL_Surface* surface;
  	unsigned char* pixels;
  
@@ -1502,7 +1505,7 @@ index cfc4d66..e8274a4 100644
  
  }
 diff --git a/oj/src/jj1/planet/jj1planet.cpp b/oj/src/jj1/planet/jj1planet.cpp
-index 92030f0..1495cf8 100644
+index 92030f0..75d544d 100644
 --- a/oj/src/jj1/planet/jj1planet.cpp
 +++ b/oj/src/jj1/planet/jj1planet.cpp
 @@ -24,6 +24,9 @@
@@ -1532,7 +1535,7 @@ index 92030f0..1495cf8 100644
  		video.clearScreen(0);
  
 +#ifdef OJ32X_MARS
-+		// PORT32X (J18d, Micronut99): the planet stays put at its full size - no growing in and
++		// PORT32X (J18d, the tester): the planet stays put at its full size - no growing in and
 +		// no flying towards the screen; shown for as long as the original sequence lasts
 +		if (globalTicks - tickOffset < F4 + FQ)
 +			sprite.drawScaled(canvasW >> 1, canvasH >> 1, F2);
@@ -1747,7 +1750,7 @@ index 306b9e9..1a0c639 100644
  						}
  						break;
 diff --git a/oj/src/level/level.cpp b/oj/src/level/level.cpp
-index 1ab7284..309ea86 100644
+index 1ab7284..90c1af7 100644
 --- a/oj/src/level/level.cpp
 +++ b/oj/src/level/level.cpp
 @@ -28,6 +28,9 @@
@@ -1775,7 +1778,7 @@ index 1ab7284..309ea86 100644
  	int ret;
  
 +#ifdef OJ32X_MARS
-+	// PORT32X: no cutscenes on the 32X (Micronut99, J9)
++	// PORT32X: no cutscenes on the 32X (J9)
 +	(void)file;
 +	return E_NONE;
 +#endif
@@ -1849,7 +1852,7 @@ index 1ab7284..309ea86 100644
  	}
  
 diff --git a/oj/src/main.cpp b/oj/src/main.cpp
-index 71b7fff..3a716a4 100644
+index 71b7fff..72a9412 100644
 --- a/oj/src/main.cpp
 +++ b/oj/src/main.cpp
 @@ -30,6 +30,10 @@
@@ -1901,7 +1904,7 @@ index 71b7fff..3a716a4 100644
  	// Load and play the startup cutscene
  
 +#ifdef OJ32X
-+	// PORT32X: the 32X skips the intro (Micronut99, J5); the PC build too with T32X_SKIP_INTRO=1
++	// PORT32X: the 32X skips the intro (J5); the PC build too with T32X_SKIP_INTRO=1
 +	if (!oj32x_skip_intro()) {
 +#endif
  	try {
@@ -1931,7 +1934,7 @@ index 71b7fff..3a716a4 100644
  		if (event.type == SDL_EVENT_QUIT) return E_QUIT;
 diff --git a/oj/src/menu/credits32x.cpp b/oj/src/menu/credits32x.cpp
 new file mode 100644
-index 0000000..85c95ef
+index 0000000..809068a
 --- /dev/null
 +++ b/oj/src/menu/credits32x.cpp
 @@ -0,0 +1,216 @@
@@ -2013,7 +2016,7 @@ index 0000000..85c95ef
 +		{ "H95XM3",   "HOLIDAY HARE 95 STAGE 3" }
 +	};
 +	const int nSongs = sizeof(songs) / sizeof(songs[0]);
-+	const int firstSong = 29;   // track 31 = SONGCD5 Deckstar (Micronut99, J13c)
++	const int firstSong = 29;   // track 31 = SONGCD5 Deckstar (J13c)
 +
 +	// Two pages, each shown for 8 seconds
 +	const char* const page1[] = {
@@ -2073,7 +2076,7 @@ index 0000000..85c95ef
 +
 +		if (controls.release(C_ESCAPE)) break;
 +
-+		// J13e (Micronut99): Y shows / hides the credits text (the background and player stay)
++		// J13e: Y shows / hides the credits text (the background and player stay)
 +		{
 +			// J13g: Y, X, Z or Mode (the 6-button pad's extra buttons: 0x0F00)
 +			const bool y = (oj32x_pad() & 0x0F00) != 0;
@@ -2083,7 +2086,7 @@ index 0000000..85c95ef
 +			if (controls.release(C_UP) || controls.release(C_DOWN)) showText = !showText;
 +		}
 +
-+		// Left/Right only move the selector; A/C/Start plays the choice. J13c (Micronut99): no
++		// Left/Right only move the selector; A/C/Start plays the choice. J13c: no
 +		// choice made = nothing changes - after 5 s the selector goes back to the playing track
 +		if (controls.release(C_LEFT)) {
 +			pick = (pick + nSongs - 1) % nSongs;
@@ -2252,7 +2255,7 @@ index 671e1c3..29a8411 100644
  
  			default:
 diff --git a/oj/src/menu/mainmenu.cpp b/oj/src/menu/mainmenu.cpp
-index b898e56..32d690d 100644
+index b898e56..32eaec2 100644
 --- a/oj/src/menu/mainmenu.cpp
 +++ b/oj/src/menu/mainmenu.cpp
 @@ -25,6 +25,9 @@
@@ -2284,7 +2287,7 @@ index b898e56..32d690d 100644
  		macroType[macro] = -1;
  
 +#if defined(OJ32X_MARS) && !defined(OJ32X_DEMO)
-+		// PORT32X (J14e): demos off on the 32X (Micronut99) - build with -DOJ32X_DEMO for them
++		// PORT32X (J14e): demos off on the 32X - build with -DOJ32X_DEMO for them
 +		if (false) {
 +#else
  		if (File::exists(fileName, PATH_TYPE_GAME)) {
@@ -2418,7 +2421,7 @@ index 7b90515..9afd1e8 100644
  }
 +#endif
 diff --git a/oj/src/menu/setupmenu.cpp b/oj/src/menu/setupmenu.cpp
-index 6989d64..b059c21 100644
+index 6989d64..b0c791d 100644
 --- a/oj/src/menu/setupmenu.cpp
 +++ b/oj/src/menu/setupmenu.cpp
 @@ -26,6 +26,9 @@
@@ -2437,7 +2440,7 @@ index 6989d64..b059c21 100644
  
 +#ifdef OJ32X_MARS
 +	// PORT32X (J13f): CD audio and the PCM chip have no volume control on this path - two
-+	// on/off switches instead of the volume bars (Micronut99)
++	// on/off switches instead of the volume bars
 +	int choice = 0;
 +	while (true) {
 +		const char* opts[2] = {

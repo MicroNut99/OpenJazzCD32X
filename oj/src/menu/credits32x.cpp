@@ -76,7 +76,7 @@ namespace {
 		{ "H95XM3",   "HOLIDAY HARE 95 STAGE 3" }
 	};
 	const int nSongs = sizeof(songs) / sizeof(songs[0]);
-	const int firstSong = 29;   // track 31 = SONGCD5 Deckstar (Micronut99, J13c)
+	const int firstSong = 29;   // track 31 = SONGCD5 Deckstar (J13c)
 
 	// Two pages, each shown for 8 seconds
 	const char* const page1[] = {
@@ -136,7 +136,7 @@ int runCredits32X () {
 
 		if (controls.release(C_ESCAPE)) break;
 
-		// J13e (Micronut99): Y shows / hides the credits text (the background and player stay)
+		// J13e: Y shows / hides the credits text (the background and player stay)
 		{
 			// J13g: Y, X, Z or Mode (the 6-button pad's extra buttons: 0x0F00)
 			const bool y = (oj32x_pad() & 0x0F00) != 0;
@@ -146,7 +146,7 @@ int runCredits32X () {
 			if (controls.release(C_UP) || controls.release(C_DOWN)) showText = !showText;
 		}
 
-		// Left/Right only move the selector; A/C/Start plays the choice. J13c (Micronut99): no
+		// Left/Right only move the selector; A/C/Start plays the choice. J13c: no
 		// choice made = nothing changes - after 5 s the selector goes back to the playing track
 		if (controls.release(C_LEFT)) {
 			pick = (pick + nSongs - 1) % nSongs;
