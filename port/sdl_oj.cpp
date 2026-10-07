@@ -25,6 +25,10 @@ extern "C" {
 #include <strings.h>
 
 /* J4c3: heap check points on the 32X (port/mars_syscalls.c oj32x_heap_check) */
+/* J14c: profiler overlay colours (set with the palette) */
+static int overlay_dark, overlay_light = 255;
+static const char *prof_text_line(int line);
+
 /* J5: OJ32X_HEAP_CHECK 1 = check the heap at every picture create/free/blit (slow: a walk over
  * all blocks each time - a diagnostic); 0 = only at log lines (port/plat_mars.c) */
 #ifndef OJ32X_HEAP_CHECK
@@ -250,12 +254,15 @@ int SDL_SetPalette(SDL_Surface *s, int flags, const SDL_Color *colors, int first
 		}
 		/* J13: the 12 lines above and below the 200-line picture show one palette entry; colour 0
 		 * is white in some levels' palettes (the white bars) - use the darkest one instead */
-		int best = 0, bestv = 1 << 30;
+		int best = 0, bestv = 1 << 30, light = 0, lightv = -1;
 		for (int i = 0; i < 256; ++i) {
 			const int v = (phys555[i] & 31) + (phys555[i] >> 5 & 31) + (phys555[i] >> 10 & 31);
 			if (v < bestv) { bestv = v; best = i; }
+			if (v > lightv) { lightv = v; light = i; }
 		}
 		plat_border_colour(best);
+		overlay_dark = best;     /* J14c: the profiler box: darkest entry behind the brightest */
+		overlay_light = light;
 	}
 	return 1;
 }
@@ -654,6 +661,39 @@ void oj32x_packs_ready(void) { plat_packs_ready(); }
 /* J14: frame profiler - oj32x_prof(slot) adds the time since the last mark to a slot; the
  * frame's marks add up to the whole frame. Every second the averages per frame are put
  * into a text line the level draws in its corner (OJ32X_PROFILE). */
+/* J14c: profiler overlay - its own 3x5 font (the error screens' one) drawn 2x, brightest palette
+ * entry on a box of the darkest, so it can be read on any level and any TV */
+#include "mars/font3x5.h"
+
+void oj32x_prof_draw(SDL_Surface *s)
+{
+	if (!s || !s->pixels) return;
+	int width = 0;
+	for (int l = 0; l < 3; l++) { int n = (int)strlen(prof_text_line(l)); if (n > width) width = n; }
+	const int boxW = width * 8 + 4, boxH = 3 * 12 + 4;
+	Uint8 *px = static_cast<Uint8 *>(s->pixels);
+	for (int y = 0; y < boxH && y < s->h; y++)
+		memset(px + y * s->pitch, overlay_dark, (size_t)(boxW < s->w ? boxW : s->w));
+	for (int l = 0; l < 3; l++) {
+		const char *t = prof_text_line(l);
+		for (int c = 0; t[c]; c++) {
+			int ch = t[c];
+			if (ch >= 'a' && ch <= 'z') ch -= 32;
+			if (ch < 32 || ch > 95) ch = '?';
+			const uint16_t g = font3x5[ch - 32];
+			const int x0 = 2 + c * 8, y0 = 2 + l * 12;
+			for (int gy = 0; gy < 5; gy++)
+				for (int gx = 0; gx < 3; gx++)
+					if (g & (1u << (14 - (gy * 3 + gx))))
+						for (int dy = 0; dy < 2; dy++)
+							for (int dx = 0; dx < 2; dx++) {
+								const int x = x0 + gx * 2 + dx, y = y0 + gy * 2 + dy;
+								if (x < s->w && y < s->h) px[y * s->pitch + x] = (Uint8)overlay_light;
+							}
+		}
+	}
+}
+
 static uint32_t prof_last, prof_acc[8], prof_frames, prof_steps, prof_start;
 static char prof_lines[3][48] = { "PROFILING", "", "" };
 void oj32x_prof(int slot)
@@ -695,6 +735,7 @@ void oj32x_prof_frame(void)
 	prof_start = now;
 }
 const char *oj32x_prof_text(int line) { return prof_lines[line < 0 || line > 2 ? 0 : line]; }
+static const char *prof_text_line(int line) { return oj32x_prof_text(line); }
 
 /* J13d: both 32X frame buffers' picture areas to colour 0 (PC: nothing) */
 void oj32x_clear_screens(void) { plat_clear_screens(); }

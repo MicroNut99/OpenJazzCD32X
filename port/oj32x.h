@@ -34,6 +34,8 @@ void oj32x_prof(int slot);
 void oj32x_prof_steps(int n);
 void oj32x_prof_frame(void);
 const char *oj32x_prof_text(int line);   /* lines 0-2 */
+/* J14c: the profiler box, drawn into the screen (top left) */
+void oj32x_prof_draw(struct SDL_Surface *s);
 
 /* J13e: the pad bits as last read (PAD_* in plat.h) */
 unsigned int oj32x_pad(void);

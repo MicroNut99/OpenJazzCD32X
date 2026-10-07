@@ -742,9 +742,7 @@ void JJ1Level::draw () {
 	oj32x_prof(4);   // J14: panel and the rest of the drawing
 #ifdef OJ32X_PROFILE
 	// J14: the profiler's line (ms per frame) in the top left corner of the level
-	// (the level's own font, as "pause": its colours belong to the level palette - fontiny's
-	// were invisible on the console)
-	for (int i = 0; i < 3; i++) font->showString(oj32x_prof_text(i), 2, 2 + i * font->getHeight());
+	oj32x_prof_draw(canvas);   // J14c: own 3x5 font drawn 2x, bright on dark - readable everywhere
 #endif
 #endif
 }

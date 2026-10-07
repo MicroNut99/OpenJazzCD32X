@@ -625,3 +625,8 @@ in the level's top-left corner with fontiny (OJ32X_PROFILE in mars/Makefile):
 - Credits: the PAD xxxx diagnostic removed (Micronut99).
 - Reported: lines in the clouds, waterfalls less smooth since the slave drawing - compare with Mode.
 - Cutscenes: next; ENDE6.0SC is 1.9 MB raw (more than the 1.4 MB slot) - needs splitting.
+
+## J14c
+Profiler drawn as a box with its own font (the 3x5 error-screen font at 2x, 8x12 cells): the
+brightest palette entry on a box of the darkest, top left of the level - readable on any level
+(the game fonts were either invisible in level colours or too wide). Checked on the PC (32X paths).
