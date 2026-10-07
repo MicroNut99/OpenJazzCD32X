@@ -135,7 +135,8 @@ int runCredits32X () {
 
 		// J13e (Micronut99): Y shows / hides the credits text (the background and player stay)
 		{
-			const bool y = (oj32x_pad() & 0x0200) != 0;    // PAD_Y (6-button pads)
+			// J13g: Y, X, Z or Mode (the 6-button pad's extra buttons: 0x0F00)
+			const bool y = (oj32x_pad() & 0x0F00) != 0;
 			if (y && !yWas) showText = !showText;
 			yWas = y;
 			// J13f: Up / Down do the same (a 3-button pad has no Y)
@@ -189,6 +190,10 @@ int runCredits32X () {
 		int y = 4;
 		for (int i = 0; i < lines && showText; i++, y += step)
 			if (page[i][0]) font->showString(page[i], canvasW >> 1, y, alignX::Center);
+
+		// J13g: the pad bits as the console reports them (to see what Y / Mode send)
+		snprintf(line, sizeof line, "PAD %04X", oj32x_pad() & 0xFFFF);
+		fontiny->showString(line, 2, canvasH - 8);
 
 		snprintf(line, sizeof line, "%s %d  %s", playing ? "PLAYING" : "STOPPED", song + 2, songs[song].name);
 		font->showString(line, canvasW >> 1, canvasH - 2 * h - 4, alignX::Center);

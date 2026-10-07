@@ -603,3 +603,8 @@ and clears both 32X frame buffers (plat_clear_screens). Regression 0 different.
 - Right-edge strip: not the see-through black either (J13e did not remove it); it also spans the
   border lines, which are fully rewritten every frame - so probably not frame-buffer content.
   Open: does it show on the text screens (boot test, blue/red)?
+
+## J13g
+Y did not toggle the credits text on a 6-button pad. Now any of Y, X, Z, Mode (0x0F00) or
+Up/Down toggles it, and the credits screen shows "PAD xxxx" (the bits as read) at the bottom left
+to see what the extra buttons really send. "(B) BACK" stays (Micronut99).
