@@ -682,3 +682,14 @@ shown at the next vblank after it is finished. Measured J15 (game counter): 12-1
 ## J15d
 Profiler box off in the 32X build (Micronut99: the black block top left). The game's own FPS counter
 (set-up, gameplay, hud style) remains for measuring.
+
+## J16: speed switches (mars/Makefile)
+- OJ32X_FAST_CODE: copy_run, blit_core, fill_core (own 32-bit fill_row instead of memset) in
+  section .sdcode.fast (SDRAM) at -O2 - code in the cart runs through the slow bus / 4 KB cache.
+- OJ32X_PANEL_DIFF: with the scrolling renderer the panel is drawn into a 10.5 KB SDRAM copy; at
+  present only rows whose hash changed since that frame buffer last got them are copied (32-bit).
+  PC: 276 frames identical to J15 scrolling.
+- OJ32X_FLIP_ASYNC: presenting writes the line table and requests the swap without waiting; the
+  palette and the 1-pixel shift go in at the vblank of the swap (VBI handler, or plat_wait_flip if
+  it missed it); plat_wait_flip before the ring is touched again - the logic runs during the wait.
+- Not done yet: sprites as pre-split runs (pack format change), logic on the slave SH2.

@@ -942,3 +942,4 @@ void plat_present_scroll(const uint16_t *palette555, int row0, int xoff, int vie
 	plat_present(img, 320, palette555);
 	host_back ^= 1;
 }
+void plat_wait_flip(void) { }

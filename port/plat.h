@@ -79,6 +79,9 @@ uint8_t *plat_scroll_ring(void);
 uint8_t *plat_scroll_panel(void);
 int plat_back_index(void);
 void plat_present_scroll(const uint16_t *palette555, int row0, int xoff, int viewH);
+/* J16: wait until the last requested buffer swap has happened (OJ32X_FLIP_ASYNC: presenting
+ * only requests it, so the game's logic runs while the 32X waits for the next vblank) */
+void plat_wait_flip(void);
 /* J13d: both frame buffers' picture areas cleared (32X); PC: nothing */
 void plat_clear_screens(void);
 

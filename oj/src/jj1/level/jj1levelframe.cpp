@@ -256,6 +256,8 @@ namespace {
 }
 
 void oj32xScrollReset () {
+	plat_wait_flip();   // J16: a swap still under way must finish before the screen is reused
+	oj32x_panel_reset();
 	ringState[0].valid = ringState[1].valid = false;
 	cur = nullptr;
 	oj32x_scroll_map(false, 0, 0, 0, 0);
@@ -327,6 +329,7 @@ void JJ1Level::scrollBg (int rx, int wy, int w, int h) {
 void JJ1Level::scrollBegin (int vX, int vY, int viewH) {
 
 	oj32x_scroll_map(false, 0, 0, 0, 0);       // the ring is drawn directly here
+	plat_wait_flip();                          // J16: the logic ran while the last swap waited
 	cur = &ringState[plat_back_index() & 1];
 	RingState& S = *cur;
 

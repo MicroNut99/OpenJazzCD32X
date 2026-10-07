@@ -49,6 +49,11 @@ DEFS += $(EXTRA_DEFS)
 # J14: the frame profiler box in levels - off (J15d); add -DOJ32X_PROFILE to bring it back
 # J15: the line-table scrolling renderer (remove for the old full-redraw renderer)
 DEFS += -DOJ32X_SCROLL
+# J16 speed switches (each can be removed on its own):
+#   OJ32X_FAST_CODE   pixel routines in SDRAM, compiled for speed
+#   OJ32X_PANEL_DIFF  status panel drawn in SDRAM, only changed rows copied to the frame buffer
+#   OJ32X_FLIP_ASYNC  presenting only requests the swap; the logic runs while it waits
+DEFS += -DOJ32X_FAST_CODE -DOJ32X_PANEL_DIFF -DOJ32X_FLIP_ASYNC
 CXXFLAGS := -std=gnu++14 $(OPT) $(DEFS) $(INCS) -fno-threadsafe-statics -Wall -Wno-unused-result -Wno-narrowing -MMD -MP
 CFLAGS   := -std=gnu11 $(OPT) $(DEFS) $(INCS) -w -MMD -MP
 

@@ -120,7 +120,25 @@ volatile unsigned mars_swdt_ovf_count = 0;
 static volatile uint32_t vblank_count = 0;
 
 static volatile uint8_t vblank_wtcnt;   /* J14f: the watchdog counter at the last vblank */
-void pri_vbi_handler(void) { vblank_count++; vblank_wtcnt = SH2_WTCNT_R; }
+/* J16 OJ32X_FLIP_ASYNC: a requested swap and the palette that goes with it */
+static volatile int flip_pending, pal_pending;
+static volatile uint16_t flip_target;
+static uint16_t pending_pal[256];
+static volatile uint16_t pending_shift;
+#define VDP_SHIFT_REG (*(volatile uint16_t *)0x20004102)
+static void load_pending_palette(void)
+{
+	pal_pending = 0;
+	VDP_SHIFT_REG = pending_shift;
+	for (int i = 0; i < 256; ++i) VDP_CRAM[i] = pending_pal[i];
+}
+void pri_vbi_handler(void)
+{
+	vblank_count++;
+	vblank_wtcnt = SH2_WTCNT_R;
+	/* the swap happens at the vblank: its palette goes in now, before the picture is shown */
+	if (flip_pending && pal_pending && (VDP_FBCTL & FBCTL_FS) == flip_target) load_pending_palette();
+}
 void pri_cmd_handler(void) { MARS_CMD_CLR = 0; }
 void sec_cmd_handler(void) { MARS_CMD_CLR = 0; }
 void sec_dma1_handler(void) { }
@@ -637,8 +655,36 @@ void plat_present_scroll(const uint16_t *palette555, int row0, int xoff, int vie
 		else byte = SCROLL_PANEL_OFF + (uint32_t)(g - viewH) * PLAT_SCREEN_W;
 		FB16[line] = (uint16_t)(byte >> 1);
 	}
+#ifdef OJ32X_FLIP_ASYNC
+	pending_shift = (uint16_t)(xoff & 1);   /* set with the palette, when the swap happens */
+	{
+		volatile uint32_t *blank = FB32 + SCROLL_BLANK_OFF / 4;
+		for (int x = 0; x < PLAT_SCREEN_W / 4; ++x) blank[x] = border_fill;
+		for (int i = 0; i < 256; ++i) pending_pal[i] = palette555[i] ? palette555[i] : 0x0400;
+		while (VDP_FBCTL & FBCTL_VBLK) { }
+		const uint16_t cur = VDP_FBCTL & FBCTL_FS;
+		flip_target = cur ^ FBCTL_FS;
+		pal_pending = 1;
+		flip_pending = 1;
+		VDP_FBCTL = flip_target;          /* swap at the next vblank; no waiting here */
+		last_flip_vblank = vblank_count;
+	}
+#else
 	VDP_SHIFT = (uint16_t)(xoff & 1);
 	present_finish(FB32 + SCROLL_BLANK_OFF / 4, palette555);
+#endif
+}
+
+void plat_wait_flip(void)
+{
+	if (!flip_pending) return;
+	while ((VDP_FBCTL & FBCTL_FS) != flip_target) { }
+	if (pal_pending)                       /* the vblank handler did not get to it */
+	{
+		while ((VDP_FBCTL & FBCTL_PEN) == 0) { }
+		load_pending_palette();
+	}
+	flip_pending = 0;
 }
 
 uint8_t *plat_canvas(void)
@@ -870,7 +916,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J15D " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J16  " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&

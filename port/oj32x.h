@@ -67,6 +67,7 @@ unsigned char *oj32x_screen_row(int y);
 void oj32x_put_pixel(unsigned char *p, unsigned char v);
 bool oj32x_scroll_active(int *vY);
 void oj32xScrollReset();
+void oj32x_panel_reset(void);
 /* J13: A/B swap (set-up menu) */
 bool oj32x_ab_swapped(void);
 void oj32x_ab_swap(bool on);

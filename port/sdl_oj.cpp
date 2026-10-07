@@ -25,6 +25,15 @@ extern "C" {
 #include <strings.h>
 
 /* J4c3: heap check points on the 32X (port/mars_syscalls.c oj32x_heap_check) */
+/* J16 OJ32X_FAST_CODE: the pixel routines that run thousands of times a frame live in the 32X's
+ * SDRAM (section .sdcode.*, copied there at start-up) and are compiled for speed: code in the
+ * cart runs through a slow bus and a 4 KB cache */
+#if defined(OJ32X_MARS) && defined(OJ32X_FAST_CODE)
+#define OJ_FAST __attribute__((section(".sdcode.fast"), optimize("O2"), noinline))
+#else
+#define OJ_FAST
+#endif
+
 /* J14c: profiler overlay colours (set with the palette) */
 static int overlay_dark, overlay_light = 255;
 static const char *prof_text_line(int line);
@@ -284,7 +293,19 @@ Uint32 SDL_MapRGB(const SDL_PixelFormat *f, Uint8 r, Uint8 g, Uint8 b)
 	return (Uint32)best;
 }
 
-static int fill_core(SDL_Surface *s, SDL_Rect *r, Uint32 colour)
+/* J16: one row of a fill with aligned 32-bit writes (no library memset: it lives in the cart) */
+OJ_FAST static void fill_row(Uint8 *p, int n, Uint8 v)
+{
+	while (n > 0 && ((uintptr_t)p & 3)) { *p++ = v; n--; }
+	const Uint32 w = v * 0x01010101u;
+	Uint32 *q = reinterpret_cast<Uint32 *>(p);
+	for (; n >= 16; n -= 16) { q[0] = w; q[1] = w; q[2] = w; q[3] = w; q += 4; }
+	for (; n >= 4; n -= 4) *q++ = w;
+	p = reinterpret_cast<Uint8 *>(q);
+	while (n-- > 0) *p++ = v;
+}
+
+OJ_FAST static int fill_core(SDL_Surface *s, SDL_Rect *r, Uint32 colour)
 {
 	int x0 = s->clip_rect.x, y0 = s->clip_rect.y;
 	int x1 = x0 + s->clip_rect.w, y1 = y0 + s->clip_rect.h;
@@ -296,7 +317,7 @@ static int fill_core(SDL_Surface *s, SDL_Rect *r, Uint32 colour)
 	}
 	if (x1 <= x0 || y1 <= y0) return 0;
 	Uint8 *p = static_cast<Uint8 *>(s->pixels) + y0 * s->pitch + x0;
-	for (int y = y0; y < y1; ++y, p += s->pitch) memset(p, (int)colour, (size_t)(x1 - x0));
+	for (int y = y0; y < y1; ++y, p += s->pitch) fill_row(p, x1 - x0, (Uint8)colour);
 	return 0;
 }
 
@@ -304,7 +325,7 @@ static int fill_core(SDL_Surface *s, SDL_Rect *r, Uint32 colour)
  * straight into the frame buffer, where every write is a bus access: four pixels per write
  * instead of one. The source may be unaligned (tiles in the cart, scrolled positions): its
  * bytes are put together (memcpy into a word = right byte order on any machine). */
-static void copy_run(Uint8 *d, const Uint8 *s, int n)
+OJ_FAST static void copy_run(Uint8 *d, const Uint8 *s, int n)
 {
 	while (n > 0 && ((uintptr_t)d & 3)) { *d++ = *s++; n--; }
 	if (((uintptr_t)s & 3) == 0) {
@@ -322,7 +343,7 @@ static void copy_run(Uint8 *d, const Uint8 *s, int n)
 	while (n-- > 0) *d++ = *s++;
 }
 
-static int blit_core(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rect *dstrect)
+OJ_FAST static int blit_core(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rect *dstrect)
 {
 	int sx = 0, sy = 0, w = src->w, h = src->h;
 	if (srcrect) { sx = srcrect->x; sy = srcrect->y; w = srcrect->w; h = srcrect->h; }
@@ -395,6 +416,13 @@ struct ScrollMap {
 	SDL_Rect *rec; int recCap; int *recN; bool *recOverflow;
 };
 static ScrollMap smap;
+/* J16 OJ32X_PANEL_DIFF: the panel is drawn into this SDRAM copy; at present only the rows that
+ * changed since this frame buffer last got them are copied into it (32-bit writes) */
+#ifdef OJ32X_PANEL_DIFF
+static Uint8 panel_shadow[PLAT_SCREEN_W * OJ32X_PANEL_H];
+static Uint32 panel_hash[2][OJ32X_PANEL_H];
+static bool panel_hash_valid[2];
+#endif
 static Surf ring_view, panel_view;
 
 static void view_init(Surf &v, Uint8 *pixels, int w, int h)
@@ -414,10 +442,21 @@ void oj32x_scroll_map(bool on, int wx0, int vX, int vY, int viewH)
 	smap.on = on;
 	if (!on) return;
 	smap.ring = plat_scroll_ring();
+#ifdef OJ32X_PANEL_DIFF
+	smap.panel = panel_shadow;
+#else
 	smap.panel = plat_scroll_panel();
+#endif
 	smap.wx0 = wx0; smap.vX = vX; smap.vY = vY; smap.viewH = viewH;
 	view_init(ring_view, smap.ring, OJ32X_RING_W, OJ32X_RING_H);
 	view_init(panel_view, smap.panel, PLAT_SCREEN_W, OJ32X_PANEL_H);
+}
+
+void oj32x_panel_reset(void)
+{
+#ifdef OJ32X_PANEL_DIFF
+	panel_hash_valid[0] = panel_hash_valid[1] = false;
+#endif
 }
 
 void oj32x_scroll_record(SDL_Rect *list, int cap, int *count, bool *overflow)
@@ -573,6 +612,24 @@ int SDL_Flip(SDL_Surface *screen)
 {
 	if (smap.on && screen == screen_surface) {   /* J15: the line-table renderer's frame */
 		oj32x_prof(6);
+		plat_wait_flip();                        /* J16: the previous swap must be done */
+#ifdef OJ32X_PANEL_DIFF
+		{
+			const int b = plat_back_index() & 1;
+			Uint8 *fbp = plat_scroll_panel();
+			for (int r = 0; r < OJ32X_PANEL_H; r++) {
+				const Uint8 *row = panel_shadow + r * PLAT_SCREEN_W;
+				Uint32 h = 2166136261u;
+				const Uint32 *w = reinterpret_cast<const Uint32 *>(row);
+				for (int i = 0; i < PLAT_SCREEN_W / 4; i++) h = (h ^ w[i]) * 16777619u;
+				if (!panel_hash_valid[b] || h != panel_hash[b][r]) {
+					copy_run(fbp + r * PLAT_SCREEN_W, row, PLAT_SCREEN_W);
+					panel_hash[b][r] = h;
+				}
+			}
+			panel_hash_valid[b] = true;
+		}
+#endif
 		plat_present_scroll(phys555, smap.vY % OJ32X_RING_H, smap.vX - smap.wx0, smap.viewH);
 		oj32x_prof(5);
 		oj32x_prof_frame();
@@ -586,6 +643,7 @@ int SDL_Flip(SDL_Surface *screen)
 		return 0;
 	}
 	oj32x_prof(6);
+	plat_wait_flip();
 	plat_present(static_cast<const uint8_t *>(screen->pixels), screen->pitch, phys555);
 	oj32x_prof(5);
 	oj32x_prof_frame();
