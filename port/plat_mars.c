@@ -327,6 +327,7 @@ static int pack_bad_chunks;
  * OJ<world*10>) and Holiday Hare '95 (IMAGE9.RAW at cart 0x120000, world packs OJ<world*10+100>,
  * SFX01.BIN, its own saves in the save area's pieces 5-9). Chosen on the splash. */
 static int game_hh95;
+static int force_full_load;   /* J18b: A+B+C seen while choosing the game */
 int plat_game(void) { return game_hh95; }
 static uint32_t pack_slot(void)   { return game_hh95 ? 9 : PACK_SLOT; }
 static uint32_t pack_offset(void) { return game_hh95 ? 0x120000u : PLAT_CART_DATA_OFFSET; }
@@ -365,6 +366,8 @@ static void choose_game(void)
 	for (;;)
 	{
 		const uint16_t pad = plat_read_pad();
+		/* A+B+C held (the "load everything again" combination) also counts as Jazz CD */
+		if ((pad & (PAD_A | PAD_B | PAD_C)) == (PAD_A | PAD_B | PAD_C)) { force_full_load = 1; game_hh95 = 0; break; }
 		if (pad & PAD_A) { game_hh95 = 0; break; }
 		if (pad & PAD_C) { game_hh95 = 1; break; }
 	}
@@ -399,7 +402,7 @@ static void pack_load(void)
 			if (!send_cmd(CMD_CHUNK_COMPARE, 2000000UL) || MARS_COMM12 != 0) same = 0;
 		}
 		MARS_COMM8_32 = len;
-		if (same && (plat_read_pad() & (PAD_A | PAD_B | PAD_C)) != (PAD_A | PAD_B | PAD_C))
+		if (same && !force_full_load && (plat_read_pad() & (PAD_A | PAD_B | PAD_C)) != (PAD_A | PAD_B | PAD_C))
 		{
 			splash_progress(2 * chunks, 2 * chunks);
 			pack_bytes = len;
@@ -967,7 +970,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J18  " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J18B " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&

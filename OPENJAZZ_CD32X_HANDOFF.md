@@ -730,3 +730,9 @@ episode previews). The bonus maps were always there; they were skipped for memor
   650 KB each. Game::playLevel no longer skips bonus levels (OJ32X_NO_BONUS would).
 - PC, 32X paths, packs only: bonus level 1 plays; heap peak 245 KB incl. the PC's 64 KB screen
   (was 300 KB).
+
+## J18b
+Quick start with the game choice: same game as last boot -> common pack check as before (skips).
+Other game -> its pack is loaded (IMAGE9 at 0x120000 overlaps IMAGE8 at 0x100000, so switching
+games always reloads). Fix: A+B+C held at power-on reaches choose_game first; it is now taken
+there (Jazz CD + full load) instead of being lost when the choice waits for the buttons to be let go.
