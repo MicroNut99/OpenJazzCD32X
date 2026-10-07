@@ -22,6 +22,35 @@ menu.
 If something looks wrong after starting, do a **full reload**: hold **A + B + C**, switch on, and
 let go when the loading bar appears.
 
+## Blast loading: the RAM cart as memory
+
+The 32X has only 256 KB of its own memory, far too little for the game. So the game keeps its
+program and its data in the **4 MB RAM cart**, which holds its content while the console is
+switched off. That is what makes "blast loading" possible:
+
+- **The first start** copies the engine and the common data (menus, fonts, status panel) from
+  the disc into the cart, about a minute and a half with the loading bar.
+- **Every later start** compares a few pieces of the disc with what is in the cart (a fraction of
+  a second). When they match, nothing is copied and the main menu appears within seconds.
+- **A + B + C** at power-on skips that check and copies everything again.
+
+During play the cart is shared out like this:
+
+| Cart area | Size | Holds |
+|---|---|---|
+| `0x000000`-`0x06E000` | 0.43 MB | the game program |
+| `0x06E000`-`0x100000` | 0.57 MB | free |
+| `0x100000`-`0x280000` | 1.5 MB | common data: menus, fonts, status panel |
+| `0x280000`-`0x3F0000` | 1.4 MB | the current planet (both of its levels, tiles, sprites, planet screen) or bonus level |
+| `0x3F0000`-`0x400000` | 64 KB | saves and settings |
+
+Everything in the cart is prepared on the PC when the disc is built: pictures are already
+decoded, so the 32X uses them straight from the cart instead of unpacking them into its small
+memory. Each planet is loaded once, when you reach it, and both of its levels play from it.
+The CD drive delivers about 30 KB/s through this path, so a planet takes 30-45 seconds; the
+loading time is mostly spent between the chunks of data, not in reading them.
+
+
 ## Controls
 
 | In a level | |
