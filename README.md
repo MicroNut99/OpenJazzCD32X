@@ -1,31 +1,91 @@
-# OpenJazz CD32X – source release
+# Jazz Jackrabbit CD32X
 
-Jazz Jackrabbit (1994, Epic MegaGames) on Sega CD + 32X with a 4 MB RAM cart, built on the
-OpenJazz engine.
+Jazz Jackrabbit (1994, Epic MegaGames) for the **Sega CD + 32X**, built on the OpenJazz engine.
+All episodes of the CD edition, Holiday Hare '94 and '95, the bonus levels, CD audio music and
+sound effects.
 
-## What is in here / what is not
-- In: the OpenJazz engine with the port's changes (`oj/`, all changes marked `PORT32X`, also as
-  `OPENJAZZ_PORT32X.patch`), the port layer (`port/`), the SH2 loader and Sub-CPU program (`cd32x/`,
-  OpenLara's, changes marked `OJ-…`), the build and pack tools (`tools/`, `build.sh`), the PC host
-  build and regression references (`host/`, `tests/`).
-- Not in: any game data. The build needs a copy of Jazz Jackrabbit (CD edition) in
-  `JazzJackRabbitGame/`, optionally Holiday Hare '95 in `JAZZXMAS1995/`, and a 320x224 splash
-  picture as `Splash.png`. It makes the data packs, sound effects and music tracks from them.
+## What you need
 
-## Build (Linux / WSL, SGDK-style `sh-elf` and `m68k-elf` toolchains under /opt/toolchains/sega)
-    tools/make_music_wavs.sh          # the game's music as CD audio WAVs (once)
-    ./build.sh                        # packs, engine, loader, Sub-CPU, disc
-    LEVEL_PACKS=keep ./build.sh       # later builds when only code changed
-Burn `cd32x/subcpu/OpenJazzCD32X.cue` (disc-at-once). Needs real hardware with the 4 MB RAM cart.
-Hold A+B+C at power-on to force a full load.
+- A Sega Genesis / Mega Drive with **Sega CD** and **32X**
+- A **4 MB RAM cart** in the 32X cartridge slot (the game keeps its data there)
+- The game disc, burned from `OpenJazzCD32X.cue` (disc-at-once, 80-minute CD-R)
 
-## Documents
-- `OPENJAZZ_CD32X_HANDOFF.md` – the project log, round by round.
-- `docs/CD32X_ADDENDUM_OPENJAZZ.md` / `.docx` - the addendum to the CD32X boot documents: boot path,
-  cart layout, commands, renderer, performance work, features and limitations.
+Emulators without a 4 MB RAM cart (for example Fusion) cannot run it: the loader stops on the
+splash screen.
 
-## Licences
-- OpenJazz: GPL-2.0 (`oj/COPYING`); bundled libraries: `oj/ext/*/LICENSE`, `oj/doc/licenses.txt`.
-- `cd32x/`: from OpenLara's CD32X port and Chilly Willy's Sega CD / 32X framework – check their
-  terms before redistributing.
-- `port/`, `tools/`: decide and state the licence before publishing (GPL-2.0 matches OpenJazz).
+## Starting
+
+Switch on with the disc inserted. The first start copies the game into the RAM cart (about a
+minute and a half, with a loading bar). Later starts find it there and go straight to the main
+menu.
+
+If something looks wrong after starting, do a **full reload**: hold **A + B + C**, switch on, and
+let go when the loading bar appears.
+
+## Controls
+
+| In a level | |
+|---|---|
+| D-pad | move, look up / down |
+| C or A | jump |
+| B | fire |
+| X or Y | change weapon (6-button pad) |
+| Z | frame counter on / off (6-button pad) |
+| Start | pause menu: continue, save, load, setup, quit |
+
+The set-up can swap A and B (A fires, B jumps; C always jumps).
+
+| In menus | |
+|---|---|
+| D-pad | choose |
+| A, C or Start | select |
+| B | back |
+
+## Main menu
+
+- **New game:** choose an episode, then a difficulty.
+  - Episodes 1-6 and A-C, X Holiday Hare ('94), Z Bonus levels.
+  - **Holiday Hare 95** is the last entry of the episode list.
+- **Load game:** four save slots.
+- **Setup options:** character (name and colours), buttons (A/B swap), audio (music on/off,
+  sound effects on/off), gameplay options.
+- **Instructions**, **Order info:** the original screens.
+- **Credits** (last entry): the credits over a moving background, with a **CD player** for the
+  soundtrack:
+  - Left / Right choose a track, A, C or Start play it (on the playing track: stop / play)
+  - tracks play one after another, starting again after the last one
+  - Y, X, Z, Mode, Up or Down hide / show the credits text
+
+## Bonus levels
+
+Finish a level carrying the big red gem to reach a 3D bonus stage, or start them from
+"Z Bonus levels" in the episode menu.
+
+## Saving
+
+Games are saved in the RAM cart and survive switching off. Each game (Jazz Jackrabbit and
+Holiday Hare '95) has its own four slots. Settings are saved when you leave the set-up menu;
+the frame counter (Z) and the A/B swap are remembered too.
+
+## Loading times
+
+Each planet (two levels) is loaded once with a loading screen, about 30-45 seconds; its second
+level starts without loading. A bonus level is loaded on entry, and the next planet again after it.
+
+## Known limitations
+
+- The game runs at about 10-13 frames per second in levels; scrolling is not smooth.
+- The intro and the cutscenes between episodes are not included.
+- No demo mode, no multiplayer.
+- Music and sound effects can only be switched on or off, not set to a volume.
+- Sound effects are lower quality than the original (5 kHz, to fit the Sega CD's sound chip).
+
+## Credits
+
+Jazz Jackrabbit: Epic MegaGames - a game by Arjan Brussee and Cliff Bleszinski.
+OpenJazz: Alister Thomson and contributors.
+D32XR 32X code: Victor Luchits. Sega CD and 32X framework: Chilly Willy.
+Sega CD32X port: Micronut99.
+
+Jazz Jackrabbit is the property of its rights holders. This package contains no game data; the
+disc is built from a copy of the game you own.
