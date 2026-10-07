@@ -7,7 +7,7 @@
  * alphabetical, tools/music_tracks.txt) with the names of their planets.
  *   Left / Right: choose a song (the selector only)   A, C or Start: play the chosen song
  *   (on the one that plays: stop / play)   no choice = no change   B: back
- *   Each track plays once, then the next (J13c).
+ *   Each track plays once, then the next (J13c). Y: credits text on / off (J13e).
  */
 
 #ifdef OJ32X
@@ -113,6 +113,7 @@ int runCredits32X () {
 	int pick = firstSong;      // the track the selector points at (Left/Right)
 	unsigned int pickTime = 0; // when the selector last moved (0 = not moved)
 	bool playing = true;
+	bool showText = true, yWas = false;
 	char line[64];
 
 	// J13c: each track plays once, then the next one (the lengths come from the WAVs:
@@ -130,6 +131,13 @@ int runCredits32X () {
 		if (loop(NORMAL_LOOP) == E_QUIT) return E_QUIT;
 
 		if (controls.release(C_ESCAPE)) break;
+
+		// J13e (Micronut99): Y shows / hides the credits text (the background and player stay)
+		{
+			const bool y = (oj32x_pad() & 0x0200) != 0;    // PAD_Y
+			if (y && !yWas) showText = !showText;
+			yWas = y;
+		}
 
 		// Left/Right only move the selector; A/C/Start plays the choice. J13c (Micronut99): no
 		// choice made = nothing changes - after 5 s the selector goes back to the playing track
@@ -171,7 +179,7 @@ int runCredits32X () {
 		const int h = font->getHeight() + 4;
 		const int step = (canvasH - 3 * h - 8) / lines;   // the credits end above the player lines
 		int y = 4;
-		for (int i = 0; i < lines; i++, y += step)
+		for (int i = 0; i < lines && showText; i++, y += step)
 			if (page[i][0]) font->showString(page[i], canvasW >> 1, y, alignX::Center);
 
 		snprintf(line, sizeof line, "%s %d  %s", playing ? "PLAYING" : "STOPPED", song + 2, songs[song].name);

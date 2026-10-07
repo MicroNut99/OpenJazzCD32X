@@ -543,7 +543,9 @@ static void present_finish(volatile uint32_t *blank_line, const uint16_t *palett
 	last_flip_vblank = vblank_count;
 	while ((VDP_FBCTL & FBCTL_PEN) == 0) { }
 	for (int i = 0; i < 256; ++i)
-		VDP_CRAM[i] = palette555[i];
+		/* J13e: 0x0000 is see-through on the 32X (Kobo rule 5): black in the game's palettes let
+		 * the Genesis layer show (the strip at the right edge of menus and levels) */
+		VDP_CRAM[i] = palette555[i] ? palette555[i] : 0x0400;
 }
 
 void plat_present(const uint8_t *pixels, int pitch, const uint16_t *palette555)
@@ -808,7 +810,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J13C " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J13E " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&

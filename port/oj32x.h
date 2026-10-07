@@ -28,6 +28,9 @@ extern "C" {
 /* J5: the packs are mounted (PC build: T32X_PACK at the first file look-up) */
 void oj32x_packs_ready(void);
 
+/* J13e: the pad bits as last read (PAD_* in plat.h) */
+unsigned int oj32x_pad(void);
+
 /* J13d: clear both frame buffers (leaving a level) */
 void oj32x_clear_screens(void);
 

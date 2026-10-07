@@ -458,6 +458,8 @@ static PadKey pad_keys[] = {
 
 static int pad_mode = OJ32X_PAD_MENU;
 static uint16_t pad_down;       /* buttons whose key is down */
+static uint16_t pad_now;        /* J13e: the pad as last read */
+unsigned int oj32x_pad(void) { return pad_now; }
 static uint16_t pad_latched;    /* held across a layout change: ignored until released */
 static SDLKey key_down[NPAD];   /* the key each held button produced */
 
@@ -506,6 +508,7 @@ void oj32x_pad_mode(int mode)
 static void poll_pad(void)
 {
 	uint16_t now = plat_read_pad();
+	pad_now = now;   /* J13e: for buttons the game has no key for (Y in the credits) */
 	pad_latched &= now;
 	now &= (uint16_t)~pad_latched;
 	uint16_t changed = now ^ pad_down;

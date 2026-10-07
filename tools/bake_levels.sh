@@ -16,7 +16,7 @@ n=0
 for f in $(ls "$DATA" | grep -i '^LEVEL[0-9]\.[0-9][0-9][0-9]$' | sort -t. -k2,2 -k1,1); do
   l=${f:5:1}; w=$((10#${f:7:3})); k=$(printf '%03d' $((w * 10)))
   ( cd "$TMP" && T32X_PACK="$COMMON" T32X_BAKE="$OUT/OJ$k.PAK" T32X_BAKE_MERGE=1 \
-    T32X_BAKE_SKIP='*.PSM,MACRO.1,MACRO.2,MACRO.3,MACRO.4' \
+    T32X_BAKE_SKIP='*.PSM' \
     T32X_SAVE_EVERY=0 T32X_FRAMES_DIR="$TMP" T32X_MAX_FRAMES=400 T32X_MAX_SECONDS=100000 T32X_PAD="100:START,105:-" \
     "$HERE/host/openjazz32x_host" -w $w -l $l "$DATA" > "$TMP/log.txt" 2>&1 ) || true
   [ -f "$OUT/OJ$k.PAK" ] || { echo "*** $f: no pack made"; tail -3 "$TMP/log.txt"; exit 1; }

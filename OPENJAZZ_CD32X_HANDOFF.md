@@ -583,3 +583,12 @@ SFX volume and the volume bars OK. Saving/loading still not working; quick start
 Right-edge strip on menus = leftover level graphics: the level left its view clip rectangle on
 the screen and clearScreen only fills inside it. JJ1Level::~JJ1Level resets the clip, clears,
 and clears both 32X frame buffers (plat_clear_screens). Regression 0 different.
+
+## J13e
+- The strip at the right edge (menus, levels) was the Genesis layer: black in the game palettes
+  is 0x0000, which the 32X shows as see-through. Game palette entries 0x0000 -> 0x0400 when they
+  go to the 32X (present_finish). (J13d clip reset stays, harmless.)
+- Demo mode back: MACRO.1-4 in the common pack (levels now fit in memory); after 20 s (T_DEMO)
+  at the main menu a demo plays - PC with 32X paths: MACRO.2 -> LEVEL0.000 from OJ000, heap as
+  in a level. The main menu "flicker" about every 45 s was the demo timer finding no demo.
+- Credits: Y shows / hides the text (oj32x_pad: pad bits as last read).
