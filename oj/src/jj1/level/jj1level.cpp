@@ -130,6 +130,9 @@ JJ1Level::~JJ1Level () {
 #ifdef OJ32X
 	// PORT32X (J13d): the level leaves its view clip rectangle on the screen; the menus' clear
 	// only fills inside it, so a strip of level graphics stayed at the right edge of every menu
+#ifdef OJ32X_SCROLL
+	oj32xScrollReset();   // J15: back to the plain screen
+#endif
 	video.setClipRect(canvas, nullptr);
 	video.clearScreen(0);
 	oj32x_clear_screens();

@@ -645,3 +645,23 @@ J14e videos: 1CPU and 2CPU both 3-7 fps (the slave drawing gains nothing). The t
 in coarse steps: the watchdog overflow interrupt never comes on the console (that is why
 plat_ticks_ms falls back to vblanks), so the watchdog-only clock wrapped every 45.6 ms. Now:
 vblank_count x 16.683 ms + the watchdog counter since the last vblank (the VBI handler records it).
+
+## J14e console result and J15: the line-table scrolling renderer
+J14e (auto 1CPU/2CPU): both 3-7 fps, typically 4-5 - the slave drawing gains nothing; it is off
+now (OJ32X_SLAVE_DRAWS 0). Demos off (J14e).
+
+J15 (OJ32X_SCROLL, on in mars/Makefile): each frame buffer keeps the level background for the
+rows in view in a 384 x 200 ring (frame buffer bytes 0x200; panel 320 x 33 at 0x12E00; blank line
+at 0x16000). World row wy = ring row wy % 200, world column wx = ring column wx - wx0. The line
+table shows it (plat_present_scroll; odd x via the 32X shift bit 0x20004102 - not yet seen on the
+console). Per frame only: the rows that came into view, cells whose tile/event/bg changed
+(shadow per buffer), and the background under last time's overlays in this buffer (sprites,
+foreground tiles, text, profiler, sun - rectangles recorded by the screen mapping in sdl_oj.cpp,
+which translates every blit/fill to the screen into ring/panel pieces). Sideways beyond the 64
+spare columns, a jump, or >256 overlay rectangles: one full redraw. Sky colours are numbered by
+ring row; SkyPaletteEffect turns the 100 sky entries so each ring row gets its screen line's
+colour. The sun is drawn each frame onto sky pixels only (behind the tiles, as before).
+Checked on the PC: the new-game scenario frame by frame against the old renderer - 245 of 276
+frames identical, the 31 others differ only in the sky gradient by one line when the view's y is
+odd (two-line colour bands fixed to the world instead of the screen); all 79 levels run 500 frames
+with scrolling left and right; the 32X code paths + profiler box render correctly.

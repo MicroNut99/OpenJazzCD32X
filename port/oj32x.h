@@ -56,6 +56,16 @@ void oj32x_music_track(int track);
 void oj32x_music(const char *fileName, bool restart);
 #ifdef __cplusplus
 }
+/* J15: the line-table scrolling renderer (port/sdl_oj.cpp, jj1levelframe.cpp) */
+#define OJ32X_RING_W  384
+#define OJ32X_RING_H  200
+#define OJ32X_PANEL_H 33
+void oj32x_scroll_map(bool on, int wx0, int vX, int vY, int viewH);
+void oj32x_scroll_record(struct SDL_Rect *list, int cap, int *count, bool *overflow);
+struct SDL_Surface *oj32x_ring_surface(void);
+unsigned char *oj32x_screen_row(int y);
+bool oj32x_scroll_active(int *vY);
+void oj32xScrollReset();
 /* J13: A/B swap (set-up menu) */
 bool oj32x_ab_swapped(void);
 void oj32x_ab_swap(bool on);

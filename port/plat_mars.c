@@ -77,7 +77,7 @@
 /* SLAVE SH2 SWITCH (J10): 1 = the slave SH2 draws the bottom half of the level's tile layers
  * while the master draws the top half; 0 = the master draws both (one after the other). */
 #ifndef OJ32X_SLAVE_DRAWS
-#define OJ32X_SLAVE_DRAWS 1
+#define OJ32X_SLAVE_DRAWS 0   /* J15: off - J14 profiling: no gain (both SH2s wait on the same bus) */
 #endif
 
 #ifndef OJ32X_DIRECT_FB
@@ -606,6 +606,33 @@ void plat_clear_screens(void)
 	}
 }
 
+/* J15: frame buffer layout for the scrolling renderer (bytes): ring at 0x200 (384 x 200 =
+ * 76,800), panel at 0x12E00 (320 x 33), blank line at 0x16000 */
+#define SCROLL_RING_OFF  0x00200
+#define SCROLL_PANEL_OFF 0x12E00
+#define SCROLL_BLANK_OFF 0x16000
+#define VDP_SHIFT        (*(volatile uint16_t *)0x20004102)   /* bit 0: picture 1 pixel left */
+
+uint8_t *plat_scroll_ring(void)  { return (uint8_t *)FB16 + SCROLL_RING_OFF; }
+uint8_t *plat_scroll_panel(void) { return (uint8_t *)FB16 + SCROLL_PANEL_OFF; }
+int plat_back_index(void) { return VDP_FBCTL & FBCTL_FS; }
+
+void plat_present_scroll(const uint16_t *palette555, int row0, int xoff, int viewH)
+{
+	stack_guard_check();
+	for (int line = 0; line < 256; line++)
+	{
+		const int g = line - PLAT_TOP_BORDER;
+		uint32_t byte;
+		if (g < 0 || g >= PLAT_GAME_H) byte = SCROLL_BLANK_OFF;
+		else if (g < viewH) byte = SCROLL_RING_OFF + (uint32_t)((row0 + g) % 200) * 384u + (uint32_t)(xoff & ~1);
+		else byte = SCROLL_PANEL_OFF + (uint32_t)(g - viewH) * PLAT_SCREEN_W;
+		FB16[line] = (uint16_t)(byte >> 1);
+	}
+	VDP_SHIFT = (uint16_t)(xoff & 1);
+	present_finish(FB32 + SCROLL_BLANK_OFF / 4, palette555);
+}
+
 uint8_t *plat_canvas(void)
 {
 	return OJ32X_DIRECT_FB ? (uint8_t *)FB16 + FB_PIX_WORD * 2 : NULL;
@@ -835,7 +862,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J14F " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J15  " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&

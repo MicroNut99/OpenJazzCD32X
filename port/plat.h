@@ -69,6 +69,16 @@ uint8_t *plat_canvas(void);
 void plat_present_canvas(const uint16_t *palette555);
 /* J13: the palette entry the border lines above/below the picture show */
 void plat_border_colour(int index);
+
+/* J15: the scrolling renderer. Each frame buffer holds a RING (OJ32X_RING_W x OJ32X_RING_H,
+ * world row wy at ring row wy % H) and a panel block (320 x 33). plat_back_index: which of the
+ * two buffers is being drawn now (0/1). plat_present_scroll: line table = view lines from the
+ * ring (starting at ring row row0, column xoff - an odd xoff uses the 32X's 1-pixel shift),
+ * then the panel lines; then present as usual. */
+uint8_t *plat_scroll_ring(void);
+uint8_t *plat_scroll_panel(void);
+int plat_back_index(void);
+void plat_present_scroll(const uint16_t *palette555, int row0, int xoff, int viewH);
 /* J13d: both frame buffers' picture areas cleared (32X); PC: nothing */
 void plat_clear_screens(void);
 

@@ -274,6 +274,44 @@ index 9c7cd7a..3a0de7c 100644
  	// Delete single char surfaces
  	for (int i = 0; i < nCharacters; i++)
  		video.destroySurface(chars[i]);
+diff --git a/oj/src/io/gfx/paletteeffects.cpp b/oj/src/io/gfx/paletteeffects.cpp
+index e051a2b..af83d93 100644
+--- a/oj/src/io/gfx/paletteeffects.cpp
++++ b/oj/src/io/gfx/paletteeffects.cpp
+@@ -22,6 +22,9 @@
+ 
+ 
+ #include "paletteeffects.h"
++#ifdef OJ32X
++#include "oj32x.h"
++#endif
+ #include "video.h"
+ 
+ #include "jj1/level/jj1level.h"
+@@ -477,6 +480,23 @@ void SkyPaletteEffect::apply (SDL_Color* shownPalette, bool direct, int mspf, bo
+ 	y = ((canvasH - 34) / 100) + 1;
+ 	count = (((position * speed) / y) >> 20) % 255;
+ 
++#ifdef OJ32X_SCROLL
++	// PORT32X (J15): the scrolling renderer numbers the sky's colours by ring row (two rows a
++	// colour, ring row = world row % 200). Turn the palette so that each ring row gets the colour
++	// its screen line had: ring band k is on screen line (2k - vY) mod 200.
++	int ringVY;
++	if (oj32x_scroll_active(&ringVY) && amount == 100) {
++		SDL_Color turned[100];
++		for (int k = 0; k < 100; k++) {
++			const int line = ((2 * k - ringVY) % 200 + 200) % 200;
++			turned[k] = skyPalette[(count + line / 2) % 255];
++		}
++		if (direct) video.changePalette(turned, first, amount);
++		else memcpy(shownPalette + first, turned, sizeof(SDL_Color) * amount);
++		return;
++	}
++#endif
++
+ 	if (direct) {
+ 
+ 		if (count > 255 - amount) {
 diff --git a/oj/src/io/gfx/video.cpp b/oj/src/io/gfx/video.cpp
 index 18cf378..1bd5daa 100644
 --- a/oj/src/io/gfx/video.cpp
@@ -442,7 +480,7 @@ index c868799..abbf555 100644
  
  		font = new Font(true);
 diff --git a/oj/src/jj1/level/jj1level.cpp b/oj/src/jj1/level/jj1level.cpp
-index 2d890c2..5fc2379 100644
+index 2d890c2..a118fab 100644
 --- a/oj/src/jj1/level/jj1level.cpp
 +++ b/oj/src/jj1/level/jj1level.cpp
 @@ -37,6 +37,9 @@
@@ -455,13 +493,16 @@ index 2d890c2..5fc2379 100644
  #include "jj1levelplayer.h"
  #include "jj1/jj1episodeutils.h"
  #include "jj1/save/jj1save.h"
-@@ -124,6 +127,14 @@ void JJ1Level::deletePanel () {
+@@ -124,6 +127,17 @@ void JJ1Level::deletePanel () {
   */
  JJ1Level::~JJ1Level () {
  
 +#ifdef OJ32X
 +	// PORT32X (J13d): the level leaves its view clip rectangle on the screen; the menus' clear
 +	// only fills inside it, so a strip of level graphics stayed at the right edge of every menu
++#ifdef OJ32X_SCROLL
++	oj32xScrollReset();   // J15: back to the plain screen
++#endif
 +	video.setClipRect(canvas, nullptr);
 +	video.clearScreen(0);
 +	oj32x_clear_screens();
@@ -470,7 +511,7 @@ index 2d890c2..5fc2379 100644
  	// Free events
  	if (events) delete events;
  
-@@ -365,7 +376,15 @@ unsigned char JJ1Level::getEventHits (unsigned char gridX, unsigned char gridY)
+@@ -365,7 +379,15 @@ unsigned char JJ1Level::getEventHits (unsigned char gridX, unsigned char gridY)
   */
  unsigned int JJ1Level::getEventTime (unsigned char gridX, unsigned char gridY) {
  
@@ -486,7 +527,7 @@ index 2d890c2..5fc2379 100644
  
  }
  
-@@ -439,7 +458,11 @@ int JJ1Level::hitEvent (unsigned char gridX, unsigned char gridY, int hits, JJ1L
+@@ -439,7 +461,11 @@ int JJ1Level::hitEvent (unsigned char gridX, unsigned char gridY, int hits, JJ1L
  		}
  
  		ge->hits = (hits == 255)? 255: hitsToKill;
@@ -498,7 +539,7 @@ index 2d890c2..5fc2379 100644
  
  	} else {
  
-@@ -475,7 +498,29 @@ int JJ1Level::hitEvent (unsigned char gridX, unsigned char gridY, int hits, JJ1L
+@@ -475,7 +501,29 @@ int JJ1Level::hitEvent (unsigned char gridX, unsigned char gridY, int hits, JJ1L
   */
  void JJ1Level::setEventTime (unsigned char gridX, unsigned char gridY, unsigned int time) {
  
@@ -528,7 +569,7 @@ index 2d890c2..5fc2379 100644
  
  }
  
-@@ -809,7 +854,14 @@ int JJ1Level::play () {
+@@ -809,7 +857,14 @@ int JJ1Level::play () {
  
  		// Process frame-by-frame activity
  
@@ -543,7 +584,7 @@ index 2d890c2..5fc2379 100644
  
  			bool playerWasAlive = (localPlayer->getJJ1LevelPlayer()->getEnergy() != 0);
  
-@@ -828,6 +880,10 @@ int JJ1Level::play () {
+@@ -828,6 +883,10 @@ int JJ1Level::play () {
  		}
  
  
@@ -555,7 +596,7 @@ index 2d890c2..5fc2379 100644
  
  		draw();
 diff --git a/oj/src/jj1/level/jj1level.h b/oj/src/jj1/level/jj1level.h
-index 94a0081..33a0a8c 100644
+index 94a0081..1e00617 100644
 --- a/oj/src/jj1/level/jj1level.h
 +++ b/oj/src/jj1/level/jj1level.h
 @@ -146,11 +146,20 @@
@@ -593,7 +634,7 @@ index 94a0081..33a0a8c 100644
  		SDL_Color     skyPalette[MAX_PALETTE_COLORS]; ///< Full palette for sky background
  		bool          sky; ///< Whether or not to use sky background
  		unsigned char skyOrb; ///< The tile to use as the background sun/moon/etc.
-@@ -254,6 +270,13 @@ class JJ1Level : public Level {
+@@ -254,6 +270,19 @@ class JJ1Level : public Level {
  		int  load (char* fileName, bool checkpoint);
  		int  step ();
  		void draw ();
@@ -602,29 +643,224 @@ index 94a0081..33a0a8c 100644
 +		/// PORT32X (J10): one band of the tile layers - the master and the slave SH2 each
 +		/// draw half of the screen at the same time (port/plat_mars.c oj32x_parallel)
 +		void drawBand (SDL_Surface* target, int vX, int vY, int viewH, bool foreground);
++#ifdef OJ32X_SCROLL
++		/// PORT32X (J15): the line-table scrolling renderer (jj1levelframe.cpp)
++		void scrollBg (int rx, int wy, int w, int h);
++		void scrollBegin (int vX, int vY, int viewH);
++		void scrollOrb (int vX, int vY);
++#endif
 +	private:
 +#endif
  		bool handleSave (int slot) override;
  
  	public:
 diff --git a/oj/src/jj1/level/jj1levelframe.cpp b/oj/src/jj1/level/jj1levelframe.cpp
-index a4a5b02..e3fe500 100644
+index a4a5b02..40ecaeb 100644
 --- a/oj/src/jj1/level/jj1levelframe.cpp
 +++ b/oj/src/jj1/level/jj1levelframe.cpp
-@@ -38,6 +38,9 @@
+@@ -38,6 +38,12 @@
  #include "io/gfx/font.h"
  #include "io/gfx/video.h"
  #include "util.h"
 +#ifdef OJ32X
 +#include "oj32x.h"
++extern "C" {
++#include "plat.h"
++}
 +#endif
  
  
  /**
-@@ -215,9 +218,127 @@ int JJ1Level::step () {
+@@ -215,9 +221,313 @@ int JJ1Level::step () {
  /**
   * Draw the level.
   */
++#ifdef OJ32X_SCROLL
++/*
++ * PORT32X (J15): the line-table scrolling renderer.
++ *
++ * Each 32X frame buffer keeps the level's background (sky + background tiles) for the rows in
++ * view in a ring of OJ32X_RING_W x OJ32X_RING_H pixels: world row wy at ring row wy % H, world
++ * column wx at ring column wx - wx0. The line table shows it (port/plat_mars.c
++ * plat_present_scroll). A frame only draws what changed since this buffer was last used (two
++ * frames ago): the rows that came into view, the cells whose tile or event changed, and the
++ * background under whatever was drawn on top last time (sprites, foreground tiles, text - their
++ * rectangles are recorded by the screen mapping in port/sdl_oj.cpp). Moving more than the ring's
++ * 64 spare columns sideways, or too much at once, redraws everything once.
++ * The sky's colours are numbered by ring row; SkyPaletteEffect turns its palette to match.
++ */
++namespace {
++	const int RW = OJ32X_RING_W, RH = OJ32X_RING_H, SHADOW_W = 13, SHADOW_H = 8;
++	struct ShadowCell { short tx, ty; unsigned char tile, event, bg; };
++	struct RingState {
++		bool valid;
++		int wx0, rowLo, rowHi;
++		SDL_Rect dirty[256];
++		int nDirty;
++		bool overflow;
++		ShadowCell shadow[SHADOW_W * SHADOW_H];
++	};
++	RingState ringState[2];
++	RingState* cur;
++
++	bool fgTile (const GridElement* ge, const JJ1EventType* eventSet) {
++		return (ge->event == 123) || (ge->event == 124) || (ge->event == 125) ||
++			(eventSet[ge->event].movement == 37) || (eventSet[ge->event].movement == 38);
++	}
++}
++
++void oj32xScrollReset () {
++	ringState[0].valid = ringState[1].valid = false;
++	cur = nullptr;
++	oj32x_scroll_map(false, 0, 0, 0, 0);
++	oj32x_scroll_record(nullptr, 0, nullptr, nullptr);
++}
++
++/** Sky and background tiles for ring columns rx..rx+w-1 and world rows wy..wy+h-1. */
++void JJ1Level::scrollBg (int rx, int wy, int w, int h) {
++
++	SDL_Surface* ring = oj32x_ring_surface();
++	SDL_Rect src, dst, fill;
++	if (rx < 0) { w += rx; rx = 0; }
++	if (rx + w > RW) w = RW - rx;
++	if (w <= 0 || h <= 0) return;
++	src.w = TTOI(1); src.h = TTOI(1); src.x = 0;
++
++	int row = wy;
++	while (row < wy + h) {
++
++		const int r0 = row % RH;
++		int n = RH - r0;
++		if (n > wy + h - row) n = wy + h - row;
++		SDL_Rect clip = { (Sint16)rx, (Sint16)r0, (Uint16)w, (Uint16)n };
++		SDL_SetClipRect(ring, &clip);
++
++		// the sky (colours by ring row, two rows a colour) or the plain background
++		if (sky) {
++			for (int y = r0 & ~1; y < r0 + n; y += 2) {
++				fill.x = rx; fill.y = y; fill.w = w; fill.h = 2;
++				SDL_FillRect(ring, &fill, 156 + (y >> 1));
++			}
++		} else {
++			SDL_FillRect(ring, &clip, 127);
++		}
++
++		// the background tiles
++		const int tx0 = ITOT(cur->wx0 + rx), tx1 = ITOT(cur->wx0 + rx + w - 1);
++		const int ty0 = ITOT(row), ty1 = ITOT(row + n - 1);
++		for (int ty = ty0; ty <= ty1; ty++) {
++			for (int tx = tx0; tx <= tx1; tx++) {
++				dst.x = TTOI(tx) - cur->wx0;
++				dst.y = TTOI(ty) - row + r0;
++				if (tx >= LW || ty >= LH) {
++					fill.x = dst.x; fill.y = dst.y; fill.w = 32; fill.h = 32;
++					SDL_FillRect(ring, &fill, LEVEL_BLACK);
++					continue;
++				}
++				GridElement* ge = grid[ty] + tx;
++				if (ge->bg) {
++					fill.x = dst.x; fill.y = dst.y; fill.w = 32; fill.h = 32;
++					SDL_FillRect(ring, &fill, LEVEL_BLACK);
++				}
++				if (!fgTile(ge, eventSet)) {
++					src.y = TTOI(ge->tile);
++					SDL_BlitSurface(tileSet, &src, ring, &dst);
++				}
++				ShadowCell& sc = cur->shadow[(ty % SHADOW_H) * SHADOW_W + (tx - ITOT(cur->wx0)) % SHADOW_W];
++				sc.tx = tx; sc.ty = ty; sc.tile = ge->tile; sc.event = ge->event; sc.bg = ge->bg;
++			}
++		}
++
++		row += n;
++	}
++	SDL_SetClipRect(ring, nullptr);
++
++}
++
++/** Bring this frame buffer's ring up to date for the view at (vX, vY). */
++void JJ1Level::scrollBegin (int vX, int vY, int viewH) {
++
++	oj32x_scroll_map(false, 0, 0, 0, 0);       // the ring is drawn directly here
++	cur = &ringState[plat_back_index() & 1];
++	RingState& S = *cur;
++
++	const bool full = !S.valid || S.overflow || vX < S.wx0 || vX + canvasW > S.wx0 + RW ||
++		vY + viewH <= S.rowLo || vY >= S.rowHi;
++
++	if (full) {
++		S.wx0 = vX - 32;
++		if (S.wx0 < 0) S.wx0 = 0;
++		S.wx0 &= ~31;
++		for (int i = 0; i < SHADOW_W * SHADOW_H; i++) S.shadow[i].tx = -1;
++		S.rowLo = vY; S.rowHi = vY + viewH;
++		scrollBg(0, vY, RW, viewH);
++		S.valid = true;
++	} else {
++		const int lo = vY, hi = vY + viewH;
++		// the background under last time's sprites, text and foreground tiles
++		for (int i = 0; i < S.nDirty; i++) {
++			const SDL_Rect& d = S.dirty[i];
++			int y0 = d.y, y1 = d.y + d.h;
++			if (y0 < lo) y0 = lo;
++			if (y0 < S.rowLo) y0 = S.rowLo;
++			if (y1 > hi) y1 = hi;
++			if (y1 > S.rowHi) y1 = S.rowHi;
++			if (y1 > y0) scrollBg(d.x, y0, d.w, y1 - y0);
++		}
++		// the rows that came into view
++		if (lo < S.rowLo) scrollBg(0, lo, RW, (S.rowLo < hi ? S.rowLo : hi) - lo);
++		if (hi > S.rowHi) { const int from = S.rowHi > lo ? S.rowHi : lo; scrollBg(0, from, RW, hi - from); }
++		S.rowLo = lo; S.rowHi = hi;
++		// cells whose tile or event changed (destroyed blocks, collected items ...)
++		for (int ty = ITOT(lo); ty <= ITOT(hi - 1) && ty < LH; ty++) {
++			for (int tx = ITOT(vX); tx <= ITOT(vX + canvasW - 1) && tx < LW; tx++) {
++				const ShadowCell& sc = S.shadow[(ty % SHADOW_H) * SHADOW_W + (tx - ITOT(S.wx0)) % SHADOW_W];
++				const GridElement* ge = grid[ty] + tx;
++				if (sc.tx == tx && sc.ty == ty &&
++					(sc.tile != ge->tile || sc.event != ge->event || sc.bg != ge->bg)) {
++					int y0 = TTOI(ty), y1 = TTOI(ty + 1);
++					if (y0 < lo) y0 = lo;
++					if (y1 > hi) y1 = hi;
++					scrollBg(TTOI(tx) - S.wx0, y0, 32, y1 - y0);
++				}
++			}
++		}
++	}
++
++	// from here on the game draws on top of the ring: map the screen, record what it covers
++	S.nDirty = 0;
++	S.overflow = false;
++	oj32x_scroll_map(true, S.wx0, vX, vY, viewH);
++	oj32x_scroll_record(S.dirty, 256, &S.nDirty, &S.overflow);
++
++}
++
++/** The sun / moon: fixed on the screen, behind the tiles - drawn on the sky's pixels only. */
++void JJ1Level::scrollOrb (int vX, int vY) {
++
++	if (!sky || !skyOrb) return;
++	const int ox = ((canvasW * 4) / 5) - (vX & 3), oy = ((canvasH - 33) * 3) / 25;
++	const unsigned char* sp = static_cast<const unsigned char*>(tileSet->pixels) + TTOI(skyOrb + (vX & 3)) * tileSet->pitch;
++	const unsigned char key = video.getColorKey(tileSet);
++	for (int y = 0; y < 32; y++, sp += tileSet->pitch) {
++		unsigned char* row = oj32x_screen_row(oy + y);
++		if (!row) continue;
++		for (int x = 0; x < 32; x++) {
++			const int sx = ox + x;
++			if (sx < 0 || sx >= canvasW) continue;
++			if (sp[x] != key && row[sx] >= 156) row[sx] = sp[x];
++		}
++	}
++	// the background there is restored next time like a sprite's
++	(void)vY;
++	if (cur && cur->nDirty < 256) {
++		SDL_Rect& d = cur->dirty[cur->nDirty++];
++		d.x = (Sint16)(ox + vX - cur->wx0); d.y = (Sint16)(oy + vY); d.w = 32; d.h = 32;
++	}
++
++}
++#endif
++
 +#ifdef OJ32X
 +namespace {
 +	struct OJ32XBand { JJ1Level* level; int vX, vY, viewH; bool foreground; };
@@ -749,22 +985,28 @@ index a4a5b02..e3fe500 100644
  	SDL_Rect src, dst;
  	int viewH = canvasH;
  	int vX, vY;
-@@ -264,6 +385,14 @@ void JJ1Level::draw () {
+@@ -264,6 +574,20 @@ void JJ1Level::draw () {
  	src.x = 0;
  
  
 +#ifdef OJ32X
++#ifdef OJ32X_SCROLL
++	// PORT32X (J15): only what changed goes into this frame buffer's ring
++	scrollBegin(vX, vY, viewH);
++	scrollOrb(vX, vY);
++#else
 +	// PORT32X (J10): sky and background tiles in two bands, one per SH2, at the same time
 +	{
 +		OJ32XBand job = { this, vX, vY, viewH, false };
 +		oj32x_parallel(oj32xBandJob, &job);
 +	}
++#endif
 +	oj32x_prof(1);   // J14: background
 +#else
  	// If there is a sky, draw it
  	if (sky) {
  
-@@ -341,6 +470,8 @@ void JJ1Level::draw () {
+@@ -341,6 +665,8 @@ void JJ1Level::draw () {
  	}
  
  
@@ -773,23 +1015,28 @@ index a4a5b02..e3fe500 100644
  	// Show active events
  	if (events) events->draw(ticks, change);
  
-@@ -354,6 +485,15 @@ void JJ1Level::draw () {
+@@ -354,6 +680,20 @@ void JJ1Level::draw () {
  
  
  
 +#ifdef OJ32X
 +	oj32x_prof(2);   // J14: sprites (events, players, bullets)
++#ifdef OJ32X_SCROLL
++	// PORT32X (J15): the foreground tiles straight onto the (mapped) screen
++	drawBand(canvas, vX, vY, viewH, true);
++#else
 +	// PORT32X (J10): foreground tiles in two bands, one per SH2
 +	{
 +		OJ32XBand job = { this, vX, vY, viewH, true };
 +		oj32x_parallel(oj32xBandJob, &job);
 +	}
++#endif
 +	oj32x_prof(3);   // J14: foreground
 +#else
  	// Show foreground tiles
  
  	for (y = 0; y <= ITOT(viewH - 1) + 1; y++) {
-@@ -404,6 +544,8 @@ void JJ1Level::draw () {
+@@ -404,6 +744,8 @@ void JJ1Level::draw () {
  
  	}
  
@@ -798,7 +1045,7 @@ index a4a5b02..e3fe500 100644
  	// FIXME: Temporary lines showing the water level
  	video.drawRect(0, FTOI(waterLevel - viewY), canvasW, 2, 24);
  	video.drawRect(0, FTOI(waterLevel - viewY) + 3, canvasW, 1, 24);
-@@ -595,4 +737,14 @@ void JJ1Level::draw () {
+@@ -595,4 +937,12 @@ void JJ1Level::draw () {
  
  	// Fill in remaining energy bar space with black
  	video.drawRect(offsetX + dst.x, canvasH - 13, dst.w, 7, LEVEL_BLACK);
@@ -807,9 +1054,7 @@ index a4a5b02..e3fe500 100644
 +	oj32x_prof(4);   // J14: panel and the rest of the drawing
 +#ifdef OJ32X_PROFILE
 +	// J14: the profiler's line (ms per frame) in the top left corner of the level
-+	// (the level's own font, as "pause": its colours belong to the level palette - fontiny's
-+	// were invisible on the console)
-+	for (int i = 0; i < 3; i++) font->showString(oj32x_prof_text(i), 2, 2 + i * font->getHeight());
++	oj32x_prof_draw(canvas);   // J14c: own 3x5 font drawn 2x, bright on dark - readable everywhere
 +#endif
 +#endif
  }
@@ -1572,7 +1817,7 @@ index 0000000..b492597
 +int runCredits32X ();
 +#endif
 diff --git a/oj/src/menu/mainmenu.cpp b/oj/src/menu/mainmenu.cpp
-index b898e56..98139ed 100644
+index b898e56..32d690d 100644
 --- a/oj/src/menu/mainmenu.cpp
 +++ b/oj/src/menu/mainmenu.cpp
 @@ -25,6 +25,9 @@
@@ -1599,7 +1844,20 @@ index b898e56..98139ed 100644
  
  	}
  
-@@ -417,10 +426,16 @@ int MainMenu::run () {
+@@ -279,7 +288,12 @@ int MainMenu::run () {
+ 	for (macro = 0; macro < 4; macro++) {
+ 		macroType[macro] = -1;
+ 
++#if defined(OJ32X_MARS) && !defined(OJ32X_DEMO)
++		// PORT32X (J14e): demos off on the 32X (Micronut99) - build with -DOJ32X_DEMO for them
++		if (false) {
++#else
+ 		if (File::exists(fileName, PATH_TYPE_GAME)) {
++#endif
+ 			FilePtr file = std::make_unique<File>(fileName, PATH_TYPE_GAME);
+ 			macroType[macro] = file->loadChar();
+ 		}
+@@ -417,10 +431,16 @@ int MainMenu::run () {
  		SDL_Delay(T_MENU_FRAME);
  
  

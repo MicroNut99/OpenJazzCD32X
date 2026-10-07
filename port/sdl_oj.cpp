@@ -280,7 +280,7 @@ Uint32 SDL_MapRGB(const SDL_PixelFormat *f, Uint8 r, Uint8 g, Uint8 b)
 	return (Uint32)best;
 }
 
-int SDL_FillRect(SDL_Surface *s, SDL_Rect *r, Uint32 colour)
+static int fill_core(SDL_Surface *s, SDL_Rect *r, Uint32 colour)
 {
 	int x0 = s->clip_rect.x, y0 = s->clip_rect.y;
 	int x1 = x0 + s->clip_rect.w, y1 = y0 + s->clip_rect.h;
@@ -318,7 +318,7 @@ static void copy_run(Uint8 *d, const Uint8 *s, int n)
 	while (n-- > 0) *d++ = *s++;
 }
 
-int SDL_UpperBlit(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rect *dstrect)
+static int blit_core(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rect *dstrect)
 {
 	int sx = 0, sy = 0, w = src->w, h = src->h;
 	if (srcrect) { sx = srcrect->x; sy = srcrect->y; w = srcrect->w; h = srcrect->h; }
@@ -376,6 +376,160 @@ int SDL_UpperBlit(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rec
 	return 0;
 }
 
+/* ---- J15: the scrolling renderer's screen mapping ----------------------------------------
+ * While a level is drawn with the line-table renderer, the screen is not one 320x200 block:
+ * rows 0..viewH-1 (the level view) live in the RING - RING_W x RING_H pixels where world column
+ * wx0 is ring column 0 and world row wy is ring row wy % RING_H - and the rows below (the status
+ * panel) in a 320-wide panel block. Every blit or fill to the screen surface is translated
+ * here, split where it crosses the view/panel line or the ring's wrap row, and (for the view)
+ * its world rectangle recorded, so the renderer can restore the background there in two frames,
+ * when it draws into this frame buffer again. */
+struct ScrollMap {
+	bool on;
+	Uint8 *ring, *panel;
+	int wx0, vX, vY, viewH;
+	SDL_Rect *rec; int recCap; int *recN; bool *recOverflow;
+};
+static ScrollMap smap;
+static Surf ring_view, panel_view;
+
+static void view_init(Surf &v, Uint8 *pixels, int w, int h)
+{
+	v.s.pixels = pixels;
+	v.s.w = w; v.s.h = h; v.s.pitch = (Uint16)w;
+	v.s.format = &v.fmt;
+	v.fmt.palette = &v.pal;
+	v.fmt.BitsPerPixel = 8; v.fmt.BytesPerPixel = 1;
+	v.pal.ncolors = 256;
+	v.s.clip_rect.x = 0; v.s.clip_rect.y = 0;
+	v.s.clip_rect.w = (Uint16)w; v.s.clip_rect.h = (Uint16)h;
+}
+
+void oj32x_scroll_map(bool on, int wx0, int vX, int vY, int viewH)
+{
+	smap.on = on;
+	if (!on) return;
+	smap.ring = plat_scroll_ring();
+	smap.panel = plat_scroll_panel();
+	smap.wx0 = wx0; smap.vX = vX; smap.vY = vY; smap.viewH = viewH;
+	view_init(ring_view, smap.ring, OJ32X_RING_W, OJ32X_RING_H);
+	view_init(panel_view, smap.panel, PLAT_SCREEN_W, OJ32X_PANEL_H);
+}
+
+void oj32x_scroll_record(SDL_Rect *list, int cap, int *count, bool *overflow)
+{
+	smap.rec = list; smap.recCap = cap; smap.recN = count; smap.recOverflow = overflow;
+}
+
+bool oj32x_scroll_active(int *vY)
+{
+	if (smap.on && vY) *vY = smap.vY;
+	return smap.on;
+}
+
+SDL_Surface *oj32x_ring_surface(void)
+{
+	view_init(ring_view, plat_scroll_ring(), OJ32X_RING_W, OJ32X_RING_H);
+	return &ring_view.s;
+}
+
+/* a pointer to screen row y (screen column 0) while the mapping is on - for code that writes
+ * pixels itself (the profiler box); nullptr outside the screen */
+Uint8 *oj32x_screen_row(int y)
+{
+	if (!smap.on) return screen_surface ? static_cast<Uint8 *>(screen_surface->pixels) + y * screen_surface->pitch : nullptr;
+	if (y < 0) return nullptr;
+	if (y < smap.viewH)
+		return smap.ring + ((smap.vY + y) % OJ32X_RING_H) * OJ32X_RING_W + (smap.vX - smap.wx0);
+	if (y - smap.viewH < OJ32X_PANEL_H) return smap.panel + (y - smap.viewH) * PLAT_SCREEN_W;
+	return nullptr;
+}
+
+static void record_world(int sx, int sy, int w, int h)
+{
+	if (!smap.rec) return;
+	if (*smap.recN >= smap.recCap) { *smap.recOverflow = true; return; }
+	SDL_Rect &r = smap.rec[(*smap.recN)++];
+	r.x = (Sint16)(sx + smap.vX - smap.wx0);      /* ring column */
+	r.y = (Sint16)((sy + smap.vY) & 0x7FFF);       /* world row (< 2048) */
+	r.w = (Uint16)w; r.h = (Uint16)h;
+}
+
+/* screen rectangle (already clipped) -> pieces in the ring / panel; op(surface, x, y, w, h, sx, sy)
+ * gets the piece's position in that surface and its offset inside the screen rectangle */
+template <typename Op>
+static void map_pieces(int x, int y, int w, int h, Op op)
+{
+	/* view part */
+	int vy0 = y, vy1 = y + h < smap.viewH ? y + h : smap.viewH;
+	if (vy1 > vy0) {
+		record_world(x, vy0, w, vy1 - vy0);
+		int row = vy0;
+		while (row < vy1) {
+			const int r = (smap.vY + row) % OJ32X_RING_H;
+			int n = OJ32X_RING_H - r;
+			if (n > vy1 - row) n = vy1 - row;
+			op(&ring_view.s, x + smap.vX - smap.wx0, r, w, n, 0, row - y);
+			row += n;
+		}
+	}
+	/* panel part */
+	int py0 = y > smap.viewH ? y : smap.viewH, py1 = y + h;
+	if (py1 > smap.viewH + OJ32X_PANEL_H) py1 = smap.viewH + OJ32X_PANEL_H;
+	if (py1 > py0) op(&panel_view.s, x, py0 - smap.viewH, w, py1 - py0, 0, py0 - y);
+}
+
+static bool clip_to_screen(int &x, int &y, int &w, int &h)
+{
+	const SDL_Rect &c = screen_surface->clip_rect;
+	int x0 = x > c.x ? x : c.x, y0 = y > c.y ? y : c.y;
+	int x1 = x + w < c.x + c.w ? x + w : c.x + c.w, y1 = y + h < c.y + c.h ? y + h : c.y + c.h;
+	if (x1 > screen_surface->w) x1 = screen_surface->w;
+	if (y1 > screen_surface->h) y1 = screen_surface->h;
+	if (x0 < 0) x0 = 0;
+	if (y0 < 0) y0 = 0;
+	if (x1 <= x0 || y1 <= y0) return false;
+	x = x0; y = y0; w = x1 - x0; h = y1 - y0;
+	return true;
+}
+
+int SDL_FillRect(SDL_Surface *s, SDL_Rect *r, Uint32 colour)
+{
+	if (!(smap.on && s == screen_surface)) return fill_core(s, r, colour);
+	int x = r ? r->x : 0, y = r ? r->y : 0, w = r ? r->w : s->w, h = r ? r->h : s->h;
+	if (!clip_to_screen(x, y, w, h)) return 0;
+	map_pieces(x, y, w, h, [&](SDL_Surface *t, int tx, int ty, int tw, int th, int, int) {
+		SDL_Rect pr = { (Sint16)tx, (Sint16)ty, (Uint16)tw, (Uint16)th };
+		fill_core(t, &pr, colour);
+	});
+	return 0;
+}
+
+int SDL_UpperBlit(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rect *dstrect)
+{
+	if (!(smap.on && dst == screen_surface)) return blit_core(src, srcrect, dst, dstrect);
+	int sx = 0, sy = 0, w = src->w, h = src->h;
+	if (srcrect) { sx = srcrect->x; sy = srcrect->y; w = srcrect->w; h = srcrect->h; }
+	if (sx < 0) { w += sx; sx = 0; }
+	if (sy < 0) { h += sy; sy = 0; }
+	if (sx + w > src->w) w = src->w - sx;
+	if (sy + h > src->h) h = src->h - sy;
+	int dx = dstrect ? dstrect->x : 0, dy = dstrect ? dstrect->y : 0;
+	int cx = dx, cy = dy, cw = w, ch = h;
+	if (w <= 0 || h <= 0 || !clip_to_screen(cx, cy, cw, ch)) {
+		if (dstrect) { dstrect->w = 0; dstrect->h = 0; }
+		return 0;
+	}
+	sx += cx - dx; sy += cy - dy;
+	if (dstrect) { dstrect->x = (Sint16)cx; dstrect->y = (Sint16)cy; dstrect->w = (Uint16)cw; dstrect->h = (Uint16)ch; }
+	map_pieces(cx, cy, cw, ch, [&](SDL_Surface *t, int tx, int ty, int tw, int th, int ox, int oy) {
+		SDL_Rect ps = { (Sint16)(sx + ox), (Sint16)(sy + oy), (Uint16)tw, (Uint16)th };
+		SDL_Rect pd = { (Sint16)tx, (Sint16)ty, 0, 0 };
+		blit_core(src, &ps, t, &pd);
+	});
+	return 0;
+}
+
 SDL_Surface *SDL_SetVideoMode(int w, int h, int bpp, Uint32 flags)
 {
 	(void)flags;
@@ -400,6 +554,13 @@ SDL_Rect **SDL_ListModes(SDL_PixelFormat *f, Uint32 flags)
 
 int SDL_Flip(SDL_Surface *screen)
 {
+	if (smap.on && screen == screen_surface) {   /* J15: the line-table renderer's frame */
+		oj32x_prof(6);
+		plat_present_scroll(phys555, smap.vY % OJ32X_RING_H, smap.vX - smap.wx0, smap.viewH);
+		oj32x_prof(5);
+		oj32x_prof_frame();
+		return 0;
+	}
 	if (screen->pixels == plat_canvas() && screen->pixels) {
 		oj32x_prof(6);                     /* J14: other */
 		plat_present_canvas(phys555);
@@ -671,9 +832,10 @@ void oj32x_prof_draw(SDL_Surface *s)
 	int width = 0;
 	for (int l = 0; l < 3; l++) { int n = (int)strlen(prof_text_line(l)); if (n > width) width = n; }
 	const int boxW = width * 8 + 4, boxH = 3 * 12 + 4;
-	Uint8 *px = static_cast<Uint8 *>(s->pixels);
-	for (int y = 0; y < boxH && y < s->h; y++)
-		memset(px + y * s->pitch, overlay_dark, (size_t)(boxW < s->w ? boxW : s->w));
+	/* J15: the box through SDL_FillRect (mapped and recorded with the scrolling renderer),
+	 * the letters through screen-row pointers */
+	SDL_Rect box = { 0, 0, (Uint16)boxW, (Uint16)boxH };
+	SDL_FillRect(s, &box, (Uint32)overlay_dark);
 	for (int l = 0; l < 3; l++) {
 		const char *t = prof_text_line(l);
 		for (int c = 0; t[c]; c++) {
@@ -688,7 +850,8 @@ void oj32x_prof_draw(SDL_Surface *s)
 						for (int dy = 0; dy < 2; dy++)
 							for (int dx = 0; dx < 2; dx++) {
 								const int x = x0 + gx * 2 + dx, y = y0 + gy * 2 + dy;
-								if (x < s->w && y < s->h) px[y * s->pitch + x] = (Uint8)overlay_light;
+								Uint8 *row = (s == screen_surface) ? oj32x_screen_row(y) : static_cast<Uint8 *>(s->pixels) + y * s->pitch;
+								if (row && x < s->w && y < s->h) row[x] = (Uint8)overlay_light;
 							}
 		}
 	}
@@ -733,13 +896,7 @@ void oj32x_prof_frame(void)
 	prof_frames = 0;
 	prof_steps = 0;
 	prof_start = now;
-#ifdef OJ32X_PROFILE
-	/* J14d: no button needed - 10 seconds with the slave drawing, 10 seconds without */
-	{
-		static int seconds;
-		if (++seconds % 10 == 0) plat_slave_draws(!plat_slave_draws_on());
-	}
-#endif
+
 }
 const char *oj32x_prof_text(int line) { return prof_lines[line < 0 || line > 2 ? 0 : line]; }
 static const char *prof_text_line(int line) { return oj32x_prof_text(line); }

@@ -921,3 +921,24 @@ uint32_t plat_prof_us(void)
 }
 void plat_slave_draws(int on) { (void)on; }
 int plat_slave_draws_on(void) { return 0; }
+
+/* J15: the scrolling renderer on the PC - two imitated 32X frame buffers; presenting builds the
+ * 320x200 picture from the line-table rules, exactly as the 32X shows it, then the normal present */
+static uint8_t host_fb[2][0x20000];
+static int host_back;
+uint8_t *plat_scroll_ring(void)  { return host_fb[host_back] + 0x200; }
+uint8_t *plat_scroll_panel(void) { return host_fb[host_back] + 0x12E00; }
+int plat_back_index(void) { return host_back; }
+void plat_present_scroll(const uint16_t *palette555, int row0, int xoff, int viewH)
+{
+	static uint8_t img[320 * 200];
+	for (int g = 0; g < 200; g++)
+	{
+		const uint8_t *src;
+		if (g < viewH) src = host_fb[host_back] + 0x200 + ((row0 + g) % 200) * 384 + xoff;
+		else src = host_fb[host_back] + 0x12E00 + (g - viewH) * 320;
+		memcpy(img + g * 320, src, 320);
+	}
+	plat_present(img, 320, palette555);
+	host_back ^= 1;
+}

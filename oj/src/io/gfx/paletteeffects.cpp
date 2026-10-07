@@ -22,6 +22,9 @@
 
 
 #include "paletteeffects.h"
+#ifdef OJ32X
+#include "oj32x.h"
+#endif
 #include "video.h"
 
 #include "jj1/level/jj1level.h"
@@ -476,6 +479,23 @@ void SkyPaletteEffect::apply (SDL_Color* shownPalette, bool direct, int mspf, bo
 	position = viewY + ((canvasH - 33) << 9) - F4;
 	y = ((canvasH - 34) / 100) + 1;
 	count = (((position * speed) / y) >> 20) % 255;
+
+#ifdef OJ32X_SCROLL
+	// PORT32X (J15): the scrolling renderer numbers the sky's colours by ring row (two rows a
+	// colour, ring row = world row % 200). Turn the palette so that each ring row gets the colour
+	// its screen line had: ring band k is on screen line (2k - vY) mod 200.
+	int ringVY;
+	if (oj32x_scroll_active(&ringVY) && amount == 100) {
+		SDL_Color turned[100];
+		for (int k = 0; k < 100; k++) {
+			const int line = ((2 * k - ringVY) % 200 + 200) % 200;
+			turned[k] = skyPalette[(count + line / 2) % 255];
+		}
+		if (direct) video.changePalette(turned, first, amount);
+		else memcpy(shownPalette + first, turned, sizeof(SDL_Color) * amount);
+		return;
+	}
+#endif
 
 	if (direct) {
 
