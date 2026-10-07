@@ -665,3 +665,10 @@ Checked on the PC: the new-game scenario frame by frame against the old renderer
 frames identical, the 31 others differ only in the sky gradient by one line when the view's y is
 odd (two-line colour bands fixed to the world instead of the screen); all 79 levels run 500 frames
 with scrolling left and right; the 32X code paths + profiler box render correctly.
+
+## J15 console video and J15b
+J15 runs on the console: scrolling, sprites, waterfalls; the game's own counter shows FPS 10 in
+Tubelectric. The profiler box was a plain blue box without letters and the sun a white ring: their
+colours were sky entries (156-255), which the renderer turns every frame - the profiler now picks
+its dark/light colours below 156; the sun and the profiler letters are written with 16-bit
+read-modify-write (oj32x_put_pixel), as KOBO-BOOT rule 4 advises.

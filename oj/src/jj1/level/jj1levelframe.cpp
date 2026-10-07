@@ -394,7 +394,7 @@ void JJ1Level::scrollOrb (int vX, int vY) {
 		for (int x = 0; x < 32; x++) {
 			const int sx = ox + x;
 			if (sx < 0 || sx >= canvasW) continue;
-			if (sp[x] != key && row[sx] >= 156) row[sx] = sp[x];
+			if (sp[x] != key && row[sx] >= 156) oj32x_put_pixel(row + sx, sp[x]);
 		}
 	}
 	// the background there is restored next time like a sprite's

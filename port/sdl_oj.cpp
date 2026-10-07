@@ -255,13 +255,17 @@ int SDL_SetPalette(SDL_Surface *s, int flags, const SDL_Color *colors, int first
 		/* J13: the 12 lines above and below the 200-line picture show one palette entry; colour 0
 		 * is white in some levels' palettes (the white bars) - use the darkest one instead */
 		int best = 0, bestv = 1 << 30, light = 0, lightv = -1;
+		int dark2 = 0, dark2v = 1 << 30;
 		for (int i = 0; i < 256; ++i) {
 			const int v = (phys555[i] & 31) + (phys555[i] >> 5 & 31) + (phys555[i] >> 10 & 31);
 			if (v < bestv) { bestv = v; best = i; }
-			if (v > lightv) { lightv = v; light = i; }
+			/* J15b: the profiler's colours never from the sky's entries (156-255): those turn
+			 * with the scrolling renderer, and the box and its letters became the same blue */
+			if (i < 156 && v > lightv) { lightv = v; light = i; }
+			if (i < 156 && v < dark2v) { dark2v = v; dark2 = i; }
 		}
 		plat_border_colour(best);
-		overlay_dark = best;     /* J14c: the profiler box: darkest entry behind the brightest */
+		overlay_dark = dark2;
 		overlay_light = light;
 	}
 	return 1;
@@ -443,6 +447,19 @@ Uint8 *oj32x_screen_row(int y)
 		return smap.ring + ((smap.vY + y) % OJ32X_RING_H) * OJ32X_RING_W + (smap.vX - smap.wx0);
 	if (y - smap.viewH < OJ32X_PANEL_H) return smap.panel + (y - smap.viewH) * PLAT_SCREEN_W;
 	return nullptr;
+}
+
+/* J15b: one pixel into the 32X frame buffer as a 16-bit read-modify-write (KOBO-BOOT rule 4:
+ * write the frame buffer with 16-bit writes - single bytes did not always land) */
+void oj32x_put_pixel(Uint8 *p, Uint8 v)
+{
+	volatile Uint16 *w = reinterpret_cast<volatile Uint16 *>(reinterpret_cast<uintptr_t>(p) & ~(uintptr_t)1);
+	Uint16 old = *w;
+	Uint8 b[2];
+	memcpy(b, (const void *)&old, 2);
+	b[reinterpret_cast<uintptr_t>(p) & 1] = v;
+	memcpy(&old, b, 2);
+	*w = old;
 }
 
 static void record_world(int sx, int sy, int w, int h)
@@ -851,7 +868,7 @@ void oj32x_prof_draw(SDL_Surface *s)
 							for (int dx = 0; dx < 2; dx++) {
 								const int x = x0 + gx * 2 + dx, y = y0 + gy * 2 + dy;
 								Uint8 *row = (s == screen_surface) ? oj32x_screen_row(y) : static_cast<Uint8 *>(s->pixels) + y * s->pitch;
-								if (row && x < s->w && y < s->h) row[x] = (Uint8)overlay_light;
+								if (row && x < s->w && y < s->h) oj32x_put_pixel(row + x, (Uint8)overlay_light);
 							}
 		}
 	}
