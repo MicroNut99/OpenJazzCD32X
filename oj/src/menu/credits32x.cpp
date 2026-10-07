@@ -70,7 +70,10 @@ namespace {
 		{ "XM2",      "HOLIDAIUS" },
 		{ "XM3",      "HOLIDAIUS 2" },
 		{ "XMAS2",    "CANDION" },
-		{ "XMAS3",    "BLOXONIUS" }
+		{ "XMAS3",    "BLOXONIUS" },
+		{ "H95MENU",  "HOLIDAY HARE 95 MENU" },
+		{ "H95ENDLV", "HOLIDAY HARE 95 LEVEL END" },
+		{ "H95XM3",   "HOLIDAY HARE 95 STAGE 3" }
 	};
 	const int nSongs = sizeof(songs) / sizeof(songs[0]);
 	const int firstSong = 29;   // track 31 = SONGCD5 Deckstar (Micronut99, J13c)

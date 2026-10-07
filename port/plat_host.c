@@ -943,3 +943,4 @@ void plat_present_scroll(const uint16_t *palette555, int row0, int xoff, int vie
 	host_back ^= 1;
 }
 void plat_wait_flip(void) { }
+int plat_game(void) { const char *e = getenv("T32X_HH95"); return e && *e == '1'; }

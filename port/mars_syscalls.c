@@ -70,6 +70,7 @@ void _exit(int code) { plat_exit(code); }
 #define FD_BASE 10
 int plat_save_put_word(int index, int value);     /* plat_mars.c: CMD 58 */
 int plat_save_piece(int piece);                   /* plat_mars.c: CMD 61 */
+int plat_game(void);
 #define SAVE_AREA ((const volatile uint8_t *)0x223F0000u)   /* cart 0x3F0000, cache-through */
 
 typedef struct { int piece; int pos; int size; int writing; int open; int odd; uint8_t pending; } SaveFd;
@@ -89,9 +90,10 @@ static int piece_of(const char *path)
 {
 	char n[12];
 	base_name(path, n);
-	if (memcmp(n, "OPENJAZZ.CFG", 12) == 0) return 0;
+	const int base = plat_game() == 1 ? 5 : 0;   /* J17: Holiday Hare '95 keeps its own (5-9) */
+	if (memcmp(n, "OPENJAZZ.CFG", 12) == 0) return base;
 	if (n[0] == 'S' && n[1] == 'A' && n[2] == 'V' && n[3] == 'E' && n[4] == '.' && n[5] >= '0' && n[5] <= '3' && n[6] == 0)
-		return 1 + (n[5] - '0');
+		return base + 1 + (n[5] - '0');
 	return -1;
 }
 

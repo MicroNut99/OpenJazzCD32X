@@ -874,6 +874,7 @@ void oj32x_level_pack(const char *levelFile)
 	} else {
 		return;
 	}
+	if (plat_game() == 1 && k != PACK_BONUS_K) k += 100;   /* J17: Holiday Hare '95's packs (OJ6xx) */
 	if (k == current) return;
 	{
 		char msg[40];
@@ -1047,6 +1048,20 @@ void oj32x_music(const char *fileName, bool restart)
 	if (!fileName) { current = -1; plat_music(0); return; }
 	const char *b = fileName;
 	for (const char *p = fileName; *p; ++p) if (*p == '/' || *p == '\\') b = p + 1;
+	/* J17: Holiday Hare '95's own menu, level-end and XM3 songs (same names as Jazz CD's,
+	 * different music) are tracks 39-41 */
+	if (plat_game() == 1) {
+		static const char *const hh[] = { "MENUSNG", "ENDLEVEL", "XM3" };
+		for (int i = 0; i < 3; i++) {
+			size_t n = strlen(hh[i]);
+			if (strncasecmp(b, hh[i], n) == 0 && b[n] == '.') {
+				if (current == 100 + i && !restart) return;
+				current = 100 + i;
+				plat_music(39 + i);
+				return;
+			}
+		}
+	}
 	for (int i = 0; i < (int)(sizeof songs / sizeof songs[0]); i++) {
 		size_t n = strlen(songs[i]);
 		if (strncasecmp(b, songs[i], n) == 0 && b[n] == '.') {

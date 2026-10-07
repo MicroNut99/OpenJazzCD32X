@@ -16,4 +16,12 @@ for line in $(grep -v '^#' "$HERE/tools/music_tracks.txt" | awk '{print $2}'); d
   [ -n "$src" ] || { echo "  note: $name.PSM not in $DATA - skipped"; continue; }
   "$HERE/host/psm2wav" "$DATA/$src" "$HERE/music/$name.wav" "$MAXS" 1   # one pass + 2 s fade
 done
+# J17: Holiday Hare '95's songs (its menu, level-end and XM3 have the same names as Jazz CD's)
+HH95="${HH95:-$HERE/JAZZXMAS1995}"
+if [ -d "$HH95" ]; then
+  for pair in MENUSNG:H95MENU ENDLEVEL:H95ENDLV XM3:H95XM3 XMAS2:XMAS2 XMAS3:XMAS3; do
+    src=$(ls "$HH95" | grep -i "^${pair%%:*}\.psm$" | head -1)
+    [ -n "$src" ] && "$HERE/host/psm2wav" "$HH95/$src" "$HERE/music/${pair##*:}.wav" "$MAXS" 1
+  done
+fi
 echo "==> $(ls "$HERE"/music/*.wav | wc -l) songs in music/ ($(du -sm "$HERE/music" | cut -f1) MB)"

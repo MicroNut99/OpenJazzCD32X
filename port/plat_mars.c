@@ -323,14 +323,62 @@ static void splash_progress(uint32_t done, uint32_t total)
 static uint32_t pack_bytes;
 static int pack_bad_chunks;
 
+/* J17: two games on one disc - Jazz Jackrabbit CD (IMAGE8.RAW at cart 0x100000, world packs
+ * OJ<world*10>) and Holiday Hare '95 (IMAGE9.RAW at cart 0x120000, world packs OJ<world*10+100>,
+ * SFX01.BIN, its own saves in the save area's pieces 5-9). Chosen on the splash. */
+static int game_hh95;
+int plat_game(void) { return game_hh95; }
+static uint32_t pack_slot(void)   { return game_hh95 ? 9 : PACK_SLOT; }
+static uint32_t pack_offset(void) { return game_hh95 ? 0x120000u : PLAT_CART_DATA_OFFSET; }
+
+/* text on the splash in the error screens' 3x5 font, drawn 2x with 16-bit writes */
+static void splash_text(int x0, int y0, const char *t)
+{
+	volatile uint16_t *fb = FB16 + 0x100;
+	for (int c = 0; t[c]; c++)
+	{
+		int ch = t[c];
+		if (ch < 32 || ch > 95) ch = 32;
+		const uint16_t g = font3x5[ch - 32];
+		for (int gy = 0; gy < 10; gy++)
+			for (int gx = 0; gx < 8; gx += 2)
+			{
+				const int x = x0 + c * 8 + gx, y = y0 + gy;
+				uint8_t a = 253, b = 253;
+				if (gx < 6 && (g & (1u << (14 - ((gy >> 1) * 3 + (gx >> 1)))))) a = b = 255;
+				fb[y * (PLAT_SCREEN_W / 2) + (x >> 1)] = (uint16_t)(a << 8 | b);
+			}
+	}
+}
+
+static void choose_game(void)
+{
+	MARS_COMM2 = 9;                        /* is Holiday Hare '95 on the disc? */
+	MARS_COMM8_32 = 0;
+	if (!send_cmd(CMD_OPEN_FILE, 2000000UL) || (int32_t)MARS_COMM8_32 <= 0) return;
+	for (int i = 0; i < 2; i++)            /* both frame buffers */
+	{
+		splash_text(56, 150, " A  JAZZ JACKRABBIT CD  ");
+		splash_text(56, 164, " C  HOLIDAY HARE 95     ");
+		flip_wait();
+	}
+	for (;;)
+	{
+		const uint16_t pad = plat_read_pad();
+		if (pad & PAD_A) { game_hh95 = 0; break; }
+		if (pad & PAD_C) { game_hh95 = 1; break; }
+	}
+	while (plat_read_pad() & (PAD_A | PAD_C)) { }   /* let go first */
+}
+
 static void pack_load(void)
 {
-	MARS_COMM2 = PACK_SLOT;
+	MARS_COMM2 = (uint16_t)pack_slot();
 	MARS_COMM8_32 = 0;
 	if (!send_cmd(CMD_OPEN_FILE, 2000000UL)) { plat_log("PACK: OPEN TIMED OUT"); return; }
 	uint32_t len = MARS_COMM8_32;
-	if ((int32_t)len <= 0) { plat_log("PACK: IMAGE8.RAW NOT ON THE DISC"); return; }
-	if (len > PLAT_CART_DATA_END - PLAT_CART_DATA_OFFSET) { plat_log("PACK: TOO BIG FOR THE CART"); return; }
+	if ((int32_t)len <= 0) { plat_log("PACK: COMMON PACK NOT ON THE DISC"); return; }
+	if (len > PLAT_CART_DATA_END - pack_offset()) { plat_log("PACK: TOO BIG FOR THE CART"); return; }
 	MARS_COMM8_32 = len;                   /* main.c CMD 46 reads the length from COMM8 */
 	const uint32_t chunks = (len + 32767) >> 15;
 
@@ -339,7 +387,7 @@ static void pack_load(void)
 	 * the same -> the pack from an earlier boot is still there: no copy. A+B+C held at power-on
 	 * copies it anyway. */
 	{
-		const volatile uint8_t *h = (const volatile uint8_t *)(0x22000000u + PLAT_CART_DATA_OFFSET);
+		const volatile uint8_t *h = (const volatile uint8_t *)(0x22000000u + pack_offset());
 		const uint32_t have = (uint32_t)h[16] << 24 | (uint32_t)h[17] << 16 | (uint32_t)h[18] << 8 | h[19];
 		int same = h[0] == 'O' && h[1] == 'J' && h[2] == 'P' && h[3] == 'K' && have == len;
 		const uint32_t probe[3] = { 0, chunks >> 1, chunks - 1 };
@@ -355,7 +403,7 @@ static void pack_load(void)
 		{
 			splash_progress(2 * chunks, 2 * chunks);
 			pack_bytes = len;
-			pack_mount((const uint8_t *)(0x02000000u + PLAT_CART_DATA_OFFSET));
+			pack_mount((const uint8_t *)(0x02000000u + pack_offset()));
 			plat_log("PACK: ALREADY IN THE CART");
 			return;
 		}
@@ -375,7 +423,7 @@ static void pack_load(void)
 	/* the 68000 wrote the cart behind the SH2's cache: purge it (as the loader's hand-over) */
 	*(volatile uint8_t *)0xFFFFFE92 = 0x11;
 	pack_bytes = len;
-	if (!pack_mount((const uint8_t *)(0x02000000u + PLAT_CART_DATA_OFFSET)))
+	if (!pack_mount((const uint8_t *)(0x02000000u + pack_offset())))
 		plat_log("PACK: COPIED BUT NOT A PACK (OJPK)");
 }
 
@@ -415,6 +463,7 @@ void plat_mars_entry(void)
 	cxx_start();
 	{ void oj32x_cxx_handlers(void); oj32x_cxx_handlers(); }   /* J7: name what stops the game */
 	plat_log("PACK LOADING");
+	choose_game();
 	pack_load();
 	sfx_load();
 	if (OJ32X_SPLASH)
@@ -515,7 +564,7 @@ void plat_music(int track)
 
 static void sfx_load(void)
 {
-	MARS_COMM2 = 0;            /* SFX00.BIN */
+	MARS_COMM2 = (uint16_t)(game_hh95 ? 1 : 0);   /* SFX00.BIN / SFX01.BIN (J17) */
 	MARS_COMM12 = 0;
 	send_cmd(CMD_LOAD_SFX, 4000000UL);
 	if (MARS_COMM12 == 0) plat_log("SOUND EFFECTS: SFX00.BIN NOT LOADED");
@@ -918,7 +967,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J16C " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J17  " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&

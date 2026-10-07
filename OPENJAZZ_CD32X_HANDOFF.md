@@ -705,3 +705,15 @@ HUD style, character name and colours, game options) only in setup.save() at pro
 (main.cpp), which a console never reaches. Now SetupMenu::run saves on leaving the set-up menu
 (OJ32X_MARS). The file is global (cart save area piece 0), separate from the saved games
 (pieces 1-4: level, planet, difficulty, score ...). The A/B swap is not part of the file.
+
+## J17: Holiday Hare '95
+A second game on the disc, from JAZZXMAS1995/ (its own complete data set, same file names).
+- Splash: "A JAZZ JACKRABBIT CD / C HOLIDAY HARE 95" (only when IMAGE9.RAW is on the disc).
+- Common pack IMAGE9.RAW (CMD 38 id 9 -> cart slot 9 = 0x120000, at most 1.4 MB; 797 KB), world
+  packs OJ600/OJ610 (bake_levels.sh 4th argument 100; the level hook adds 100 when plat_game()),
+  sound effects SFX01.BIN (CMD 53 COMM2 = 1), saves and settings in save-area pieces 5-9.
+- Music: its MENUSNG / ENDLEVEL / XM3 have the same names as Jazz CD's but are its own songs ->
+  tracks 39-41 (H95MENU, H95ENDLV, H95XM3); XMAS2 / XMAS3 = tracks 37 / 38.
+- In the game: New game -> episode "X Holiday Hare" (the others are greyed out).
+- PC, 32X paths, packs only: menus -> Candion level 1 plays (heap peak 267 KB incl. the PC's
+  64 KB screen; ~20 KB more small blocks than Jazz CD levels).

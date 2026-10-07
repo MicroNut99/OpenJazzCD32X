@@ -7,14 +7,14 @@
 #   tools/bake_levels.sh <data folder> <common pack> <output folder>
 set -e
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-DATA="$1"; COMMON="$2"; OUT="$3"
+DATA="$1"; COMMON="$2"; OUT="$3"; KOFF="${4:-0}"   # J17: 100 for Holiday Hare 95 (OJ6xx)
 MAX=$((0x170000))
 make -C "$HERE/host" -j"${JOBS:-1}" >/dev/null
 TMP=$(mktemp -d)
-rm -f "$OUT"/OJ*.PAK
+if [ "$KOFF" = 0 ]; then rm -f "$OUT"/OJ[0-5]*.PAK; else rm -f "$OUT"/OJ6*.PAK "$OUT"/OJ7*.PAK; fi
 n=0
 for f in $(ls "$DATA" | grep -i '^LEVEL[0-9]\.[0-9][0-9][0-9]$' | sort -t. -k2,2 -k1,1); do
-  l=${f:5:1}; w=$((10#${f:7:3})); k=$(printf '%03d' $((w * 10)))
+  l=${f:5:1}; w=$((10#${f:7:3})); k=$(printf '%03d' $((w * 10 + KOFF)))
   ( cd "$TMP" && T32X_PACK="$COMMON" T32X_BAKE="$OUT/OJ$k.PAK" T32X_BAKE_MERGE=1 \
     T32X_BAKE_SKIP='*.PSM' \
     T32X_SAVE_EVERY=0 T32X_FRAMES_DIR="$TMP" T32X_MAX_FRAMES=400 T32X_MAX_SECONDS=100000 T32X_PAD="100:START,105:-" \
@@ -24,7 +24,8 @@ for f in $(ls "$DATA" | grep -i '^LEVEL[0-9]\.[0-9][0-9][0-9]$' | sort -t. -k2,2
 done
 rm -rf "$TMP"
 big=0; total=0; packs=0
-for p in "$OUT"/OJ*.PAK; do
+if [ "$KOFF" = 0 ]; then PACKS="$OUT/OJ[0-5]*.PAK"; else PACKS="$OUT/OJ[67]*.PAK"; fi
+for p in $PACKS; do
   s=$(stat -c %s "$p"); total=$((total + s)); packs=$((packs + 1))
   if [ $s -gt $MAX ]; then echo "*** $(basename "$p"): $s bytes, more than $MAX"; big=1; fi
 done

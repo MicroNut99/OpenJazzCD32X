@@ -1587,10 +1587,10 @@ index 71b7fff..3a716a4 100644
  		if (event.type == SDL_EVENT_QUIT) return E_QUIT;
 diff --git a/oj/src/menu/credits32x.cpp b/oj/src/menu/credits32x.cpp
 new file mode 100644
-index 0000000..8e03bf2
+index 0000000..85c95ef
 --- /dev/null
 +++ b/oj/src/menu/credits32x.cpp
-@@ -0,0 +1,213 @@
+@@ -0,0 +1,216 @@
 +/**
 + * @file credits32x.cpp
 + *
@@ -1663,7 +1663,10 @@ index 0000000..8e03bf2
 +		{ "XM2",      "HOLIDAIUS" },
 +		{ "XM3",      "HOLIDAIUS 2" },
 +		{ "XMAS2",    "CANDION" },
-+		{ "XMAS3",    "BLOXONIUS" }
++		{ "XMAS3",    "BLOXONIUS" },
++		{ "H95MENU",  "HOLIDAY HARE 95 MENU" },
++		{ "H95ENDLV", "HOLIDAY HARE 95 LEVEL END" },
++		{ "H95XM3",   "HOLIDAY HARE 95 STAGE 3" }
 +	};
 +	const int nSongs = sizeof(songs) / sizeof(songs[0]);
 +	const int firstSong = 29;   // track 31 = SONGCD5 Deckstar (Micronut99, J13c)
