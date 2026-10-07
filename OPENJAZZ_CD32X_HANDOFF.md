@@ -502,3 +502,10 @@ versions loop the songs; all 37 in full would be ~3.5 h): 36 x 110 s + 8 s = 66 
 about 75 min with the data - fits an 80-minute CD-R. Tested with a made-up 3-track file: the
 cuts land in the silences. tools/music_tracks.txt: XMAS2/XMAS3 = tracks 37/38 (the existing
 numbers do not move); make_music_tracks.py leaves a missing song silent instead of stopping.
+
+## J11c: longer music from the game's own data
+Micronut99's videoplayback.mp4 is 445 s = only track 1 (Main Menu) of the playlist, so
+cut_ost.py stopped (its length check). Instead tools/psm2wav.c now lets each song loop as in
+the game up to MAX_SECONDS (default 110) with a 3 s fade (ENDLEVEL: 8 s, one pass):
+34 x 110 s + 8 s = 62.5 min of audio, about 71 min with the data and the silent tracks.
+cut_ost.py stays for a complete playlist video.

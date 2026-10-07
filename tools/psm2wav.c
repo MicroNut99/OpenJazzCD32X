@@ -1,7 +1,7 @@
 /*
  * OpenJazz CD32X - the game's music (.PSM, played by the libxmp bundled with OpenJazz) as WAV
- * files for CD audio (J10b). 44.1 kHz, 16-bit, stereo; one pass through the song, at most
- * MAX_SECONDS (the console repeats a CD track by itself).
+ * files for CD audio (J10b). 44.1 kHz, 16-bit, stereo. J11c: the song repeats itself (as in
+ * the game) until max seconds, then fades out over 3 s; the console repeats the CD track.
  *   psm2wav <in.PSM> <out.wav> [max seconds]
  */
 #include "xmp.h"
@@ -26,9 +26,20 @@ int main(int argc, char **argv)
 	fwrite("data\0\0\0\0", 1, 8, f);
 	static int16_t buf[4096];
 	uint32_t bytes = 0, max_bytes = (uint32_t)max_s * 44100u * 4u;
-	while (bytes < max_bytes && xmp_play_buffer(c, buf, sizeof buf, 1) == 0) {
-		fwrite(buf, 1, sizeof buf, f);   /* little-endian host: WAV byte order */
-		bytes += sizeof buf;
+	const uint32_t fade_bytes = 3u * 44100u * 4u;
+	while (bytes < max_bytes && xmp_play_buffer(c, buf, sizeof buf, 0) == 0) {   /* 0 = loop on */
+		const int n = (int)(sizeof buf / 2);
+		for (int i = 0; i < n; i++) {                /* 3 s fade-out at the end */
+			const uint32_t at = bytes + (uint32_t)i * 2u;
+			if (at + fade_bytes > max_bytes) {
+				const double g = ((double)max_bytes - (double)at) / fade_bytes;
+				buf[i] = (int16_t)(buf[i] * (g < 0 ? 0 : g));
+			}
+		}
+		uint32_t n_out = sizeof buf;
+		if (bytes + n_out > max_bytes) n_out = max_bytes - bytes;   /* exactly max seconds */
+		fwrite(buf, 1, n_out, f);        /* little-endian host: WAV byte order */
+		bytes += n_out;
 	}
 	fseek(f, 4, SEEK_SET); put32(f, 36 + bytes);
 	fseek(f, 40, SEEK_SET); put32(f, bytes);
