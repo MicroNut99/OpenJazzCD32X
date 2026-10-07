@@ -13,7 +13,7 @@ mkdir -p "$HERE/music"
 for line in $(grep -v '^#' "$HERE/tools/music_tracks.txt" | awk '{print $2}'); do
   name="${line%.}"
   src=$(ls "$DATA" | grep -i "^$name\.psm$" | head -1)
-  [ -n "$src" ] || { echo "*** $name.PSM not in $DATA"; exit 1; }
+  [ -n "$src" ] || { echo "  note: $name.PSM not in $DATA - skipped"; continue; }
   "$HERE/host/psm2wav" "$DATA/$src" "$HERE/music/$name.wav" "$MAXS"
 done
 echo "==> $(ls "$HERE"/music/*.wav | wc -l) songs in music/ ($(du -sm "$HERE/music" | cut -f1) MB)"

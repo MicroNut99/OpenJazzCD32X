@@ -652,7 +652,9 @@ void oj32x_music(const char *fileName, bool restart)
 		"SONGCD7",
 		"SONGCD8",
 		"XM2",
-		"XM3"
+		"XM3",
+		"XMAS2",
+		"XMAS3"
 	};
 	static int current = -1;
 	if (!fileName) { current = -1; plat_music(0); return; }

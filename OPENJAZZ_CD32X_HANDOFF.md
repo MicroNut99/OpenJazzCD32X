@@ -492,3 +492,13 @@ Later: a cloned project for the line-table scrolling renderer (Micronut99).
   stop, Left/Right previous/next, B back (menu music again).
 - Not yet: Holiday Hare '95 (its own complete data set with the same file names as HH94 -
   needs its own common pack + level packs and a choice at boot), bonus levels, cutscenes (off).
+
+## J11b: the soundtrack video (Noxxa's 37-track OST) as the CD music
+tools/cut_ost.py cuts videoplayback.mp4 at the playlist's lengths, each cut moved to the middle
+of the nearest silence (+-4 s, ffmpeg silencedetect), so rounding does not add up; each track
+-> music/<game file>.wav (playlist -> file mapping in the script: Diamondus SONG0, Secret level
+SECRET, HH95 Candion XMAS2 / Bloxonius XMAS3 ...), at most 110 s with a 3 s fade (the playlist
+versions loop the songs; all 37 in full would be ~3.5 h): 36 x 110 s + 8 s = 66 min of audio,
+about 75 min with the data - fits an 80-minute CD-R. Tested with a made-up 3-track file: the
+cuts land in the silences. tools/music_tracks.txt: XMAS2/XMAS3 = tracks 37/38 (the existing
+numbers do not move); make_music_tracks.py leaves a missing song silent instead of stopping.

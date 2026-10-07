@@ -31,6 +31,9 @@ def main():
         if not FIRST <= t <= LAST:
             sys.exit("*** %s line %d: track %d outside %d-%d" % (mapfile, n, t, FIRST, LAST))
         hits = [f for f in files if f.startswith(start)]
+        if len(hits) == 0:                      # OpenJazz J11b: a missing song = a silent track
+            print("  note: no %s*.wav in %s - track %d stays silent" % (start, src, t))
+            continue
         if len(hits) != 1:
             sys.exit("*** %s line %d: '%s' matches %d files in %s" % (mapfile, n, start, len(hits), src))
         table[t] = hits[0]

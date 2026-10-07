@@ -64,7 +64,9 @@ namespace {
 		{ "SONGCD7",  "DESERTO" },
 		{ "SONGCD8",  "LAGUNICUS" },
 		{ "XM2",      "HOLIDAIUS" },
-		{ "XM3",      "HOLIDAIUS 2" }
+		{ "XM3",      "HOLIDAIUS 2" },
+		{ "XMAS2",    "CANDION" },
+		{ "XMAS3",    "BLOXONIUS" }
 	};
 	const int nSongs = sizeof(songs) / sizeof(songs[0]);
 	const int firstSong = 19;   // SONG5 (Micronut99)
