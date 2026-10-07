@@ -51,10 +51,11 @@ else
   "$HERE/tools/bake_levels.sh" "$DATA" "$ROMS/IMAGE8.RAW" "$ROMS"
 fi
 # J18: the 30 bonus levels, one pack each (OJ800-OJ829)
-if [ "${LEVEL_PACKS:-}" = keep ] && ls "$ROMS"/OJ8*.PAK >/dev/null 2>&1; then
+if [ "${LEVEL_PACKS:-}" = keep ] && ls "$ROMS"/OJ8*.PAK >/dev/null 2>&1 && [ -f "$ROMS/.bonus_v2" ]; then
   echo "    bonus packs: kept ($(ls "$ROMS"/OJ8*.PAK | wc -l))"
 else
   "$HERE/tools/bake_bonus.sh" "$DATA" "$ROMS/IMAGE8.RAW" "$ROMS"
+  touch "$ROMS/.bonus_v2"   # J19b: packs with the 64 KB map blocks (made again once)
 fi
 echo "==> sound effects"; python3 "$HERE/tools/make_oj_sfx.py" "$DATA/SOUNDS.000" "$ROMS/SFX00.BIN"
 # J19: Holiday Hare '95 as an episode of the Jazz CD menu (in place of "specific level"): its two

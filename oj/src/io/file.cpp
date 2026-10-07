@@ -498,8 +498,11 @@ unsigned char* File::loadRLEPacked (int length, bool& mapped) {
 		}
 	}
 	unsigned char* pixels = loadRLE(length);
-	// a block as a picture of one line (or 2 x length/2 when longer than 65535)
+	// a block as a picture: one line - or 256 wide when it is longer than a picture line can be
+	// (J19b: the bonus maps' 65,536-byte blocks were never baked, so the 32X decoded them into
+	// SDRAM and ran out of memory)
 	if (length <= 65535) bakePicture(start, pixels, length, 1);
+	else if (length % 256 == 0 && length / 256 <= 65535) bakePicture(start, pixels, 256, length / 256);
 	return pixels;
 
 }

@@ -996,7 +996,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J19  " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J19B " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&
@@ -1174,7 +1174,9 @@ int plat_save_piece(int piece)
 int plat_port_setting(int key)
 {
 	const volatile uint8_t *p = (const volatile uint8_t *)(0x223F0000u + PORT_SET_PIECE * 4096u);
-	if (p[0] != 'O' || p[1] != 'J' || p[2] != 'P' || p[3] != 'S' || key < 0 || key > 7) return 0;
+	if (key < 0 || key > 7) return 0;
+	if (p[0] != 'O' || p[1] != 'J' || p[2] != 'P' || p[3] != 'S')
+		return key == 0 ? 1 : 0;        /* J19b: nothing saved yet - the FPS counter starts on */
 	return p[4 + key];
 }
 void plat_port_setting_set(int key, int value)

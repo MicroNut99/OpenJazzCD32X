@@ -947,6 +947,6 @@ static int host_game = -1;
 int plat_game(void) { if (host_game < 0) { const char *e = getenv("T32X_HH95"); host_game = e && *e == '1'; } return host_game; }
 void plat_set_game(int g) { host_game = g; }
 int plat_hh95_available(void) { return 1; }
-static int host_port_set[8];
+static int host_port_set[8] = { 1 };
 int plat_port_setting(int key) { return key >= 0 && key < 8 ? host_port_set[key] : 0; }
 void plat_port_setting_set(int key, int value) { if (key >= 0 && key < 8) host_port_set[key] = value; }

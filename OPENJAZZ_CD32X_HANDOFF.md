@@ -761,3 +761,11 @@ PC (scrolling build): the save screen no longer alternates between two pictures.
   state and the A/B swap are now kept in save-area piece 10 ("OJPS", plat_port_setting).
 - PC, 32X paths: episode menu -> Holiday Hare 95 -> Candion (planet still) -> level with the
   Christmas Jazz sprite.
+
+## J19b
+- Bonus level red screen on the console (NEW OF 65,536 BYTES after OPEN BONUSY.000): loadRLEPacked only
+  baked blocks up to 65,535 bytes (one picture line), so the bonus map's two 64 KB blocks were never in
+  the packs and the 32X decoded them into SDRAM. Blocks longer than that are baked 256 wide. Bonus
+  packs made again (build.sh marker .bonus_v2): 23 MB. PC, 32X paths: bonus peak 135 KB incl. the
+  PC's 64 KB screen (was 245).
+- The FPS counter (Z) starts on when nothing is saved yet (plat_port_setting default).
