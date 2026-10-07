@@ -630,3 +630,9 @@ in the level's top-left corner with fontiny (OJ32X_PROFILE in mars/Makefile):
 Profiler drawn as a box with its own font (the 3x5 error-screen font at 2x, 8x12 cells): the
 brightest palette entry on a box of the darkest, top left of the level - readable on any level
 (the game fonts were either invisible in level colours or too wide). Checked on the PC (32X paths).
+
+## J14d
+Console videos (J14b): all values were multiples of ~18 / 15 ms = whole 91 ms periods divided
+by 4-6 frames - the free-running timer was not counting as assumed (reset/reprogrammed
+elsewhere). plat_prof_us now uses the watchdog counter of plat_ticks_ms (178 us steps). Mode did
+not switch to 1CPU in the videos; the profiler now alternates 2CPU / 1CPU every 10 s by itself.

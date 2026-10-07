@@ -733,6 +733,13 @@ void oj32x_prof_frame(void)
 	prof_frames = 0;
 	prof_steps = 0;
 	prof_start = now;
+#ifdef OJ32X_PROFILE
+	/* J14d: no button needed - 10 seconds with the slave drawing, 10 seconds without */
+	{
+		static int seconds;
+		if (++seconds % 10 == 0) plat_slave_draws(!plat_slave_draws_on());
+	}
+#endif
 }
 const char *oj32x_prof_text(int line) { return prof_lines[line < 0 || line > 2 ? 0 : line]; }
 static const char *prof_text_line(int line) { return oj32x_prof_text(line); }

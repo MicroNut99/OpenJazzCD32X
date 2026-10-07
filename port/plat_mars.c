@@ -414,23 +414,19 @@ void plat_init(void)
 
 /* ---------------------------------------------------------------- clock */
 
-/* J14: profiling clock - the master SH2's free-running timer at phi/32 (23.01 MHz / 32 =
- * 719 kHz, one count = 1.39 us, the 16-bit counter wraps every 91 ms; read at least that
- * often, which the profiler does several times a frame). FRC: high byte first. */
-#define SH2_FRT_TCR  (*(volatile uint8_t *)0xFFFFFE16)
-#define SH2_FRT_FRCH (*(volatile uint8_t *)0xFFFFFE12)
-#define SH2_FRT_FRCL (*(volatile uint8_t *)0xFFFFFE13)
+/* J14d: profiling clock from the same watchdog counter as plat_ticks_ms (one count = 4096
+ * cycles = 178 us). J14's free-running-timer version gave times in steps of ~90 ms on the
+ * console (its counter is evidently reset or reprogrammed elsewhere) - every reading was wrong. */
 uint32_t plat_prof_us(void)
 {
-	static int ready;
-	static uint16_t last;
-	static uint32_t ticks;
-	if (!ready) { SH2_FRT_TCR = 0x01; ready = 1; }
-	const uint8_t h = SH2_FRT_FRCH;
-	const uint16_t now = (uint16_t)(h << 8 | SH2_FRT_FRCL);
-	ticks += (uint16_t)(now - last);
-	last = now;
-	return (uint32_t)((uint64_t)ticks * 32000000u / 23011360u);
+	uint32_t ovf, cnt;
+	do
+	{
+		ovf = mars_pwdt_ovf_count;
+		cnt = SH2_WTCNT_R;
+	} while (ovf != mars_pwdt_ovf_count);
+	const uint64_t counts = (uint64_t)ovf * 256u + cnt;
+	return (uint32_t)(counts * 4096u * 1000000u / PPHI_HZ);
 }
 
 uint32_t plat_ticks_ms(void)
@@ -835,7 +831,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J14C " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J14D " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&
