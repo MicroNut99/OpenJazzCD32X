@@ -5,7 +5,8 @@
  * (a console has nothing to exit to). The plasma background of the main menu, the credits in
  * the game's own font, and below them the CD player: the game's 35 songs (CD audio tracks 2-36,
  * alphabetical, tools/music_tracks.txt) with the names of their planets.
- *   A, C or Start: play / stop     Left / Right: previous / next song     B: back
+ *   Left / Right: choose a song (the selector only)   A, C or Start: play the chosen song
+ *   (on the one that plays: stop / play)   a choice left alone for 3.5 s plays too   B: back
  */
 
 #ifdef OJ32X
@@ -106,7 +107,9 @@ int runCredits32X () {
 	Font* fonts[] = { fontmn2, fontbig, font2, fontmn1, fontiny };
 	const char* fe = getenv("T32X_CREDITS_FONT");
 	Font* font = fonts[fe ? atoi(fe) % 5 : 1];
-	int song = firstSong;
+	int song = firstSong;      // the track that plays
+	int pick = firstSong;      // J13b: the track the selector points at (Left/Right)
+	unsigned int pickTime = 0; // when the selector last moved
 	bool playing = true;
 	char line[64];
 
@@ -118,19 +121,28 @@ int runCredits32X () {
 		if (loop(NORMAL_LOOP) == E_QUIT) return E_QUIT;
 
 		if (controls.release(C_ESCAPE)) break;
-		if (controls.release(C_ENTER)) {
-			playing = !playing;
-			oj32x_music_track(playing ? song + 2 : 0);
-		}
+
+		// J13b (Micronut99): Left/Right only move the selector - the music changes when A/C/
+		// Start confirms it, or when the selector stays on a track for 3.5 seconds
 		if (controls.release(C_LEFT)) {
-			song = (song + nSongs - 1) % nSongs;
-			playing = true;
-			oj32x_music_track(song + 2);
+			pick = (pick + nSongs - 1) % nSongs;
+			pickTime = globalTicks;
 		}
 		if (controls.release(C_RIGHT)) {
-			song = (song + 1) % nSongs;
-			playing = true;
-			oj32x_music_track(song + 2);
+			pick = (pick + 1) % nSongs;
+			pickTime = globalTicks;
+		}
+		const bool settled = pick != song && pickTime && globalTicks - pickTime >= 3500;
+		if (controls.release(C_ENTER) || settled) {
+			if (pick != song || !playing) {
+				song = pick;
+				playing = true;
+				oj32x_music_track(song + 2);
+			} else {
+				playing = false;           // A on the track that plays: stop
+				oj32x_music_track(0);
+			}
+			pickTime = 0;
 		}
 
 		plasma.draw();
@@ -139,13 +151,19 @@ int runCredits32X () {
 		const char* const* page = second ? page2 : page1;
 		const int lines = 10;
 		const int h = font->getHeight() + 4;
-		int y = 8;
-		for (int i = 0; i < lines; i++, y += h)
+		const int step = (canvasH - 3 * h - 8) / lines;   // the credits end above the player lines
+		int y = 4;
+		for (int i = 0; i < lines; i++, y += step)
 			if (page[i][0]) font->showString(page[i], canvasW >> 1, y, alignX::Center);
 
-		snprintf(line, sizeof line, "TRACK %d  %s", song + 2, songs[song].name);
+		snprintf(line, sizeof line, "%s %d  %s", playing ? "PLAYING" : "STOPPED", song + 2, songs[song].name);
 		font->showString(line, canvasW >> 1, canvasH - 2 * h - 4, alignX::Center);
-		font->showString(playing ? "< PLAYING >" : "< STOPPED >", canvasW >> 1, canvasH - h - 2, alignX::Center);
+		if (pick != song) {
+			snprintf(line, sizeof line, "SELECT %d  %s", pick + 2, songs[pick].name);
+			font->showString(line, canvasW >> 1, canvasH - h - 2, alignX::Center);
+		} else {
+			font->showString("LEFT RIGHT SELECT  A PLAY", canvasW >> 1, canvasH - h - 2, alignX::Center);
+		}
 
 	}
 

@@ -555,3 +555,8 @@ each CD track (CMD 45 repeat).
   frame time goes on the console before more speed work; the scrolling rebuild is the real fix.
 - Next: warm boot - skip copying engine and common pack when the cart already holds them
   (verify with a checksum on the SH2); hold a button at boot to force the full load.
+
+## J13b: CD player selector (Micronut99)
+Left/Right only move a selector ("SELECT 24 FANOLINT"); the song changes when A/C/Start
+confirms it or after the selector rests 3.5 s on a track; A on the playing track = stop/play.
+Credit lines spaced to end above the two player lines. Checked on the PC (frames).
