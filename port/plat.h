@@ -154,7 +154,9 @@ void plat_parallel(void (*fn)(void *, int), void *arg);
 /* J10: play sound effect n (OpenJazz SE::Type, 1..) - 32X: Sega CD PCM; PC: nothing */
 void plat_sfx(int id);
 /* J10: CD audio track n, repeating (0 = stop); only with OJ32X_MUSIC 1 (tracks on the disc) */
-void plat_music(int track);   /* PC: mount T32X_PACK now if not yet; 32X: nothing */
+void plat_music(int track);
+/* J14: a microsecond clock for profiling (wraps after ~71 minutes) */
+uint32_t plat_prof_us(void);   /* PC: mount T32X_PACK now if not yet; 32X: nothing */
 const uint8_t *plat_cart_ptr(uint32_t cart_offset);
 
 /* Base of the ROM file system image (see tools/mkromfs.py). */

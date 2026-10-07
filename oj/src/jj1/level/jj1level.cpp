@@ -854,7 +854,14 @@ int JJ1Level::play () {
 
 		// Process frame-by-frame activity
 
+#ifdef OJ32X
+		oj32x_prof(6);   // PORT32X (J14): profiler - everything since the last mark = "other"
+		int profSteps = 0;
+#endif
 		while (getTimeChange() >= T_STEP) {
+#ifdef OJ32X
+			profSteps++;
+#endif
 
 			bool playerWasAlive = (localPlayer->getJJ1LevelPlayer()->getEnergy() != 0);
 
@@ -873,6 +880,10 @@ int JJ1Level::play () {
 		}
 
 
+#ifdef OJ32X
+		oj32x_prof(0);   // logic (all steps of this frame)
+		oj32x_prof_steps(profSteps);
+#endif
 		// Draw the graphics
 
 		draw();

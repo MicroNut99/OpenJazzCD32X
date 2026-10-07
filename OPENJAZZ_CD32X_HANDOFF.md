@@ -608,3 +608,11 @@ and clears both 32X frame buffers (plat_clear_screens). Regression 0 different.
 Y did not toggle the credits text on a 6-button pad. Now any of Y, X, Z, Mode (0x0F00) or
 Up/Down toggles it, and the credits screen shows "PAD xxxx" (the bits as read) at the bottom left
 to see what the extra buttons really send. "(B) BACK" stays (Micronut99).
+
+## J14: frame profiler
+plat_prof_us (master SH2 free-running timer, phi/32, 1.39 us; PC: clock_gettime) and
+oj32x_prof(slot) marks: 0 logic (all catch-up steps of the frame), 1 background bands, 2 sprites,
+3 foreground bands, 4 panel/rest of draw, 5 present (line table, frame pacing wait, flip),
+6 other (events, pad, palette effects). Once a second the per-frame averages go to a line drawn
+in the level's top-left corner with fontiny (OJ32X_PROFILE in mars/Makefile):
+"L B S F H P O T  <fps>FPS <steps>ST" in ms per frame. Regression 0 different.

@@ -442,7 +442,7 @@ index c868799..abbf555 100644
  
  		font = new Font(true);
 diff --git a/oj/src/jj1/level/jj1level.cpp b/oj/src/jj1/level/jj1level.cpp
-index 2d890c2..74d582b 100644
+index 2d890c2..5fc2379 100644
 --- a/oj/src/jj1/level/jj1level.cpp
 +++ b/oj/src/jj1/level/jj1level.cpp
 @@ -37,6 +37,9 @@
@@ -528,6 +528,32 @@ index 2d890c2..74d582b 100644
  
  }
  
+@@ -809,7 +854,14 @@ int JJ1Level::play () {
+ 
+ 		// Process frame-by-frame activity
+ 
++#ifdef OJ32X
++		oj32x_prof(6);   // PORT32X (J14): profiler - everything since the last mark = "other"
++		int profSteps = 0;
++#endif
+ 		while (getTimeChange() >= T_STEP) {
++#ifdef OJ32X
++			profSteps++;
++#endif
+ 
+ 			bool playerWasAlive = (localPlayer->getJJ1LevelPlayer()->getEnergy() != 0);
+ 
+@@ -828,6 +880,10 @@ int JJ1Level::play () {
+ 		}
+ 
+ 
++#ifdef OJ32X
++		oj32x_prof(0);   // logic (all steps of this frame)
++		oj32x_prof_steps(profSteps);
++#endif
+ 		// Draw the graphics
+ 
+ 		draw();
 diff --git a/oj/src/jj1/level/jj1level.h b/oj/src/jj1/level/jj1level.h
 index 94a0081..33a0a8c 100644
 --- a/oj/src/jj1/level/jj1level.h
@@ -582,7 +608,7 @@ index 94a0081..33a0a8c 100644
  
  	public:
 diff --git a/oj/src/jj1/level/jj1levelframe.cpp b/oj/src/jj1/level/jj1levelframe.cpp
-index a4a5b02..43c8d52 100644
+index a4a5b02..c3aeac7 100644
 --- a/oj/src/jj1/level/jj1levelframe.cpp
 +++ b/oj/src/jj1/level/jj1levelframe.cpp
 @@ -38,6 +38,9 @@
@@ -723,7 +749,7 @@ index a4a5b02..43c8d52 100644
  	SDL_Rect src, dst;
  	int viewH = canvasH;
  	int vX, vY;
-@@ -264,6 +385,13 @@ void JJ1Level::draw () {
+@@ -264,6 +385,14 @@ void JJ1Level::draw () {
  	src.x = 0;
  
  
@@ -733,11 +759,12 @@ index a4a5b02..43c8d52 100644
 +		OJ32XBand job = { this, vX, vY, viewH, false };
 +		oj32x_parallel(oj32xBandJob, &job);
 +	}
++	oj32x_prof(1);   // J14: background
 +#else
  	// If there is a sky, draw it
  	if (sky) {
  
-@@ -341,6 +469,8 @@ void JJ1Level::draw () {
+@@ -341,6 +470,8 @@ void JJ1Level::draw () {
  	}
  
  
@@ -746,21 +773,23 @@ index a4a5b02..43c8d52 100644
  	// Show active events
  	if (events) events->draw(ticks, change);
  
-@@ -354,6 +484,13 @@ void JJ1Level::draw () {
+@@ -354,6 +485,15 @@ void JJ1Level::draw () {
  
  
  
 +#ifdef OJ32X
++	oj32x_prof(2);   // J14: sprites (events, players, bullets)
 +	// PORT32X (J10): foreground tiles in two bands, one per SH2
 +	{
 +		OJ32XBand job = { this, vX, vY, viewH, true };
 +		oj32x_parallel(oj32xBandJob, &job);
 +	}
++	oj32x_prof(3);   // J14: foreground
 +#else
  	// Show foreground tiles
  
  	for (y = 0; y <= ITOT(viewH - 1) + 1; y++) {
-@@ -404,6 +541,8 @@ void JJ1Level::draw () {
+@@ -404,6 +544,8 @@ void JJ1Level::draw () {
  
  	}
  
@@ -769,6 +798,19 @@ index a4a5b02..43c8d52 100644
  	// FIXME: Temporary lines showing the water level
  	video.drawRect(0, FTOI(waterLevel - viewY), canvasW, 2, 24);
  	video.drawRect(0, FTOI(waterLevel - viewY) + 3, canvasW, 1, 24);
+@@ -595,4 +737,12 @@ void JJ1Level::draw () {
+ 
+ 	// Fill in remaining energy bar space with black
+ 	video.drawRect(offsetX + dst.x, canvasH - 13, dst.w, 7, LEVEL_BLACK);
++
++#ifdef OJ32X
++	oj32x_prof(4);   // J14: panel and the rest of the drawing
++#ifdef OJ32X_PROFILE
++	// J14: the profiler's line (ms per frame) in the top left corner of the level
++	fontiny->showString(oj32x_prof_text(), 2, 2);
++#endif
++#endif
+ }
 diff --git a/oj/src/jj1/level/jj1levelload.cpp b/oj/src/jj1/level/jj1levelload.cpp
 index cfc4d66..e8274a4 100644
 --- a/oj/src/jj1/level/jj1levelload.cpp
@@ -1295,10 +1337,10 @@ index 71b7fff..3a716a4 100644
  		if (event.type == SDL_EVENT_QUIT) return E_QUIT;
 diff --git a/oj/src/menu/credits32x.cpp b/oj/src/menu/credits32x.cpp
 new file mode 100644
-index 0000000..9ed12e6
+index 0000000..4da4140
 --- /dev/null
 +++ b/oj/src/menu/credits32x.cpp
-@@ -0,0 +1,212 @@
+@@ -0,0 +1,217 @@
 +/**
 + * @file credits32x.cpp
 + *
@@ -1436,7 +1478,8 @@ index 0000000..9ed12e6
 +
 +		// J13e (Micronut99): Y shows / hides the credits text (the background and player stay)
 +		{
-+			const bool y = (oj32x_pad() & 0x0200) != 0;    // PAD_Y (6-button pads)
++			// J13g: Y, X, Z or Mode (the 6-button pad's extra buttons: 0x0F00)
++			const bool y = (oj32x_pad() & 0x0F00) != 0;
 +			if (y && !yWas) showText = !showText;
 +			yWas = y;
 +			// J13f: Up / Down do the same (a 3-button pad has no Y)
@@ -1490,6 +1533,10 @@ index 0000000..9ed12e6
 +		int y = 4;
 +		for (int i = 0; i < lines && showText; i++, y += step)
 +			if (page[i][0]) font->showString(page[i], canvasW >> 1, y, alignX::Center);
++
++		// J13g: the pad bits as the console reports them (to see what Y / Mode send)
++		snprintf(line, sizeof line, "PAD %04X", oj32x_pad() & 0xFFFF);
++		fontiny->showString(line, 2, canvasH - 8);
 +
 +		snprintf(line, sizeof line, "%s %d  %s", playing ? "PLAYING" : "STOPPED", song + 2, songs[song].name);
 +		font->showString(line, canvasW >> 1, canvasH - 2 * h - 4, alignX::Center);

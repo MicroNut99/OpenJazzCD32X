@@ -28,6 +28,13 @@ extern "C" {
 /* J5: the packs are mounted (PC build: T32X_PACK at the first file look-up) */
 void oj32x_packs_ready(void);
 
+/* J14: frame profiler (slots: 0 logic 1 background 2 sprites 3 foreground 4 panel 5 present
+ * 6 other) */
+void oj32x_prof(int slot);
+void oj32x_prof_steps(int n);
+void oj32x_prof_frame(void);
+const char *oj32x_prof_text(void);
+
 /* J13e: the pad bits as last read (PAD_* in plat.h) */
 unsigned int oj32x_pad(void);
 

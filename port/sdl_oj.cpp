@@ -394,10 +394,16 @@ SDL_Rect **SDL_ListModes(SDL_PixelFormat *f, Uint32 flags)
 int SDL_Flip(SDL_Surface *screen)
 {
 	if (screen->pixels == plat_canvas() && screen->pixels) {
+		oj32x_prof(6);                     /* J14: other */
 		plat_present_canvas(phys555);
+		oj32x_prof(5);                     /* present: line table, waiting for the frame, flip */
+		oj32x_prof_frame();
 		return 0;
 	}
+	oj32x_prof(6);
 	plat_present(static_cast<const uint8_t *>(screen->pixels), screen->pitch, phys555);
+	oj32x_prof(5);
+	oj32x_prof_frame();
 #ifndef OJ32X_MARS
 	/* J5 test (PC): T32X_DOUBLE_BUFFER=1 swaps the screen between two buffers at every flip,
 	 * the second one starting as junk - like the 32X frame buffer the game now draws into.
@@ -638,6 +644,47 @@ void oj32x_level_pack(const char *levelFile)
 }
 
 void oj32x_packs_ready(void) { plat_packs_ready(); }
+
+/* J14: frame profiler - oj32x_prof(slot) adds the time since the last mark to a slot; the
+ * frame's marks add up to the whole frame. Every second the averages per frame are put
+ * into a text line the level draws in its corner (OJ32X_PROFILE). */
+static uint32_t prof_last, prof_acc[8], prof_frames, prof_steps, prof_start;
+static char prof_line[192] = "PROFILING";
+void oj32x_prof(int slot)
+{
+	const uint32_t now = plat_prof_us();
+	if (slot >= 0 && slot < 8) prof_acc[slot] += now - prof_last;
+	prof_last = now;
+}
+void oj32x_prof_steps(int n) { prof_steps += (uint32_t)n; }
+void oj32x_prof_frame(void)
+{
+	prof_frames++;
+	const uint32_t now = plat_prof_us();
+	if (!prof_start) {                 /* the first frame: start counting from here */
+		prof_start = now ? now : 1;
+		for (int i = 0; i < 8; i++) prof_acc[i] = 0;
+		prof_frames = prof_steps = 0;
+		return;
+	}
+	if (now - prof_start < 1000000u) return;
+	const uint32_t f = prof_frames ? prof_frames : 1;
+	uint32_t total = 0;
+	for (int i = 0; i < 8; i++) total += prof_acc[i];
+	/* ms per frame, one decimal: logic, background, sprites, foreground, panel, present, other */
+	#define MS(x) (unsigned)((x) / f / 1000), (unsigned)((x) / f / 100 % 10)
+	snprintf(prof_line, sizeof prof_line, "L%u.%u B%u.%u S%u.%u F%u.%u H%u.%u P%u.%u O%u.%u T%u.%u %uFPS %u.%uST",
+	         MS(prof_acc[0]), MS(prof_acc[1]), MS(prof_acc[2]), MS(prof_acc[3]), MS(prof_acc[4]),
+	         MS(prof_acc[5]), MS(prof_acc[6]), MS(total),
+	         (unsigned)(prof_frames * 1000000u / (now - prof_start)),
+	         (unsigned)(prof_steps / f), (unsigned)(prof_steps * 10 / f % 10));
+	#undef MS
+	for (int i = 0; i < 8; i++) prof_acc[i] = 0;
+	prof_frames = 0;
+	prof_steps = 0;
+	prof_start = now;
+}
+const char *oj32x_prof_text(void) { return prof_line; }
 
 /* J13d: both 32X frame buffers' picture areas to colour 0 (PC: nothing) */
 void oj32x_clear_screens(void) { plat_clear_screens(); }

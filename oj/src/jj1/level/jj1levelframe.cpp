@@ -391,6 +391,7 @@ void JJ1Level::draw () {
 		OJ32XBand job = { this, vX, vY, viewH, false };
 		oj32x_parallel(oj32xBandJob, &job);
 	}
+	oj32x_prof(1);   // J14: background
 #else
 	// If there is a sky, draw it
 	if (sky) {
@@ -485,11 +486,13 @@ void JJ1Level::draw () {
 
 
 #ifdef OJ32X
+	oj32x_prof(2);   // J14: sprites (events, players, bullets)
 	// PORT32X (J10): foreground tiles in two bands, one per SH2
 	{
 		OJ32XBand job = { this, vX, vY, viewH, true };
 		oj32x_parallel(oj32xBandJob, &job);
 	}
+	oj32x_prof(3);   // J14: foreground
 #else
 	// Show foreground tiles
 
@@ -734,4 +737,12 @@ void JJ1Level::draw () {
 
 	// Fill in remaining energy bar space with black
 	video.drawRect(offsetX + dst.x, canvasH - 13, dst.w, 7, LEVEL_BLACK);
+
+#ifdef OJ32X
+	oj32x_prof(4);   // J14: panel and the rest of the drawing
+#ifdef OJ32X_PROFILE
+	// J14: the profiler's line (ms per frame) in the top left corner of the level
+	fontiny->showString(oj32x_prof_text(), 2, 2);
+#endif
+#endif
 }

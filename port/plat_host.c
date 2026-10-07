@@ -911,3 +911,11 @@ void plat_sfx(int id) { (void)id; }
 void plat_music(int track) { (void)track; }
 void plat_border_colour(int index) { (void)index; }
 void plat_clear_screens(void) { }
+
+#include <time.h>
+uint32_t plat_prof_us(void)
+{
+	struct timespec t;
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	return (uint32_t)(t.tv_sec * 1000000u + t.tv_nsec / 1000u);
+}
