@@ -357,7 +357,7 @@ static int pcm_load(const char *name) {           /* OL-6: SFX<level>.BIN */
 static uint8_t bram_work[0x640];
 static uint8_t bram_str[16];
 static uint8_t bram_buf[BRAM_BYTES];
-static const char bram_name[12] = "OPENLARA_TR";   /* OL-5 */
+static const char bram_name[12] = "OPENJAZZ_JJ";   /* OJ-J11: OpenJazz's own file (OL-5 had OPENLARA_TR) */
 static uint8_t bram_param[14];
 static int bram_ready = 0;
 

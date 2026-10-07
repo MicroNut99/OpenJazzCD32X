@@ -15,7 +15,7 @@ GAME_SRCS := \
 	io/gfx/anim.cpp io/gfx/font.cpp io/gfx/paletteeffects.cpp io/gfx/sprite.cpp io/gfx/video.cpp \
 	level/level.cpp level/movable.cpp main.cpp debug.cpp \
 	menu/debugmenu.cpp menu/filemenu.cpp menu/gamemenu.cpp menu/mainmenu.cpp menu/menu.cpp \
-	menu/plasma.cpp menu/setupmenu.cpp platforms/platform_interface.cpp player/player.cpp \
+	menu/plasma.cpp menu/setupmenu.cpp menu/credits32x.cpp platforms/platform_interface.cpp player/player.cpp \
 	setup.cpp util.cpp version.cpp \
 	jj1/jj1episodeutils.cpp jj1/bonuslevel/jj1bonuslevel.cpp jj1/bonuslevel/jj1bonuslevelplayer.cpp \
 	jj1/level/jj1bird.cpp jj1/level/jj1levelplayer.cpp jj1/level/jj1levelplayerframe.cpp \

@@ -1149,15 +1149,26 @@ index 71b7fff..e5c8a6f 100644
  
  		if (event.type == SDL_EVENT_QUIT) return E_QUIT;
 diff --git a/oj/src/menu/mainmenu.cpp b/oj/src/menu/mainmenu.cpp
-index b898e56..7ea0eb5 100644
+index b898e56..98139ed 100644
 --- a/oj/src/menu/mainmenu.cpp
 +++ b/oj/src/menu/mainmenu.cpp
-@@ -232,7 +232,12 @@ int MainMenu::select (int option) {
+@@ -25,6 +25,9 @@
+ 
+ #include "menu.h"
+ #include "plasma.h"
++#ifdef OJ32X
++#include "credits32x.h"
++#endif
+ 
+ #include "game/game.h"
+ #include "io/controls.h"
+@@ -232,7 +235,13 @@ int MainMenu::select (int option) {
  
  		case 5: // Exit
  
-+#ifdef OJ32X_MARS
-+			// PORT32X: no "Exit game" on a console (Micronut99, J9)
++#ifdef OJ32X
++			// PORT32X (J11): no "Exit game" on a console - the credits + CD player instead
++			if (runCredits32X() == E_QUIT) return E_QUIT;
 +			break;
 +#else
  			return E_RETURN;
@@ -1165,7 +1176,7 @@ index b898e56..7ea0eb5 100644
  
  	}
  
-@@ -417,10 +422,16 @@ int MainMenu::run () {
+@@ -417,10 +426,16 @@ int MainMenu::run () {
  		SDL_Delay(T_MENU_FRAME);
  
  

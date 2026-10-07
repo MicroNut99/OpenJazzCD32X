@@ -474,3 +474,21 @@ at most 80 s each (MAX_SECONDS): 35 songs = 433 MB, the console repeats each tra
 makes tracks 2-36 (+ silent 37-80 from make_music_tracks.py) and builds with OJ32X_MUSIC 1.
 Tested here: all 35 render (40-80 s, real signal), make_music_tracks.py maps all 35.
 Later: a cloned project for the line-table scrolling renderer (Micronut99).
+
+## J11
+- Saving: OpenJazz's files (openjazz.cfg, SAVE.0-3) live in a 4 KB store in the Sega CD's
+  backup RAM - main.c's OL-5 path (CMD 56 load, 57/58 one word, 59 save), file renamed
+  OPENJAZZ_JJ (OJ-J11: OpenLara's OPENLARA_TR would have been overwritten). port/mars_syscalls.c:
+  _open/_read/_write/_lseek/_close/_fstat/access serve the store (one pool, one file written at
+  a time, saved to backup RAM when it is closed); plat_mars.c reads only the used bytes at the
+  first file access. Tested on the PC (store logic in a harness): write, rewrite, reload. A JJ1
+  save is up to ~2 KB (its random filler), so 1-2 saves fit next to the settings; a save that
+  does not fit fails (log "SAVE: ..." or the game's own message).
+- Credits + CD player: main menu "Exit game" -> menu/credits32x.cpp (both builds): the main
+  menu's plasma, two credit pages (Jazz Jackrabbit / OpenJazz; D32XR, Chilly Willy, Micronut99)
+  in fontbig, switching every 8 s; CD player under them: tracks 2-36 alphabetical, starting at
+  SONG5 (Nippius), planet names read from the game's level files (tools: song per world -
+  e.g. SONG0 Diamondus, SONG5 Nippius, SONGCD6 Ceramicus, XM2/XM3 Holidaius). A/C/Start play/
+  stop, Left/Right previous/next, B back (menu music again).
+- Not yet: Holiday Hare '95 (its own complete data set with the same file names as HH94 -
+  needs its own common pack + level packs and a choice at boot), bonus levels, cutscenes (off).

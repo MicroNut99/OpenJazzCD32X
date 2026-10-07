@@ -34,6 +34,9 @@ void oj32x_level_pack(const char *levelFile);
 /* J10: a sound effect (32X: Sega CD PCM) */
 void oj32x_sfx(int id);
 
+/* J11: a CD audio track directly (credits screen); 0 = stop */
+void oj32x_music_track(int track);
+
 /* J10: music as CD audio (fileName NULL = stop) */
 void oj32x_music(const char *fileName, bool restart);
 

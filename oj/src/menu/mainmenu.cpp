@@ -25,6 +25,9 @@
 
 #include "menu.h"
 #include "plasma.h"
+#ifdef OJ32X
+#include "credits32x.h"
+#endif
 
 #include "game/game.h"
 #include "io/controls.h"
@@ -232,8 +235,9 @@ int MainMenu::select (int option) {
 
 		case 5: // Exit
 
-#ifdef OJ32X_MARS
-			// PORT32X: no "Exit game" on a console (Micronut99, J9)
+#ifdef OJ32X
+			// PORT32X (J11): no "Exit game" on a console - the credits + CD player instead
+			if (runCredits32X() == E_QUIT) return E_QUIT;
 			break;
 #else
 			return E_RETURN;

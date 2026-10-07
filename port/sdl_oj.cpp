@@ -610,6 +610,9 @@ void oj32x_packs_ready(void) { plat_packs_ready(); }
 
 void oj32x_sfx(int id) { plat_sfx(id); }
 
+/* J11: a CD audio track directly (the credits' CD player); 0 = stop */
+void oj32x_music_track(int track) { plat_music(track); }
+
 /* J10: music as CD audio. The game's 35 music files in alphabetical order are disc tracks 2-36
  * (tools/music_tracks.txt - Micronut99 provides the WAVs); NULL = stop. */
 void oj32x_music(const char *fileName, bool restart)
