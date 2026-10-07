@@ -24,6 +24,9 @@
 
 
 #include "jj1planet.h"
+#ifdef OJ32X
+#include "oj32x.h"
+#endif
 
 #include "io/controls.h"
 #include "io/file.h"
@@ -47,6 +50,11 @@ JJ1Planet::JJ1Planet (char * fileName, int previous) {
 	File *file;
 	unsigned char *pixels;
 	int count;
+
+#ifdef OJ32X
+	// PORT32X (J12): this planet's world pack (both levels + planet screen) comes into the cart
+	oj32x_level_pack(fileName);
+#endif
 
 	try {
 

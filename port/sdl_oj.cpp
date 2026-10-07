@@ -579,14 +579,22 @@ void oj32x_level_pack(const char *levelFile)
 	const char *b = levelFile;
 	for (const char *p = levelFile; *p; ++p)
 		if (*p == '/' || *p == '\\') b = p + 1;
+	/* J12: one pack per WORLD (planet): both levels of a planet, its tiles, sprites and planet
+	 * screen - k = world * 10. A level of the same world as the pack already in the cart needs
+	 * no loading at all; the planet screen (PLANET.www) loads its world's pack first. */
 	int k;
+	auto world_of = [](const char *ext) -> int {
+		if (!isdigit((unsigned char)ext[0]) || !isdigit((unsigned char)ext[1]) || !isdigit((unsigned char)ext[2])) return -1;
+		return (ext[0] - '0') * 100 + (ext[1] - '0') * 10 + (ext[2] - '0');
+	};
 	if (strncasecmp(b, "BONUSMAP.", 9) == 0) {
 		k = PACK_BONUS_K;   /* J9: every bonus map uses the one bonus pack */
+	} else if (strncasecmp(b, "PLANET.", 7) == 0 && world_of(b + 7) >= 0) {
+		k = world_of(b + 7) * 10;
+	} else if (strncasecmp(b, "LEVEL", 5) == 0 && isdigit((unsigned char)b[5]) && b[6] == '.' && world_of(b + 7) >= 0) {
+		k = world_of(b + 7) * 10;
 	} else {
-		if (strncasecmp(b, "LEVEL", 5) != 0 || !isdigit((unsigned char)b[5]) || b[6] != '.' ||
-		    !isdigit((unsigned char)b[7]) || !isdigit((unsigned char)b[8]) || !isdigit((unsigned char)b[9]))
-			return;
-		k = (b[7] - '0') * 1000 + (b[8] - '0') * 100 + (b[9] - '0') * 10 + (b[5] - '0');
+		return;
 	}
 	if (k == current) return;
 	{

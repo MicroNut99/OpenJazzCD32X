@@ -27,6 +27,8 @@ static int bake_state = -1;   /* -1 not checked, 0 off, 1 on */
 
 static void bake_write(void);
 
+static void bake_merge(const char *path);
+
 static int bake_on(void)
 {
 	if (bake_state < 0)
@@ -34,7 +36,14 @@ static int bake_on(void)
 		bake_path = getenv("T32X_BAKE");
 		bake_state = bake_path && *bake_path;
 		if (bake_state)
+		{
 			atexit(bake_write);
+			/* J12: T32X_BAKE_MERGE=1 - start from what the T32X_BAKE file already holds, so one
+			 * pack can collect several runs (the levels of one world) */
+			const char *m = getenv("T32X_BAKE_MERGE");
+			if (m && *m == '1')
+				bake_merge(bake_path);
+		}
 	}
 	return bake_state;
 }
@@ -144,6 +153,60 @@ void pack_bake_file_picture(const char *name, uint32_t start, uint32_t end,
 	bfp[nfp].w = (uint16_t)w;
 	bfp[nfp].h = (uint16_t)h;
 	nfp++;
+}
+
+static uint32_t rd32(const uint8_t *p) { return (uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 | (uint32_t)p[2] << 8 | p[3]; }
+static uint16_t rd16(const uint8_t *p) { return (uint16_t)(p[0] << 8 | p[1]); }
+
+static void bake_merge(const char *path)
+{
+	FILE *f = fopen(path, "rb");
+	if (!f) return;                               /* the first run: nothing yet */
+	fseek(f, 0, SEEK_END);
+	long len = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	uint8_t *d = __real_malloc(len > 0 ? (size_t)len : 1);
+	if (fread(d, 1, (size_t)len, f) != (size_t)len) { fclose(f); __real_free(d); return; }
+	fclose(f);
+	if (len < 24 || memcmp(d, "OJPK", 4) || rd32(d + 4) != 2) { __real_free(d); return; }
+	const uint32_t nf = rd32(d + 8), np = rd32(d + 12), nq = rd32(d + 20);
+	const uint8_t *e = d + 24;
+	for (uint32_t i = 0; i < nf; i++, e += 24)
+	{
+		const uint32_t off = rd32(e + 16), size = rd32(e + 20);
+		if (off == 0) continue;                   /* a catalog entry, made again at the end */
+		bfiles = grow(bfiles, &capfiles, nfiles + 1, sizeof *bfiles);
+		memcpy(bfiles[nfiles].name, e, 16);
+		bfiles[nfiles].data = __real_malloc(size ? size : 1);
+		memcpy(bfiles[nfiles].data, d + off, size);
+		bfiles[nfiles].size = size;
+		nfiles++;
+	}
+	for (uint32_t i = 0; i < np; i++, e += 12)
+	{
+		const uint16_t w = rd16(e + 4), h = rd16(e + 6);
+		const uint32_t off = rd32(e + 8), n = (uint32_t)w * h;
+		bpics = grow(bpics, &cappics, npics + 1, sizeof *bpics);
+		bpics[npics].hash = rd32(e);
+		bpics[npics].w = w;
+		bpics[npics].h = h;
+		bpics[npics].data = __real_malloc(n ? n : 1);
+		memcpy(bpics[npics].data, d + off, n);
+		npics++;
+	}
+	for (uint32_t i = 0; i < nq; i++, e += 32)
+	{
+		const uint16_t w = rd16(e + 24), h = rd16(e + 26);
+		bfp = grow(bfp, &capfp, nfp + 1, sizeof *bfp);
+		memcpy(bfp[nfp].name, e, 16);
+		bfp[nfp].start = rd32(e + 16);
+		bfp[nfp].end = rd32(e + 20);
+		bfp[nfp].w = w;
+		bfp[nfp].h = h;
+		bfp[nfp].hash = pack_hash(d + rd32(e + 28), w, h);
+		nfp++;
+	}
+	__real_free(d);
 }
 
 static int cmp_pic(const void *a, const void *b)

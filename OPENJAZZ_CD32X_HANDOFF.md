@@ -515,3 +515,19 @@ psm2wav's 4th argument 1 = one complete pass of the song (measured first, then p
 over its last 2 s; make_music_wavs.sh uses it for every song (600 s only as a safety limit).
 One pass: 7 s (ENDLEVEL) to 196 s (SECRET), 35 songs = about 53 minutes. The console repeats
 each CD track (CMD 45 repeat).
+
+## J12: world packs (Micronut99: "add 3, make 1 and 2 happen")
+- (2)+(3) One pack per WORLD (planet), OJ<world*10>.PAK: both levels of the planet, the shared
+  tile set and sprites (once instead of twice), the planet screen. A level of the same world as
+  the pack in the cart loads nothing - the second level of every planet starts without a
+  loading screen. tools/bake_levels.sh plays every level and adds it to its world's pack
+  (T32X_BAKE_MERGE=1: pack_bake.c reads the existing pack first). 79 levels -> 39 packs,
+  34 MB in all (was 79 packs, 62 MB); biggest 1,488,996 bytes (limit 0x170000).
+- (1) The common pack no longer carries the 39 planet screens: 1,375,128 bytes (was
+  1,542,844). The planet screen (JJ1Planet) and the level both call oj32x_level_pack, which
+  knows PLANET.www and LEVELn.www -> the same world pack; whichever comes first loads it.
+- Checked with the 32X code paths (PC): all 79 levels from the world packs, 400 frames each, no
+  picture missing, same memory as before; new game -> one pack load (OJ000), then the planet
+  screen and level 1 from it.
+- Next for real preloading: a second cart slot (needs room: free 0x06E000-0x100000 0.57 MB +
+  what the slimmer common pack frees, 0x250000-0x280000).
