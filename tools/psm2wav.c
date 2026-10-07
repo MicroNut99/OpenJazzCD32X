@@ -16,17 +16,29 @@ int main(int argc, char **argv)
 {
 	if (argc < 3) { fprintf(stderr, "usage: psm2wav in.PSM out.wav [max seconds]\n"); return 2; }
 	const int max_s = argc > 3 ? atoi(argv[3]) : 120;
+	/* J11d: 4th argument 1 = one complete pass of the song (no repeats inside the file; the
+	 * console repeats the CD track), the fade then covers the last 2 s of that pass */
+	const int once = argc > 4 ? atoi(argv[4]) : 0;
 	xmp_context c = xmp_create_context();
 	if (xmp_load_module(c, argv[1]) != 0) { fprintf(stderr, "%s: cannot load\n", argv[1]); return 1; }
 	if (xmp_start_player(c, 44100, 0) != 0) { fprintf(stderr, "%s: cannot play\n", argv[1]); return 1; }
+	uint32_t max_bytes = (uint32_t)max_s * 44100u * 4u;
+	if (once) {   /* measure one pass, then play it again for real */
+		static int16_t tmp[4096];
+		uint32_t pass = 0;
+		while (pass < max_bytes && xmp_play_buffer(c, tmp, sizeof tmp, 1) == 0) pass += sizeof tmp;
+		max_bytes = pass;
+		xmp_end_player(c);
+		xmp_start_player(c, 44100, 0);
+	}
 	FILE *f = fopen(argv[2], "wb");
 	if (!f) { fprintf(stderr, "cannot write %s\n", argv[2]); return 1; }
 	fwrite("RIFF\0\0\0\0WAVEfmt ", 1, 16, f);
 	put32(f, 16); put16(f, 1); put16(f, 2); put32(f, 44100); put32(f, 44100 * 4); put16(f, 4); put16(f, 16);
 	fwrite("data\0\0\0\0", 1, 8, f);
 	static int16_t buf[4096];
-	uint32_t bytes = 0, max_bytes = (uint32_t)max_s * 44100u * 4u;
-	const uint32_t fade_bytes = 3u * 44100u * 4u;
+	uint32_t bytes = 0;
+	const uint32_t fade_bytes = (once ? 2u : 3u) * 44100u * 4u;
 	while (bytes < max_bytes && xmp_play_buffer(c, buf, sizeof buf, 0) == 0) {   /* 0 = loop on */
 		const int n = (int)(sizeof buf / 2);
 		for (int i = 0; i < n; i++) {                /* 3 s fade-out at the end */

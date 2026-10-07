@@ -509,3 +509,9 @@ cut_ost.py stopped (its length check). Instead tools/psm2wav.c now lets each son
 the game up to MAX_SECONDS (default 110) with a 3 s fade (ENDLEVEL: 8 s, one pass):
 34 x 110 s + 8 s = 62.5 min of audio, about 71 min with the data and the silent tracks.
 cut_ost.py stays for a complete playlist video.
+
+## J11d (Micronut99: "a single complete track, fade and loop that")
+psm2wav's 4th argument 1 = one complete pass of the song (measured first, then played), faded
+over its last 2 s; make_music_wavs.sh uses it for every song (600 s only as a safety limit).
+One pass: 7 s (ENDLEVEL) to 196 s (SECRET), 35 songs = about 53 minutes. The console repeats
+each CD track (CMD 45 repeat).
