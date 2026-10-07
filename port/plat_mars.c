@@ -78,7 +78,7 @@
  * while the master draws the top half; 0 = the master draws both (one after the other). */
 /* FRAME PACING SWITCH (J15c): 1 = even frame times (Tyrian's pacing), 0 = as fast as possible */
 #ifndef OJ32X_PACE
-#define OJ32X_PACE 0
+#define OJ32X_PACE 1   /* J16b: back on, pacing to the median frame time */
 #endif
 
 #ifndef OJ32X_SLAVE_DRAWS
@@ -570,7 +570,9 @@ static void pace_before_flip(void)
 			}
 			sorted[j] = pace_history[i];
 		}
-		const int n = sorted[PACE_HISTORY - 3];
+		/* J16b: the median frame time, not the third slowest - even motion without throwing
+		 * away a vblank on most frames */
+		const int n = sorted[PACE_HISTORY / 2];
 		pace_n = n > 0 ? n : 1;
 		while (vblank_count - last_flip_vblank < (uint32_t)(pace_n - 1)) { }
 	}
@@ -661,7 +663,7 @@ void plat_present_scroll(const uint16_t *palette555, int row0, int xoff, int vie
 		volatile uint32_t *blank = FB32 + SCROLL_BLANK_OFF / 4;
 		for (int x = 0; x < PLAT_SCREEN_W / 4; ++x) blank[x] = border_fill;
 		for (int i = 0; i < 256; ++i) pending_pal[i] = palette555[i] ? palette555[i] : 0x0400;
-		while (VDP_FBCTL & FBCTL_VBLK) { }
+		pace_before_flip();               /* J16b: even frame times (median), then out of vblank */
 		const uint16_t cur = VDP_FBCTL & FBCTL_FS;
 		flip_target = cur ^ FBCTL_FS;
 		pal_pending = 1;
@@ -916,7 +918,7 @@ static void boot_test(void)
 	static char l_pad[64], l_time[64], l_pack[64];
 	char tmp[24];
 
-	strcpy(l_build, "BUILD J16  " __DATE__ " " __TIME__);
+	strcpy(l_build, "BUILD J16B " __DATE__ " " __TIME__);
 
 	/* the engine's own header in the cart (the loader checked it too) */
 	int cart_ok = CART_BYTES[0x100] == 'S' && CART_BYTES[0x101] == 'E' &&

@@ -693,3 +693,8 @@ Profiler box off in the 32X build (Micronut99: the black block top left). The ga
   palette and the 1-pixel shift go in at the vblank of the swap (VBI handler, or plat_wait_flip if
   it missed it); plat_wait_flip before the ring is touched again - the logic runs during the wait.
 - Not done yet: sprites as pre-split runs (pack format change), logic on the slave SH2.
+
+## J16 console: "choppier at high speed" (no FPS counter in the video). J16b
+Pacing back on (OJ32X_PACE 1) but to the median of the recent frame times instead of the third
+slowest, and now also before the asynchronous swap (it had none) - even motion without waiting a
+vblank on most frames.
