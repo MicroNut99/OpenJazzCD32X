@@ -330,6 +330,16 @@ void JJ1Level::scrollBegin (int vX, int vY, int viewH) {
 
 	oj32x_scroll_map(false, 0, 0, 0, 0);       // the ring is drawn directly here
 	plat_wait_flip();                          // J16: the logic ran while the last swap waited
+	{	// J18c: another screen was shown in between (save / load / set-up from the pause
+		// menu): it drew over the rings and the panel - everything again, in both buffers
+		static unsigned seenPlain;
+		const unsigned plain = oj32x_plain_presents();
+		if (plain != seenPlain) {
+			seenPlain = plain;
+			ringState[0].valid = ringState[1].valid = false;
+			oj32x_panel_reset();
+		}
+	}
 	cur = &ringState[plat_back_index() & 1];
 	RingState& S = *cur;
 

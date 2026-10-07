@@ -55,6 +55,12 @@ int FileMenu::run (bool forSaving, bool showCustom) {
 	};
 
 	video.setPalette(menuPalette);
+#ifdef OJ32X_MARS
+	// PORT32X (J18c): clear the screen with the palette change - otherwise the next frame shows
+	// the level's picture in the menu's colours (a white flash, ~0.1 s at the 32X's frame rate)
+	video.setClipRect(canvas, nullptr);
+	video.clearScreen(0);
+#endif
 
 	while (true) {
 

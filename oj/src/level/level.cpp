@@ -341,6 +341,10 @@ int Level::select (bool& menu, int option) {
 
 				// Restore level palette
 				video.setPalette(palette);
+#ifdef OJ32X_MARS
+				video.setClipRect(canvas, nullptr);   // PORT32X (J18c): no menu picture in the
+				video.clearScreen(0);                 // level's colours for a frame
+#endif
 
 			} else
 				playSound(SE::OW);
@@ -362,6 +366,10 @@ int Level::select (bool& menu, int option) {
 
 				// Restore level palette
 				video.setPalette(palette);
+#ifdef OJ32X_MARS
+				video.setClipRect(canvas, nullptr);   // PORT32X (J18c): no menu picture in the
+				video.clearScreen(0);                 // level's colours for a frame
+#endif
 
 			} else
 				playSound(SE::OW);
@@ -383,6 +391,10 @@ int Level::select (bool& menu, int option) {
 
 				// Restore level palette
 				video.setPalette(palette);
+#ifdef OJ32X_MARS
+				video.setClipRect(canvas, nullptr);   // PORT32X (J18c): no menu picture in the
+				video.clearScreen(0);                 // level's colours for a frame
+#endif
 
 			} else
 				playSound(SE::OW);
@@ -403,6 +415,10 @@ int Level::select (bool& menu, int option) {
 
 			// Restore level palette
 			video.setPalette(palette);
+#ifdef OJ32X_MARS
+			video.setClipRect(canvas, nullptr);   // PORT32X (J18c)
+			video.clearScreen(0);
+#endif
 
 			break;
 #endif

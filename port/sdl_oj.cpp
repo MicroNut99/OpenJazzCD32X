@@ -416,6 +416,8 @@ struct ScrollMap {
 	SDL_Rect *rec; int recCap; int *recN; bool *recOverflow;
 };
 static ScrollMap smap;
+static unsigned plain_presents;   /* J18c: frames shown without the ring mapping */
+unsigned oj32x_plain_presents(void) { return plain_presents; }
 /* J16 OJ32X_PANEL_DIFF: the panel is drawn into this SDRAM copy; at present only the rows that
  * changed since this frame buffer last got them are copied into it (32-bit writes) */
 #ifdef OJ32X_PANEL_DIFF
@@ -633,9 +635,15 @@ int SDL_Flip(SDL_Surface *screen)
 		plat_present_scroll(phys555, smap.vY % OJ32X_RING_H, smap.vX - smap.wx0, smap.viewH);
 		oj32x_prof(5);
 		oj32x_prof_frame();
+		/* J18c: the mapping lasts one frame - from the level's scrollBegin to this present. A
+		 * screen that is not the level (pause sub-menus: save, load, set-up) then draws to the
+		 * plain screen, not into the ring - before, it drew into the ring and showed old level
+		 * pictures every other frame (the flashing). */
+		smap.on = false;
 		return 0;
 	}
 	if (screen->pixels == plat_canvas() && screen->pixels) {
+		plain_presents++;   /* J18c */
 		oj32x_prof(6);                     /* J14: other */
 		plat_present_canvas(phys555);
 		oj32x_prof(5);                     /* present: line table, waiting for the frame, flip */
@@ -644,6 +652,7 @@ int SDL_Flip(SDL_Surface *screen)
 	}
 	oj32x_prof(6);
 	plat_wait_flip();
+	plain_presents++;   /* J18c: the frame buffers no longer hold the level's rings */
 	plat_present(static_cast<const uint8_t *>(screen->pixels), screen->pitch, phys555);
 	oj32x_prof(5);
 	oj32x_prof_frame();

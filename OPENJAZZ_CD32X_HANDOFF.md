@@ -736,3 +736,12 @@ Quick start with the game choice: same game as last boot -> common pack check as
 Other game -> its pack is loaded (IMAGE9 at 0x120000 overlaps IMAGE8 at 0x100000, so switching
 games always reloads). Fix: A+B+C held at power-on reaches choose_game first; it is now taken
 there (Jazz CD + full load) instead of being lost when the choice waits for the buttons to be let go.
+
+## J18c: white flash with the pause menu's save / load / set-up
+1. A palette switch (video.setPalette(menuPalette) in FileMenu/SetupMenu, the level's palette on
+   return) showed the old picture in the new colours for one frame - invisible at 60 fps on a PC,
+   ~0.1 s on the 32X (the white flash). OJ32X_MARS: clear the screen with each such switch.
+2. With the scrolling renderer the mapping stayed on while those screens drew, so they drew into
+   the ring and every other frame showed old level pictures. The mapping now lasts one frame (from
+   scrollBegin to its present); after any plain present the level redraws both rings and the panel.
+PC (scrolling build): the save screen no longer alternates between two pictures.
