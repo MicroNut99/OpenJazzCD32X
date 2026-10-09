@@ -1,22 +1,24 @@
 /*
- * OpenJazz CD32X - platform layer for the real 32X (master SH2).
+ * OpenJazz CD32X - platform layer for the Sega CD + 32X (master SH2).
  *
- * Built from Tyrian 32X T3j's port/plat_mars.c (proven on hardware). What changed and why:
- *   - Commands go to OpenLara's Sub-CPU program (through its 68000 listener), not to Kobo's
- *     68000 cartridge program. The two use the same COMM protocol and command numbers for
- *     what is used here: 48 pad (COMM8 = pad, COMM10 = V-blank count), 52 Genesis display.
- *     (OpenLara handoff, "SH2 -> Sub-CPU commands"; cd32x/ref/openlara/subcpu/main.c.)
- *   - NO 0x0AAA/0x0BBB start-up handshake: OpenLara's loader (cdloader_sh2.c main) already
- *     did it with the Sub-CPU before it started us; nothing in the docs says it may be
- *     repeated.
- *   - The SH2 never writes the cart (OpenLara lesson 1): plat_cart_write stops with a red
- *     screen. Graphics will come into the cart from the disc (commands 38 + 46), J4b.
+ * What is here:
+ *   - start-up: C++ runtime set-up, the boot checks, the common data pack into the cart
+ *     (with the quick check that skips it when the cart already holds it)
+ *   - commands to the Sub-CPU through the 32X COMM registers (OpenLara's Sub-CPU program and
+ *     68000 listener, cd32x/subcpu): files and packs (38/46/47), pad and sound effects (48),
+ *     loading screen (51), Genesis display (52), PCM pack (53), CD audio (45/54), saves (58/61)
+ *   - the display: presenting frames, the scrolling renderer's line table, palette, buffer
+ *     swaps (synchronous or OJ32X_FLIP_ASYNC), frame pacing
+ *   - world and bonus packs with the loading screen; the save area in the RAM cart
+ *   - clocks, the profiler clock, error and exit screens, the optional slave SH2 job
+ *
+ * Derived from the Tyrian 32X port's plat_mars.c. Differences that matter:
+ *   - No 0x0AAA/0x0BBB start-up handshake: OpenLara's loader (cdloader_sh2.c) did it with
+ *     the Sub-CPU before it started this program; it is not repeated.
+ *   - The SH2 never writes the cart: plat_cart_write stops with a red screen. Everything in
+ *     the cart comes from the disc (commands 38 + 46), written by the 68000.
  *   - C++: the global constructors are run and .eh_frame is registered with the unwinder
  *     before main() (Tyrian is C and needed neither).
- *   - J4a boot test: before the game, one screen shows each start-up check, the live pad
- *     and the clock; Start begins the game. Everything visible for a phone photo.
- *   - Dropped for now (not needed to reach the title): sound on the slave SH2, CD files,
- *     mouse, network, music, DMA, the profiler.
  */
 #include "plat.h"
 #include "cart.h"
@@ -63,46 +65,50 @@
 #define OJ32X_DIAG_TEXT 0
 #endif
 
-/* SPLASH SWITCH (like Kobo's KOBO_SPLASH / SPLASH_HOLD, sh2_main.c K15/K16): 1 = the
+/* SPLASH SWITCH (like Kobo's KOBO_SPLASH / SPLASH_HOLD): 1 = the
  * loader's splash (picture + full bar, in both frame buffers) stays on screen when the engine
  * starts, through C++ start-up, for at least OJ32X_SPLASH_HOLD frames; 0 = the engine clears
  * the screen at once (Tyrian's start-up). */
 #ifndef OJ32X_SPLASH
 #define OJ32X_SPLASH 1
 #endif
-#define OJ32X_SPLASH_HOLD 120
+#define OJ32X_SPLASH_HOLD 120   /* frames at 60 Hz = 2 s */
 
-/* DIRECT FRAME BUFFER SWITCH (J5): 1 = the game draws its screen straight into the 32X frame
- * buffer (no 64 KB screen in SDRAM, no copy each frame); 0 = SDRAM screen + copy (J4). */
-/* SLAVE SH2 SWITCH (J10): 1 = the slave SH2 draws the bottom half of the level's tile layers
- * while the master draws the top half; 0 = the master draws both (one after the other). */
-/* FRAME PACING SWITCH (J15c): 1 = even frame times (Tyrian's pacing), 0 = as fast as possible */
+/* DIRECT FRAME BUFFER SWITCH: 1 = the game draws its screen straight into the 32X frame
+ * buffer (no 64 KB screen in SDRAM, no copy each frame); 0 = SDRAM screen + copy. */
+/* SLAVE SH2 SWITCH: 1 = the slave SH2 draws half of the work given to plat_parallel (the
+ * original renderer's tile bands, the credits' plasma) while the master draws the other
+ * half; 0 = the master draws both. Off: measured on the console, two SH2s gave no gain - both
+ * wait on the same bus to the frame buffer and the cart, and the master has priority. */
+/* FRAME PACING SWITCH: 1 = each frame is held to the median of the recent frame times
+ * (even motion), 0 = each frame is shown at the first vblank after it is finished (choppier
+ * at speed). */
 #ifndef OJ32X_PACE
-#define OJ32X_PACE 1   /* J16b: back on, pacing to the median frame time */
+#define OJ32X_PACE 1
 #endif
 
 #ifndef OJ32X_SLAVE_DRAWS
-#define OJ32X_SLAVE_DRAWS 0   /* J15: off - J14 profiling: no gain (both SH2s wait on the same bus) */
+#define OJ32X_SLAVE_DRAWS 0
 #endif
 
 #ifndef OJ32X_DIRECT_FB
 #define OJ32X_DIRECT_FB 1
 #endif
 
-/* BOOT TEST SWITCH (J4c3): 1 = the boot test screen is shown and waits for Start;
+/* BOOT TEST SWITCH: 1 = the boot test screen is shown and waits for Start;
  * 0 = the checks still run, but the screen only appears (and waits) when one FAILS -
  * otherwise the game starts straight after the splash. */
 #ifndef OJ32X_BOOT_TEST
 #define OJ32X_BOOT_TEST 0
-#endif   /* frames at 60 Hz = 2 s */
+#endif
 
 #define CMD_GET_PAD      48
-#define CMD_OPEN_FILE    38      /* main.c: COMM2 = n opens IMAGE<n>.RAW for cart slot n; length -> COMM8 (32 bit) */
-#define CMD_CHUNK_TO_CART 46     /* main.c: COMM2 = chunk (bit 15: no read-back, OL-13); reply COMM12 = bad */
-#define CMD_CHUNK_COMPARE 47     /* main.c: the same, but only compared with the cart (D32X M1c) */
+#define CMD_OPEN_FILE    38      /* main.c: COMM2 = file number (n < 100: IMAGE<n>.RAW for cart slot n; 200+: OJ<n-200>.PAK); length -> COMM8 (32 bit) */
+#define CMD_CHUNK_TO_CART 46     /* main.c: COMM2 = 32 KB chunk (bit 15: no read-back); reply COMM12 = bad */
+#define CMD_CHUNK_COMPARE 47     /* main.c: the same, but only compared with the cart (the quick check) */
 #define PACK_SLOT        8       /* IMAGE8.RAW -> cart 8 * 128 KB = 0x100000 = PLAT_CART_DATA_OFFSET */
-#define CMD_CHUNK_TO_FB  51
-#define CMD_LOAD_SFX     53      /* main.c: SFX<COMM2>.BIN -> PCM chip; COMM12 = number of effects */      /* main.c: file chunk -> frame buffer (the loader's splash) */
+#define CMD_CHUNK_TO_FB  51      /* main.c: file chunk -> frame buffer (the loader's splash) */
+#define CMD_LOAD_SFX     53      /* main.c: SFX<COMM2>.BIN -> PCM chip; COMM12 = number of effects */
 #define MARS_COMM8_32    (*(volatile uint32_t *)0x20004028)
 #define CMD_TEXT_ONOFF   52
 
@@ -119,8 +125,10 @@ volatile unsigned mars_pwdt_ovf_count = 0;
 volatile unsigned mars_swdt_ovf_count = 0;
 static volatile uint32_t vblank_count = 0;
 
-static volatile uint8_t vblank_wtcnt;   /* J14f: the watchdog counter at the last vblank */
-/* J16 OJ32X_FLIP_ASYNC: a requested swap and the palette that goes with it */
+static volatile uint8_t vblank_wtcnt;   /* the watchdog counter at the last vblank */
+/* OJ32X_FLIP_ASYNC: a requested swap, and the palette and shift register value that go with
+ * it - set by the vblank handler at the moment of the swap, so picture and colours change
+ * together */
 static volatile int flip_pending, pal_pending;
 static volatile uint16_t flip_target;
 static uint16_t pending_pal[256];
@@ -143,13 +151,13 @@ void pri_cmd_handler(void) { MARS_CMD_CLR = 0; }
 void sec_cmd_handler(void) { MARS_CMD_CLR = 0; }
 void sec_dma1_handler(void) { }
 
-/* J10: the slave SH2 draws half of the level picture (plat_parallel). The job lives in SDRAM
+/* OJ32X_SLAVE_DRAWS: the slave SH2 runs half of a plat_parallel job. The job lives in SDRAM
  * and both SH2s use it through the cache-through address (0x26xxxxxx), so neither sees a stale
  * copy; the slave purges its cache before each job, so the level data it reads is current
  * (the SH2 caches write through: the master's writes are already in SDRAM). */
 typedef struct { void (*fn)(void *, int); void *arg; int go; int done; } SlaveJob;
-/* J14b: the slave's part can be switched off while playing (Mode button) to compare the two
- * renderers with the profiler */
+/* the slave's part can be switched off while playing (Mode button) to compare one and two
+ * SH2s with the profiler */
 static int slave_draws_now = 1;
 void plat_slave_draws(int on) { slave_draws_now = on; }
 int plat_slave_draws_on(void) { return OJ32X_SLAVE_DRAWS && slave_draws_now; }
@@ -209,10 +217,10 @@ static void take_fb(void)
 
 static void flip_wait(void)
 {
-	/* J18d: a swap requested by the scrolling renderer (OJ32X_FLIP_ASYNC) must be finished and
+	/* a swap requested by the scrolling renderer (OJ32X_FLIP_ASYNC) must be finished and
 	 * forgotten first - otherwise this swap changes the buffer state under it, and the next
-	 * plat_wait_flip waits for a state that never comes again: the hang after "Setup options"
-	 * from the pause menu (black screen, music still playing) */
+	 * plat_wait_flip waits for a state that never comes again (a hang: frozen picture, the
+	 * music playing on) */
 	plat_wait_flip();
 	uint16_t cur = VDP_FBCTL & FBCTL_FS;
 	VDP_FBCTL = cur ^ FBCTL_FS;
@@ -298,7 +306,7 @@ void plat_exit(int code) __attribute__((noreturn));
 static void boot_test(void);
 static void sfx_load(void);
 
-/* ---- J4c: the data pack, with the loader's progress bar on the splash -------------------
+/* ---- the data pack, with the loader's progress bar on the splash -------------------
  * The bar is the loader's (cdloader_sh2.c splash_bar: same place, same colours 253-255 from
  * IMAGE.RAW's palette), drawn in both frame buffers like the loader's splash_progress. */
 #define BAR_X0 56
@@ -328,17 +336,17 @@ static void splash_progress(uint32_t done, uint32_t total)
 static uint32_t pack_bytes;
 static int pack_bad_chunks;
 
-/* J17: two games on one disc - Jazz Jackrabbit CD (IMAGE8.RAW at cart 0x100000, world packs
- * OJ<world*10>) and Holiday Hare '95 (IMAGE9.RAW at cart 0x120000, world packs OJ<world*10+100>,
- * SFX01.BIN, its own saves in the save area's pieces 5-9). Chosen on the splash. */
+/* Two games on one disc: Jazz Jackrabbit CD (world packs OJ<world*10>, SFX00.BIN, save-area
+ * pieces 1-4) and Holiday Hare '95 (world packs OJ<world*10+100>, SFX01.BIN, pieces 6-9). Both
+ * use the common pack IMAGE8.RAW. game_hh95 is set by the episode menu (plat_set_game). */
 static int game_hh95;
-static int force_full_load;   /* J18b: A+B+C seen while choosing the game */
+static int force_full_load;   /* A+B+C seen on the (unused) game choice screen */
 int plat_game(void) { return game_hh95; }
 static uint32_t pack_slot(void)   { return PACK_SLOT; }
 static uint32_t pack_offset(void) { return PLAT_CART_DATA_OFFSET; }
 static void sfx_load(void);
 
-/* J18d: Holiday Hare '95 from the episode menu - its world packs (+100), its sound effects
+/* Holiday Hare '95 from the episode menu - its world packs (+100), its sound effects
  * (SFX01.BIN), its music and save slots while it runs; back to Jazz CD afterwards */
 void plat_set_game(int g)
 {
@@ -379,6 +387,8 @@ static void splash_text(int x0, int y0, const char *t)
 	}
 }
 
+/* Unused: a game choice screen on the splash, replaced by Holiday Hare '95's entry in the
+ * episode menu. */
 static __attribute__((unused)) void choose_game(void)
 {
 	MARS_COMM2 = 9;                        /* is Holiday Hare '95 on the disc? */
@@ -412,7 +422,7 @@ static void pack_load(void)
 	MARS_COMM8_32 = len;                   /* main.c CMD 46 reads the length from COMM8 */
 	const uint32_t chunks = (len + 32767) >> 15;
 
-	/* J13c: quick check, as the loader's (CMD 47 = compare a chunk with the cart, nothing
+	/* quick check, as the loader's (CMD 47 = compare a chunk with the cart, nothing
 	 * written): a pack header in the cart with this length and the first, middle and last chunk
 	 * the same -> the pack from an earlier boot is still there: no copy. A+B+C held at power-on
 	 * copies it anyway. */
@@ -439,7 +449,7 @@ static void pack_load(void)
 		}
 	}
 
-	/* J4d: one bar for the whole boot - the loader filled the first half (the engine), the pack
+	/* one bar for the whole boot - the loader filled the first half (the engine), the pack
 	 * fills the second */
 	splash_progress(chunks, 2 * chunks);
 	for (uint32_t c = 0; c < chunks; c++)
@@ -468,7 +478,7 @@ void plat_mars_entry(void)
 	wdt_start();
 	stack_guard_set();
 
-	/* J4b: the Genesis text (the Sub-CPU's green/white diagnostics) stays as the loader left
+	/* the Genesis text (the Sub-CPU's green/white diagnostics) stays as the loader left
 	 * it until C++ start-up has worked; our own screens take over from there */
 	VDP_DISPMODE = (uint16_t)((VDP_DISPMODE & (0x8000 | DISP_PRI_TEXT)) | DISP_MODE_256);
 	if (!OJ32X_DIAG_TEXT)
@@ -491,9 +501,9 @@ void plat_mars_entry(void)
 
 	plat_log("C++ START-UP");
 	cxx_start();
-	{ void oj32x_cxx_handlers(void); oj32x_cxx_handlers(); }   /* J7: name what stops the game */
+	{ void oj32x_cxx_handlers(void); oj32x_cxx_handlers(); }   /* name what stops the game */
 	plat_log("PACK LOADING");
-	pack_load();   /* J18d: always Jazz CD's common pack - Holiday Hare '95 is an episode */
+	pack_load();   /* always Jazz CD's common pack - Holiday Hare '95 is an episode */
 	sfx_load();
 	if (OJ32X_SPLASH)
 		while (vblank_count - splash_from < OJ32X_SPLASH_HOLD) { }
@@ -503,7 +513,7 @@ void plat_mars_entry(void)
 	static char arg0[] = "openjazz";
 	static char *argv[] = { arg0, NULL };
 	plat_log("MAIN()");
-	/* HW9: state 4B10 = the game runs - the Sub-CPU stops reprinting its diagnostic rows
+	/* state 4B10 = the game runs - the Sub-CPU stops reprinting its diagnostic rows
 	 * (each print goes through the 68000 and would slow the pad replies) */
 	MARS_COMM12 = 0x4B10;
 	plat_exit(main(1, argv));
@@ -516,10 +526,11 @@ void plat_init(void)
 
 /* ---------------------------------------------------------------- clock */
 
-/* J14f: profiling clock = vblanks (16.68 ms) + the watchdog counter since the last vblank
+/* profiling clock = vblanks (16.68 ms) + the watchdog counter since the last vblank
  * (one count = 4096 cycles = 178 us; it wraps every 45.6 ms, longer than a vblank). The
- * console does not deliver the watchdog's overflow interrupt (plat_ticks_ms falls back to
- * vblanks for that reason), so J14d's watchdog-only clock wrapped every 45.6 ms - wrong again. */
+ * console does not deliver the watchdog's overflow interrupt (plat_ticks_ms counts vblanks
+ * for that reason), so the watchdog alone cannot measure more than 45.6 ms. The SH2's
+ * free-running timer is no use either: something else resets or reprograms it. */
 uint32_t plat_prof_us(void)
 {
 	uint32_t v;
@@ -566,7 +577,8 @@ uint32_t plat_random_seed(void)
 }
 
 /* ------------------------------------------------------------------ pad */
-/* J10: sound effects on the Sega CD's PCM chip (SFX00.BIN, loaded at boot by CMD 53) */
+/* sound effects on the Sega CD's PCM chip (SFX00.BIN loaded at boot by CMD 53; SFX01.BIN
+ * while Holiday Hare '95 runs). One waiting effect is sent with the next pad request. */
 static volatile uint16_t sfx_pending;
 
 void plat_sfx(int id)
@@ -575,8 +587,8 @@ void plat_sfx(int id)
 		sfx_pending = (uint16_t)id;
 }
 
-/* MUSIC SWITCH (J10): 1 = CD audio tracks 2-36 for the game's music (build.sh sets it when
- * music/*.wav exist); 0 = no music (no such tracks on the disc - do not ask for them). */
+/* MUSIC SWITCH: 1 = CD audio tracks 2-41 for the music (build.sh sets it when music/*.wav
+ * exist); 0 = no music (no such tracks on the disc - do not ask for them). */
 #ifndef OJ32X_MUSIC
 #define OJ32X_MUSIC 0
 #endif
@@ -593,7 +605,7 @@ void plat_music(int track)
 
 static void sfx_load(void)
 {
-	MARS_COMM2 = (uint16_t)(game_hh95 ? 1 : 0);   /* SFX00.BIN / SFX01.BIN (J17) */
+	MARS_COMM2 = (uint16_t)(game_hh95 ? 1 : 0);   /* SFX00.BIN / SFX01.BIN */
 	MARS_COMM12 = 0;
 	send_cmd(CMD_LOAD_SFX, 4000000UL);
 	if (MARS_COMM12 == 0) plat_log("SOUND EFFECTS: SFX00.BIN NOT LOADED");
@@ -609,7 +621,7 @@ uint16_t plat_read_pad(void)
 		return pad;
 	last_ms = now;
 
-	/* J10: a waiting sound effect rides on the pad request (main.c K33: COMM0 = 48 | n << 8) */
+	/* a waiting sound effect rides on the pad request (main.c K33: COMM0 = 48 | n << 8) */
 	const uint16_t fx = sfx_pending;
 	sfx_pending = 0;
 	if (!send_cmd((uint16_t)(CMD_GET_PAD | (fx << 8)), 40000UL))
@@ -631,9 +643,10 @@ static int pace_n = 1;
 static void pace_before_flip(void)
 {
 	const uint32_t natural = vblank_count - last_flip_vblank + 1;
-	/* J15c: OJ32X_PACE 0 = no holding back - the pacing kept every frame as long as the third
-	 * slowest of the recent ones, so at 4-6 vblanks a frame it threw away 1-2 vblanks almost
-	 * every frame. Off: each frame shows at the next vblank after it is done. */
+	/* OJ32X_PACE: hold each frame to the median of the last 16 frame times (in vblanks), so
+	 * motion is even. Not the slowest ones: at 4-6 vblanks a frame that would throw away 1-2
+	 * vblanks on most frames. OJ32X_PACE 0: each frame shows at the first vblank after it is
+	 * done. */
 	if (OJ32X_PACE && natural <= PACE_MAX)
 	{
 		pace_history[pace_pos++ % PACE_HISTORY] = (uint8_t)natural;
@@ -648,8 +661,7 @@ static void pace_before_flip(void)
 			}
 			sorted[j] = pace_history[i];
 		}
-		/* J16b: the median frame time, not the third slowest - even motion without throwing
-		 * away a vblank on most frames */
+		/* the median frame time */
 		const int n = sorted[PACE_HISTORY / 2];
 		pace_n = n > 0 ? n : 1;
 		while (vblank_count - last_flip_vblank < (uint32_t)(pace_n - 1)) { }
@@ -658,7 +670,7 @@ static void pace_before_flip(void)
 }
 
 /* -------------------------------------------------------------- display */
-static uint32_t border_fill;   /* J13: four pixels of the darkest palette entry */
+static uint32_t border_fill;   /* four pixels of the darkest palette entry */
 
 void plat_border_colour(int index)
 {
@@ -674,8 +686,8 @@ static void present_finish(volatile uint32_t *blank_line, const uint16_t *palett
 	last_flip_vblank = vblank_count;
 	while ((VDP_FBCTL & FBCTL_PEN) == 0) { }
 	for (int i = 0; i < 256; ++i)
-		/* J13e: 0x0000 is see-through on the 32X (Kobo rule 5): black in the game's palettes let
-		 * the Genesis layer show (the strip at the right edge of menus and levels) */
+		/* 0x0000 is see-through on the 32X ([BOOT] rule 5): black in the game's own
+		 * palettes let the Genesis layer show. Black is written as 0x0400 instead. */
 		VDP_CRAM[i] = palette555[i] ? palette555[i] : 0x0400;
 }
 
@@ -712,7 +724,7 @@ void plat_clear_screens(void)
 	}
 }
 
-/* J15: frame buffer layout for the scrolling renderer (bytes): ring at 0x200 (384 x 200 =
+/* frame buffer layout for the scrolling renderer (bytes): ring at 0x200 (384 x 200 =
  * 76,800), panel at 0x12E00 (320 x 33), blank line at 0x16000 */
 #define SCROLL_RING_OFF  0x00200
 #define SCROLL_PANEL_OFF 0x12E00
@@ -741,7 +753,7 @@ void plat_present_scroll(const uint16_t *palette555, int row0, int xoff, int vie
 		volatile uint32_t *blank = FB32 + SCROLL_BLANK_OFF / 4;
 		for (int x = 0; x < PLAT_SCREEN_W / 4; ++x) blank[x] = border_fill;
 		for (int i = 0; i < 256; ++i) pending_pal[i] = palette555[i] ? palette555[i] : 0x0400;
-		pace_before_flip();               /* J16b: even frame times (median), then out of vblank */
+		pace_before_flip();               /* even frame times (median), then out of vblank */
 		const uint16_t cur = VDP_FBCTL & FBCTL_FS;
 		flip_target = cur ^ FBCTL_FS;
 		pal_pending = 1;
@@ -815,7 +827,7 @@ void plat_mem_mark(const char *label)
 
 /* ------------------------------------------------------------- messages */
 static char last_log[80];
-static char prev_log[2][80];   /* J4c2: the two lines before the last one */
+static char prev_log[2][80];   /* the two lines before the last one */
 
 void oj32x_heap_check(const char *where);
 
@@ -838,9 +850,8 @@ static void text_screen(uint16_t bg, uint16_t fg, const char *const *lines, int 
 	for (int y = 0; y < 256; ++y)
 		FB16[y] = (uint16_t)(FB_PIX_WORD + (y < PLAT_SCREEN_H ? y : 0) * FB_LINE_WORDS);
 
-	/* J4b7: clear with 32-bit writes. Console video: byte writes of 0 did not clear the
-	 * frame buffer (the boot test was drawn over the splash), while clear_back_buffer's
-	 * 32-bit writes did (J4a: clean screens). main.c K12 saw zero data not landing too. */
+	/* clear with 32-bit writes: on the console, byte writes of 0 did not clear the frame
+	 * buffer (the screen was drawn over the splash), 32-bit writes did ([BOOT] rule 4) */
 	volatile uint8_t *pix = (volatile uint8_t *)FB16 + FB_PIX_WORD * 2;
 	volatile uint32_t *pix32 = FB32 + (FB_PIX_WORD * 2) / 4;
 	for (int i = 0; i < PLAT_SCREEN_W * PLAT_SCREEN_H / 4; ++i)
@@ -924,7 +935,7 @@ void plat_fatal(const char *msg)
 	for (;;) { }
 }
 
-/* J4c2: crt0 passes the old stack pointer and PR as well. The call chain: PR, then the
+/* crt0 passes the old stack pointer and PR as well. The call chain: PR, then the
  * words on the old stack that point into the engine's code (return addresses saved by the
  * callers; some may be stale - look them up with tools/where.sh). */
 extern char text_start_sym[] __asm__("__text_start");
@@ -977,7 +988,7 @@ void plat_exit(int code)
 	for (;;) { }
 }
 
-/* ------------------------------------------------------------ J4a boot test */
+/* ------------------------------------------------------------ boot test */
 /* port/mars_boottest.cpp: C++ checks (constructor ran, throw/catch, new/delete) */
 int oj32x_test_ctor(void);
 int oj32x_test_throw(void);
@@ -1017,7 +1028,7 @@ static void boot_test(void)
 
 	strcpy(l_heap, heap_line());
 
-	/* J4c: the data pack */
+	/* the data pack */
 	if (pack_count() > 0)
 	{
 		strcpy(l_pack, "PACK: OK  ");
@@ -1071,11 +1082,11 @@ static void boot_test(void)
 }
 
 /* What crtbegin.o normally provides (we link with -nostartfiles): the handle C++ uses to
-   register static destructors (__cxa_atexit). Same fix as the J3a trial link. */
+   register static destructors (__cxa_atexit). */
 void *__dso_handle = 0;
 
 
-/* ---- J5: the loading screen and the level packs -------------------------------------------
+/* ---- the loading screen and the world / bonus packs --------------------------------------
  * The loading screen is the loader's splash (cdloader_sh2.c splash_show, same commands: 38
  * with file 0 = IMAGE.RAW, 51 = chunk into the frame buffer, both buffers) with the bar. */
 static void give_fb(void)
@@ -1115,7 +1126,7 @@ const uint8_t *plat_cart_ptr(uint32_t cart_offset)
 
 int32_t plat_load_pack(int id, uint32_t cart_offset, uint32_t max_bytes)
 {
-	(void)cart_offset;   /* main.c puts OJ<k>.PAK at slot 24 = PACK_LEVEL_CART */
+	(void)cart_offset;   /* main.c puts OJ<k>.PAK at slot 20 = PACK_LEVEL_CART (0x280000) */
 	MARS_COMM2 = (uint16_t)id;
 	MARS_COMM8_32 = 0;
 	if (!send_cmd(CMD_OPEN_FILE, 2000000UL)) { plat_log("LEVEL PACK: OPEN TIMED OUT"); return -1; }
@@ -1145,7 +1156,7 @@ int32_t plat_load_pack(int id, uint32_t cart_offset, uint32_t max_bytes)
 
 void plat_packs_ready(void) { }
 
-/* ---- J13: the save area in the RAM cart (main.c OL-9: CMD 58 put one word of the Sub-CPU's
+/* ---- the save area in the RAM cart (main.c OL-9: CMD 58 put one word of the Sub-CPU's
  * 4 KB buffer, CMD 61 buffer -> cart 0x3F0000 + COMM2 * 4 KB through the 68000, read back and
  * compared; reply COMM12 1 = ok). The SH2 reads the area directly (port/mars_syscalls.c). */
 #define CMD_SAVE_PUT   58
@@ -1168,7 +1179,7 @@ int plat_save_piece(int piece)
 	return 1;
 }
 
-/* J19: the port's own settings (0 = FPS counter shown, 1 = A/B swapped): save-area piece 10,
+/* the port's own settings (0 = FPS counter shown, 1 = A/B swapped): save-area piece 10,
  * written at once when one changes - OpenJazz's settings file has no place for them */
 #define PORT_SET_PIECE 10
 int plat_port_setting(int key)
@@ -1176,7 +1187,7 @@ int plat_port_setting(int key)
 	const volatile uint8_t *p = (const volatile uint8_t *)(0x223F0000u + PORT_SET_PIECE * 4096u);
 	if (key < 0 || key > 7) return 0;
 	if (p[0] != 'O' || p[1] != 'J' || p[2] != 'P' || p[3] != 'S')
-		return key == 0 ? 1 : 0;        /* J19b: nothing saved yet - the FPS counter starts on */
+		return key == 0 ? 1 : 0;        /* nothing saved yet - the FPS counter starts on */
 	return p[4 + key];
 }
 void plat_port_setting_set(int key, int value)

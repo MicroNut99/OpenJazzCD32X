@@ -150,7 +150,9 @@ int JJ1BonusLevel::loadTiles (char *fileName) {
 	// Load background
 #ifdef OJ32X
 	bool bgMapped, tsMapped;
-	pixels = file->loadRLEPacked(832 * 20, bgMapped);   // PORT32X (J18): decoded from the pack
+	// PORT32X: background and tile graphics in place from the cart pack, decoded by the PC
+	// build (freed below only when they were decoded here)
+	pixels = file->loadRLEPacked(832 * 20, bgMapped);
 #else
 	pixels = file->loadRLE(832 * 20);
 #endif
@@ -223,14 +225,16 @@ JJ1BonusLevel::JJ1BonusLevel (Game* owner, char * fileName, bool multi) : Level(
 
 #ifdef OJ32X
 #ifndef OJ32X_MARS
-	// PORT32X (J18): PC bake - T32X_BONUS_MAP=n plays BONUSMAP.n (tools/bake_bonus.sh)
+	// PORT32X (PC build, baking): T32X_BONUS_MAP=n plays BONUSMAP.n whichever bonus level
+	// the menu starts - tools/bake_bonus.sh uses it to make one pack per bonus map
 	char bonusOverride[16];
 	if (getenv("T32X_BONUS_MAP")) {
 		snprintf(bonusOverride, sizeof bonusOverride, "BONUSMAP.%03d", atoi(getenv("T32X_BONUS_MAP")));
 		fileName = bonusOverride;
 	}
 #endif
-	// PORT32X (J18): this bonus map's pack (OJ8nn.PAK: map, graphics, pictures) into the cart
+	// PORT32X: load this bonus map's pack (OJ8nn.PAK: map, graphics, pictures) into the
+	// cart, behind a loading screen; it replaces the planet pack (port/sdl_oj.cpp)
 	oj32x_level_pack(fileName);
 #endif
 
@@ -340,7 +344,9 @@ JJ1BonusLevel::JJ1BonusLevel (Game* owner, char * fileName, bool multi) : Level(
 
 	// Load tiles
 #ifdef OJ32X
-	mapTiles = file->loadRLEPacked(BLW * BLH, tilesMapped);   // (clipped to 59 in tileAt)
+	// PORT32X: the tile plane in place from the pack (see jj1bonuslevel.h); upstream's clip
+	// of tile numbers to 59 is done by tileAt()
+	mapTiles = file->loadRLEPacked(BLW * BLH, tilesMapped);
 	memset(clearedEvents, 0, sizeof clearedEvents);
 #else
 	buffer = file->loadRLE(BLW * BLH);
@@ -393,6 +399,7 @@ JJ1BonusLevel::JJ1BonusLevel (Game* owner, char * fileName, bool multi) : Level(
 
 	// Load event mapping
 #ifdef OJ32X
+	// PORT32X: the event plane in place from the pack (see jj1bonuslevel.h)
 	mapEvents = file->loadRLEPacked(BLW * BLH, eventsMapped);
 #else
 	buffer = file->loadRLE(BLW * BLH);
@@ -565,6 +572,7 @@ void JJ1BonusLevel::receive (unsigned char* buffer) {
 
 		case MT_L_GRID:
 
+		// PORT32X: no network play on the 32X; the map there is read-only (cart pack)
 #ifndef OJ32X
 			if (buffer[4] == 0) grid[buffer[3]][buffer[2]].tile = buffer[5];
 			else if (buffer[4] == 2)

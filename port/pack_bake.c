@@ -38,7 +38,7 @@ static int bake_on(void)
 		if (bake_state)
 		{
 			atexit(bake_write);
-			/* J12: T32X_BAKE_MERGE=1 - start from what the T32X_BAKE file already holds, so one
+			/* T32X_BAKE_MERGE=1 - start from what the T32X_BAKE file already holds, so one
 			 * pack can collect several runs (the levels of one world) */
 			const char *m = getenv("T32X_BAKE_MERGE");
 			if (m && *m == '1')
@@ -93,7 +93,7 @@ void pack_bake_file(const char *name, const char *path)
 	char n[16];
 	norm(name, n);
 	if (skipped(n)) return;
-	{	/* J5: already in a mounted pack (the common pack, when baking a level pack) */
+	{	/* already in a mounted pack (the common pack, when baking a world or bonus pack) */
 		const uint8_t *d; uint32_t sz;
 		if (pack_file(n, &d, &sz)) return;
 	}
@@ -117,7 +117,7 @@ void pack_bake_file(const char *name, const char *path)
 void pack_bake_picture(const uint8_t *pixels, int w, int h)
 {
 	if (!bake_on()) return;
-	if (pack_picture(pixels, w, h)) return;   /* J5: already in a mounted pack */
+	if (pack_picture(pixels, w, h)) return;   /* already in a mounted pack */
 	const uint32_t hv = pack_hash(pixels, w, h);
 	const size_t n = (size_t)w * h;
 	for (int i = 0; i < npics; ++i)
@@ -136,7 +136,7 @@ void pack_bake_file_picture(const char *name, uint32_t start, uint32_t end,
                             const uint8_t *pixels, int w, int h)
 {
 	if (!bake_on()) return;
-	{	/* J5: already in a mounted pack */
+	{	/* already in a mounted pack */
 		int pw, ph; uint32_t pe;
 		if (pack_file_picture_any(name, start, &pw, &ph, &pe)) return;
 	}
@@ -219,7 +219,7 @@ static void put32(FILE *f, uint32_t v) { uint8_t b[4] = { (uint8_t)(v >> 24), (u
 static void put16(FILE *f, uint16_t v) { uint8_t b[2] = { (uint8_t)(v >> 8), (uint8_t)v }; fwrite(b, 1, 2, f); }
 static void pad4(FILE *f, uint32_t *pos) { while (*pos & 3) { fputc(0, f); (*pos)++; } }
 
-/* J4d: T32X_BAKE_CATALOG=<data folder>: every game file there is listed in the pack as well
+/* T32X_BAKE_CATALOG=<data folder>: every game file there is listed in the pack as well
  * (entry with offset 0 = "on the disc, not in this pack"), so File::exists knows the game is
  * complete - the episode menu greys out episodes whose files it cannot find. */
 static char (*catalog)[16];
@@ -259,7 +259,7 @@ static void read_catalog(void)
 	closedir(d);
 }
 
-/* J5: T32X_BAKE_ADD=<prefix>: every file of the T32X_BAKE_CATALOG folder whose name starts
+/* T32X_BAKE_ADD=<prefix>: every file of the T32X_BAKE_CATALOG folder whose name starts
  * with it goes into the pack in full (e.g. PLANET. - the planet screens of every episode) */
 static void add_prefixed(void)
 {

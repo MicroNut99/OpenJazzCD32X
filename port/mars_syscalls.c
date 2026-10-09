@@ -2,10 +2,11 @@
  * OpenJazz CD32X - minimal newlib system calls for the SH2 (from Tyrian 32X T3j,
  * port/mars/syscalls.c, + a few more that OpenJazz's file code can reach).
  * Without them, libc.a's own SH simulator syscalls (lib_a-syscalls.o) are linked in,
- * and they clash with newlib's reent.o over `errno' (J3a log).
+ * and they clash with newlib's reent.o over `errno'.
  * malloc gets the SDRAM between the end of .bss and the stacks (__heap_start/__heap_end
- * come from the linker script; the J3a trial link has none, so they show as missing there).
- * No files or console here: the game's files will come through the plat layer.
+ * come from the linker script, port/mars/oj.ld).
+ * There is no file system and no console: game files are opened in the cart packs
+ * (port/pack.c, fmemopen); saves and settings live in the RAM cart's save area (below).
  */
 #include "plat.h"
 
@@ -51,19 +52,20 @@ size_t oj32x_heap_size(void) { return (size_t)(heap_end - heap_start); }
 
 void _exit(int code) { plat_exit(code); }
 
-/* J4c2: only the console streams 0-2 exist here. Streams from fmemopen (the data pack) have
- * no file (fd -1): newlib's __smakebuf asks _fstat about them, and the old version answered
- * "character device" for ANY fd and left st_blksize uninitialised - newlib then sized the
- * stream buffer from that garbage. Now: unknown fd = EBADF, so newlib uses BUFSIZ. */
+/* Only the console streams 0-2 exist here. Streams from fmemopen (the data packs) have no
+ * file (fd -1): newlib's __smakebuf asks _fstat about them. Answering "character device" for
+ * any fd and leaving st_blksize uninitialised made newlib size the stream buffer from garbage;
+ * so an unknown fd is EBADF (newlib then uses BUFSIZ), and the struct is cleared. */
 
-/* ---- J13: saves and settings in the RAM cart's save area ---------------------------------
- * J11 used the Sega CD's backup RAM (4 KB file): it did not work on the console (the internal
- * backup RAM is 8 KB for every game, a JJ1 save alone is up to ~2 KB) and its 8 KB of buffers
- * cost SDRAM. Now OpenLara's OL-9 path: the save area at cart 0x3F0000, one 4 KB piece per file
- * (piece 0 openjazz.cfg, 1-4 SAVE.0-SAVE.3). Writing: the bytes go word by word into the
- * Sub-CPU's buffer (CMD 58), closing the file writes the piece into the cart (CMD 61, through
- * the 68000, read back and compared). Reading: straight from the cart (the SH2 can read it).
- * Piece layout: "OJSF", u16 size, name[12], data (at most 4096 - 18 bytes). No SDRAM buffers. */
+/* ---- saves and settings in the RAM cart's save area ---------------------------------
+ * The Sega CD's internal backup RAM is 8 KB shared by every game, too small for the game's
+ * saves (up to ~2 KB each), and its buffers would cost SDRAM. Instead OpenLara's save area at
+ * cart 0x3F0000 is used, one 4 KB piece per file: piece 0 openjazz.cfg (the settings, shared
+ * by both games), 1-4 SAVE.0-SAVE.3 of Jazz Jackrabbit CD, 6-9 those of Holiday Hare '95
+ * (piece 10: the port's own settings, port/plat_mars.c). Writing: the bytes go word by word
+ * into the Sub-CPU's buffer (CMD 58); closing the file writes the piece into the cart (CMD 61,
+ * through the 68000, read back and compared). Reading: straight from the cart (the SH2 can
+ * read it). Piece layout: "OJSF", u16 size, name[12], data (at most 4096 - 18 bytes). */
 #include <fcntl.h>
 #define PIECE_BYTES 4096
 #define PIECE_HEAD  18
@@ -90,8 +92,8 @@ static int piece_of(const char *path)
 {
 	char n[12];
 	base_name(path, n);
-	const int base = plat_game() == 1 ? 5 : 0;   /* J17: Holiday Hare '95 keeps its own (5-9) */
-	if (memcmp(n, "OPENJAZZ.CFG", 12) == 0) return 0;   /* J18d: one settings file for both */
+	const int base = plat_game() == 1 ? 5 : 0;   /* Holiday Hare '95 keeps its own (5-9) */
+	if (memcmp(n, "OPENJAZZ.CFG", 12) == 0) return 0;   /* one settings file for both */
 	if (n[0] == 'S' && n[1] == 'A' && n[2] == 'V' && n[3] == 'E' && n[4] == '.' && n[5] >= '0' && n[5] <= '3' && n[6] == 0)
 		return base + 1 + (n[5] - '0');
 	return -1;
@@ -235,9 +237,9 @@ int _link(const char *a, const char *b) { (void)a; (void)b; errno = EMLINK; retu
 int _rename(const char *a, const char *b) { (void)a; (void)b; errno = ENOENT; return -1; }
 /* access/getcwd: plain C names (newlib for sh-elf has none; the SH linker shows them as
  * _access/_getcwd because it puts an underscore before every C name) */
-/* J13c: a directory ("/", from getcwd) is readable and writeable - OpenJazz only adds a path
- * for its settings and saves when access() says so; J11-J13 answered "no such file" for it,
- * so the game never had a place to write, and saving / loading did nothing */
+/* a directory ("/", from getcwd) is readable and writeable - OpenJazz only adds a path
+ * for its settings and saves when access() says so; answering "no such file" for it left
+ * the game without a place to write, and saving and loading did nothing */
 int access(const char *name, int mode)
 {
 	(void)mode;
@@ -266,7 +268,7 @@ clock_t _times(struct tms *buf)
 	return t;
 }
 
-/* ---- J4c3: heap check (diagnostic) -------------------------------------------------------
+/* ---- heap check (diagnostic) -------------------------------------------------------------
  * newlib's malloc (dlmalloc) keeps its blocks one after another from the first _sbrk address:
  * [prev size][size | flags][data...], sizes multiples of 8, the last block ("top") ending at
  * the current break. Walking them shows when a block header has been overwritten. Called at a

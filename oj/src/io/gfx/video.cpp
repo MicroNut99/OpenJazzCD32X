@@ -57,7 +57,9 @@ SDL_Surface* Video::createSurface (const unsigned char * pixels, int width, int 
 	// Create the surface
 	SDL_Surface *ret = nullptr;
 #ifdef OJ32X
-	// PORT32X: pixels that are given here never change afterwards: into the RAM cart
+	// PORT32X: pixels given here never change afterwards, so the surface uses the identical
+	// picture from the cart pack in place (port/sdl_oj.cpp oj32x_cart_surface); a picture the
+	// pack lacks stays in SDRAM. The PC build records the picture for the pack.
 	if (pixels) {
 		ret = oj32x_cart_surface(pixels, width, height);
 		if (!ret) {

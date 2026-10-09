@@ -571,8 +571,8 @@ int SetupMenu::setupVideo () {
 int SetupMenu::setupAudio () {
 
 #ifdef OJ32X_MARS
-	// PORT32X (J13f): CD audio and the PCM chip have no volume control on this path - two
-	// on/off switches instead of the volume bars
+	// PORT32X: CD audio and the PCM chip have no volume control on this path, so the audio
+	// page has two on/off switches instead of the volume bars (off = volume 0)
 	int choice = 0;
 	while (true) {
 		const char* opts[2] = {
@@ -692,8 +692,9 @@ int SetupMenu::run () {
 
 	video.setPalette(menuPalette);
 #ifdef OJ32X_MARS
-	// PORT32X (J18c): clear the screen with the palette change - otherwise the next frame shows
-	// the level's picture in the menu's colours (a white flash, ~0.1 s at the 32X's frame rate)
+	// PORT32X: clear the screen together with the palette change. Otherwise the next frame
+	// shows the previous picture in the menu's colours - unseen at 60 fps, a white flash of
+	// about 0.1 s at the 32X's frame rate.
 	video.setClipRect(canvas, nullptr);
 	video.clearScreen(0);
 #endif
@@ -701,14 +702,16 @@ int SetupMenu::run () {
 	while (true) {
 
 #ifdef OJ32X_MARS
-		// PORT32X (J13): a pad console - no keyboard, no joystick set-up, no video modes; the
-		// one button choice is which of A and B jumps and which fires (C always jumps)
+		// PORT32X: a console with a pad - no keyboard or joystick set-up and no video modes.
+		// Four entries: character, the A/B swap (which of A and B jumps and which fires;
+		// C always jumps), audio and gameplay. map32x gives each entry's upstream option
+		// (-1: the A/B swap, handled here).
 		const char* setup32x[4] = { "character", oj32x_ab_swapped() ? "buttons: a fire b jump" : "buttons: a jump b fire", "audio", "gameplay" };
 		static const int map32x[4] = { 0, -1, 4, 5 };
 		int option32x = option < 4 ? option : 0;
 		ret = generic("SETUP OPTIONS", setup32x, 4, option32x);
 		option = option32x;
-		// PORT32X (J16c): the settings file (music, effects, HUD style, character, game options)
+		// PORT32X: the settings file (music, effects, HUD style, character, game options)
 		// was only written when the program quits - which a console never does. Now on leaving
 		// the set-up menu, into the RAM cart's save area: global, for every saved game.
 		if (ret == E_RETURN) { setup.save(); return E_NONE; }

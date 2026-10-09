@@ -1,5 +1,5 @@
 /*
- * OpenJazz CD32X - a sort that gives the same order on every machine (J4c2).
+ * OpenJazz CD32X - a sort that gives the same order on every machine.
  * stb_rect_pack sorts the font characters with qsort; qsort leaves equal elements in an order
  * that depends on the C library (glibc on the PC, newlib on the SH2). So the PC and the 32X
  * packed the font atlases differently, and the 32X did not find its atlas in the data pack

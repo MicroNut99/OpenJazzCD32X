@@ -223,19 +223,38 @@ int JJ1Level::step () {
  */
 #ifdef OJ32X_SCROLL
 /*
- * PORT32X (J15): the line-table scrolling renderer.
+ * PORT32X: the line-table scrolling renderer (OJ32X_SCROLL).
  *
- * Each 32X frame buffer keeps the level's background (sky + background tiles) for the rows in
- * view in a ring of OJ32X_RING_W x OJ32X_RING_H pixels: world row wy at ring row wy % H, world
- * column wx at ring column wx - wx0. The line table shows it (port/plat_mars.c
- * plat_present_scroll). A frame only draws what changed since this buffer was last used (two
- * frames ago): the rows that came into view, the cells whose tile or event changed, and the
- * background under whatever was drawn on top last time (sprites, foreground tiles, text - their
- * rectangles are recorded by the screen mapping in port/sdl_oj.cpp). Moving more than the ring's
- * 64 spare columns sideways, or too much at once, redraws everything once.
- * The sky's colours are numbered by ring row; SkyPaletteEffect turns its palette to match.
+ * Upstream redraws the whole level picture every frame. The 32X has no scroll hardware, but
+ * every screen line's start address comes from a line table, so a picture kept in the frame
+ * buffer can be moved by rewriting 200 addresses.
+ *
+ * The ring. Each of the 32X's two frame buffers keeps the level's background (sky and
+ * background tiles) for the rows in view in a ring of OJ32X_RING_W x OJ32X_RING_H pixels
+ * (384 x 200): world row wy is ring row wy % 200, world column wx is ring column wx - wx0.
+ * The 64 extra columns are the room for sideways movement. plat_present_scroll
+ * (port/plat_mars.c) points the line table into the ring, using the 32X's 1-pixel shift
+ * register for odd x positions, and puts the status panel below it.
+ *
+ * What a frame draws. A frame buffer is drawn into every second frame, so its ring is two
+ * frames old. scrollBegin brings it up to date, drawing only:
+ *   - the rows that came into view;
+ *   - cells whose tile, event or background flag changed (destroyed blocks, collected items),
+ *     found by comparing the grid with a small shadow table per buffer;
+ *   - the background under what was drawn on top of the ring last time in this buffer
+ *     (sprites, foreground tiles, text, the sun). The screen mapping in port/sdl_oj.cpp
+ *     translates every blit or fill aimed at the screen into the ring and records its
+ *     rectangle for this.
+ * Everything is redrawn once when the view moves more than the 64 spare columns sideways,
+ * jumps so far vertically that none of the ring's rows stay in view, or more than 256
+ * rectangles were recorded.
+ *
+ * The sky. Its pixels are numbered by ring row, not by screen line; SkyPaletteEffect
+ * (paletteeffects.cpp) rotates the sky's palette entries to match, so the gradient still
+ * follows the screen.
  */
 namespace {
+	// the shadow table: 13 x 8 cells, more than one ring holds at once (12 x 7 cells of 32 px)
 	const int RW = OJ32X_RING_W, RH = OJ32X_RING_H, SHADOW_W = 13, SHADOW_H = 8;
 	struct ShadowCell { short tx, ty; unsigned char tile, event, bg; };
 	struct RingState {
@@ -249,6 +268,7 @@ namespace {
 	RingState ringState[2];
 	RingState* cur;
 
+	// the cells upstream draws in its foreground pass (not part of the background ring)
 	bool fgTile (const GridElement* ge, const JJ1EventType* eventSet) {
 		return (ge->event == 123) || (ge->event == 124) || (ge->event == 125) ||
 			(eventSet[ge->event].movement == 37) || (eventSet[ge->event].movement == 38);
@@ -256,7 +276,7 @@ namespace {
 }
 
 void oj32xScrollReset () {
-	plat_wait_flip();   // J16: a swap still under way must finish before the screen is reused
+	plat_wait_flip();   // a swap still under way must finish before the screen is reused
 	oj32x_panel_reset();
 	ringState[0].valid = ringState[1].valid = false;
 	cur = nullptr;
@@ -329,8 +349,9 @@ void JJ1Level::scrollBg (int rx, int wy, int w, int h) {
 void JJ1Level::scrollBegin (int vX, int vY, int viewH) {
 
 	oj32x_scroll_map(false, 0, 0, 0, 0);       // the ring is drawn directly here
-	plat_wait_flip();                          // J16: the logic ran while the last swap waited
-	{	// J18c: another screen was shown in between (save / load / set-up from the pause
+	plat_wait_flip();                          // the swap asked for last frame must be done
+	                                           // (OJ32X_FLIP_ASYNC: the logic ran meanwhile)
+	{	// another screen was shown in between (save / load / set-up from the pause
 		// menu): it drew over the rings and the panel - everything again, in both buffers
 		static unsigned seenPlain;
 		const unsigned plain = oj32x_plain_presents();
@@ -370,7 +391,8 @@ void JJ1Level::scrollBegin (int vX, int vY, int viewH) {
 		if (lo < S.rowLo) scrollBg(0, lo, RW, (S.rowLo < hi ? S.rowLo : hi) - lo);
 		if (hi > S.rowHi) { const int from = S.rowHi > lo ? S.rowHi : lo; scrollBg(0, from, RW, hi - from); }
 		S.rowLo = lo; S.rowHi = hi;
-		// cells whose tile or event changed (destroyed blocks, collected items ...)
+		// cells whose tile, event or background flag changed since this buffer's last frame
+		// (destroyed blocks, collected items ...): compared with the shadow table
 		for (int ty = ITOT(lo); ty <= ITOT(hi - 1) && ty < LH; ty++) {
 			for (int tx = ITOT(vX); tx <= ITOT(vX + canvasW - 1) && tx < LW; tx++) {
 				const ShadowCell& sc = S.shadow[(ty % SHADOW_H) * SHADOW_W + (tx - ITOT(S.wx0)) % SHADOW_W];
@@ -421,6 +443,8 @@ void JJ1Level::scrollOrb (int vX, int vY) {
 #endif
 
 #ifdef OJ32X
+// PORT32X: the original renderer's tile passes as a job for oj32x_parallel: each SH2 draws one
+// half of the view through its own clip rectangle (only one SH2 unless OJ32X_SLAVE_DRAWS).
 namespace {
 	struct OJ32XBand { JJ1Level* level; int vX, vY, viewH; bool foreground; };
 	void oj32xBandJob (void* arg, int part) {
@@ -434,7 +458,7 @@ namespace {
 }
 
 /**
- * PORT32X (J10): the original's sky + background tile pass (foreground = false) or its
+ * PORT32X: the original's sky + background tile pass (foreground = false) or its
  * foreground tile pass (true), drawn into one band (target's clip rectangle). Same pixels as
  * the original code: only the target surface and the row range differ.
  */
@@ -589,17 +613,17 @@ void JJ1Level::draw () {
 
 #ifdef OJ32X
 #ifdef OJ32X_SCROLL
-	// PORT32X (J15): only what changed goes into this frame buffer's ring
+	// PORT32X: bring this frame buffer's ring up to date (see above), then the sun
 	scrollBegin(vX, vY, viewH);
 	scrollOrb(vX, vY);
 #else
-	// PORT32X (J10): sky and background tiles in two bands, one per SH2, at the same time
+	// PORT32X: the original renderer: sky and background tiles drawn as two bands
 	{
 		OJ32XBand job = { this, vX, vY, viewH, false };
 		oj32x_parallel(oj32xBandJob, &job);
 	}
 #endif
-	oj32x_prof(1);   // J14: background
+	oj32x_prof(1);   // PORT32X: profiler mark - background
 #else
 	// If there is a sky, draw it
 	if (sky) {
@@ -694,18 +718,18 @@ void JJ1Level::draw () {
 
 
 #ifdef OJ32X
-	oj32x_prof(2);   // J14: sprites (events, players, bullets)
+	oj32x_prof(2);   // PORT32X: profiler mark - sprites (events, players, bullets)
 #ifdef OJ32X_SCROLL
-	// PORT32X (J15): the foreground tiles straight onto the (mapped) screen
+	// PORT32X: the foreground tiles straight onto the (mapped) screen
 	drawBand(canvas, vX, vY, viewH, true);
 #else
-	// PORT32X (J10): foreground tiles in two bands, one per SH2
+	// PORT32X: the original renderer: foreground tiles drawn as two bands
 	{
 		OJ32XBand job = { this, vX, vY, viewH, true };
 		oj32x_parallel(oj32xBandJob, &job);
 	}
 #endif
-	oj32x_prof(3);   // J14: foreground
+	oj32x_prof(3);   // PORT32X: profiler mark - foreground tiles
 #else
 	// Show foreground tiles
 
@@ -952,10 +976,11 @@ void JJ1Level::draw () {
 	video.drawRect(offsetX + dst.x, canvasH - 13, dst.w, 7, LEVEL_BLACK);
 
 #ifdef OJ32X
-	oj32x_prof(4);   // J14: panel and the rest of the drawing
+	oj32x_prof(4);   // PORT32X: profiler mark - panel and the rest of the drawing
 #ifdef OJ32X_PROFILE
-	// J14: the profiler's line (ms per frame) in the top left corner of the level
-	oj32x_prof_draw(canvas);   // J14c: own 3x5 font drawn 2x, bright on dark - readable everywhere
+	// PORT32X: the profiler's box (ms per frame) in the top left corner, in its own small
+	// font and colours that no palette effect rotates, so it stays readable on every level
+	oj32x_prof_draw(canvas);
 #endif
 #endif
 }

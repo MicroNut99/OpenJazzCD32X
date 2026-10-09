@@ -297,7 +297,8 @@ void openAudio () {
 void closeAudio () {
 	stopMusic();
 #ifdef OJ32X
-	// PORT32X: audio may never have opened (no context then); upstream frees a null context
+	// PORT32X: audio may never have been opened (no xmp context then); upstream frees the
+	// context unconditionally
 	if (xmpC) xmp_free_context(xmpC);
 	xmpC = nullptr;
 #else
@@ -335,8 +336,10 @@ void closeAudio () {
  */
 void playMusic (const char * fileName, bool restart) {
 #ifdef OJ32X_MARS
-	// PORT32X (J10): CD audio - track n for the n-th music file (tools/music_tracks.txt)
-	if (musicVolume > 0) oj32x_music(fileName, restart);   // J13: volume 0 = off
+	// PORT32X: the music is CD audio. Each music file has its own disc track
+	// (tools/music_tracks.txt); the modules are rendered to those tracks on the PC.
+	// Music "volume" 0 means off; the file is remembered so switching on resumes it.
+	if (musicVolume > 0) oj32x_music(fileName, restart);
 	else oj32x_music_remember(fileName);
 	return;
 #endif
@@ -413,7 +416,7 @@ void pauseMusic (bool pause) {
  */
 void stopMusic () {
 #ifdef OJ32X_MARS
-	oj32x_music(nullptr, false);  // PORT32X (J10): CD audio off
+	oj32x_music(nullptr, false);  // PORT32X: stop the CD audio track
 	return;
 #endif
 	// Stop the music playing
@@ -455,7 +458,8 @@ int getMusicVolume () {
 void setMusicVolume (int volume) {
 	musicVolume = CLAMP(volume, 0, MAX_VOLUME);
 #ifdef OJ32X_MARS
-	// PORT32X (J13): CD audio has no volume control here - 0 stops the music, more plays it
+	// PORT32X: CD audio has no volume control on this path: 0 stops the music, anything
+	// higher plays it (the set-up menu shows an on/off switch)
 	oj32x_music_volume(musicVolume);
 	return;
 #endif
@@ -689,8 +693,9 @@ void freeSounds() {
  */
 void playSound(SE::Type index) {
 #ifdef OJ32X_MARS
-	// PORT32X (J10): the Sega CD's PCM chip plays it (SFX00.BIN, tools/make_oj_sfx.py)
-	if (index != SE::NONE && soundVolume > 0) oj32x_sfx(static_cast<int>(index));  // J13: 0 = off
+	// PORT32X: sound effects play on the Sega CD's PCM chip, from a pack loaded at start-up
+	// (SFX00.BIN, made by tools/make_oj_sfx.py). Effects "volume" 0 means off.
+	if (index != SE::NONE && soundVolume > 0) oj32x_sfx(static_cast<int>(index));
 	return;
 #endif
 	// silently ignore

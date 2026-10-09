@@ -1,5 +1,11 @@
 /*
- * OpenJazz CD32X - SDL 1.2 subset on the plat layer (see port/include/SDL.h).
+ * OpenJazz CD32X - the SDL 1.2 subset OpenJazz uses, on the platform layer
+ * (see port/include/SDL.h), plus the port's glue between OpenJazz and the platform:
+ *   - surfaces and blits (8-bit), pictures from the cart packs (oj32x_cart_surface)
+ *   - the screen mapping of the line-table scrolling renderer
+ *   - presenting frames; the pad as key events
+ *   - which pack a level file needs (oj32x_level_pack); music as CD audio tracks
+ *   - the frame profiler
  *
  * Surfaces are 8-bit only. OpenJazz recolours sprites and fonts through SDL 1.2's
  * palette-mapped blits: every surface has a "logical" palette that is grey ramp
@@ -24,21 +30,21 @@ extern "C" {
 #include <ctype.h>
 #include <strings.h>
 
-/* J4c3: heap check points on the 32X (port/mars_syscalls.c oj32x_heap_check) */
-/* J16 OJ32X_FAST_CODE: the pixel routines that run thousands of times a frame live in the 32X's
- * SDRAM (section .sdcode.*, copied there at start-up) and are compiled for speed: code in the
- * cart runs through a slow bus and a 4 KB cache */
+/* heap check points on the 32X (port/mars_syscalls.c oj32x_heap_check) */
+/* OJ32X_FAST_CODE: the pixel routines that run thousands of times a frame live in the 32X's
+ * SDRAM (section .sdcode.*, copied there at start-up), 16-byte aligned and compiled for speed:
+ * code in the cart runs through a slow bus and a 4 KB cache */
 #if defined(OJ32X_MARS) && defined(OJ32X_FAST_CODE)
 #define OJ_FAST __attribute__((section(".sdcode.fast"), optimize("O2"), noinline))
 #else
 #define OJ_FAST
 #endif
 
-/* J14c: profiler overlay colours (set with the palette) */
+/* profiler overlay colours (set with the palette) */
 static int overlay_dark, overlay_light = 255;
 static const char *prof_text_line(int line);
 
-/* J5: OJ32X_HEAP_CHECK 1 = check the heap at every picture create/free/blit (slow: a walk over
+/* OJ32X_HEAP_CHECK 1 = check the heap at every picture create/free/blit (slow: a walk over
  * all blocks each time - a diagnostic); 0 = only at log lines (port/plat_mars.c) */
 #ifndef OJ32X_HEAP_CHECK
 #define OJ32X_HEAP_CHECK 0
@@ -71,7 +77,7 @@ void SDL_Delay(Uint32 ms)
 /* ------------------------------------------------------------------ surfaces */
 
 /* What a surface carries besides the SDL fields. Most surfaces never change their
- * palette, so they share one grey ramp and have no table (J2: a palette + table per
+ * palette, so they share one grey ramp and have no table (a palette + table per
  * surface cost ~1.3 KB each, 450 KB over a level's 345 surfaces). A surface gets its own
  * colours and remap table (256 + 1024 bytes) only when it is recoloured. */
 struct Surf {
@@ -82,7 +88,7 @@ struct Surf {
 	Uint8 *remap;           /* nullptr: identity */
 	bool owns_pixels;
 	bool in_cart;           /* pixels in the RAM cart (read-only) */
-	bool in_pack;           /* J4c: pixels are a picture in a cart pack (read-only, shared) */
+	bool in_pack;           /* pixels are a picture in a cart pack (read-only, shared) */
 };
 
 static SDL_Color grey_ramp[256];
@@ -155,11 +161,13 @@ void SDL_FreeSurface(SDL_Surface *s)
 	delete u;
 }
 
-/* J3: a surface whose pixels never change after loading: they go to the RAM cart.
- * Falls back to an ordinary surface when the cart is full. */
+/* A surface whose pixels never change after loading. If a mounted pack has the identical
+ * picture (found by size and content), the surface uses it in place in the cart. Otherwise:
+ * on the 32X an ordinary SDRAM surface (the SH2 cannot write the cart; logged, since every
+ * such picture should be in a pack), on the PC a copy in the imitated cart. */
 SDL_Surface *oj32x_cart_surface(const unsigned char *pixels, int w, int h)
 {
-	/* J4c: the PC build records the picture for the pack (T32X_BAKE); a picture that is in a
+	/* the PC build records the picture for the pack (T32X_BAKE); a picture that is in a
 	 * mounted pack is used in place */
 	pack_bake_picture(pixels, w, h);
 	const uint8_t *baked = pack_picture(pixels, w, h);
@@ -192,8 +200,9 @@ SDL_Surface *oj32x_cart_surface(const unsigned char *pixels, int w, int h)
 #endif
 }
 
-/* J3: a surface that is finished (e.g. a font atlas, built by blitting) moves to the cart;
- * the SDRAM copy is freed. Colour key and recolouring are kept. */
+/* A finished surface (e.g. a font atlas, built by blitting) is swapped for the identical
+ * picture in a cart pack and the SDRAM copy freed; colour key and recolouring are kept.
+ * Unchanged when no pack has it. */
 SDL_Surface *oj32x_freeze(SDL_Surface *s)
 {
 	Surf *u = surf_of(s);
@@ -261,15 +270,15 @@ int SDL_SetPalette(SDL_Surface *s, int flags, const SDL_Color *colors, int first
 			uint16_t v = (uint16_t)((c.r >> 3) | (c.g >> 3) << 5 | (c.b >> 3) << 10);
 			phys555[first + i] = v;
 		}
-		/* J13: the 12 lines above and below the 200-line picture show one palette entry; colour 0
-		 * is white in some levels' palettes (the white bars) - use the darkest one instead */
+		/* the 12 lines above and below the 200-line picture show one palette entry; colour 0
+		 * is white in some levels' palettes (white bars) - use the darkest entry instead */
 		int best = 0, bestv = 1 << 30, light = 0, lightv = -1;
 		int dark2 = 0, dark2v = 1 << 30;
 		for (int i = 0; i < 256; ++i) {
 			const int v = (phys555[i] & 31) + (phys555[i] >> 5 & 31) + (phys555[i] >> 10 & 31);
 			if (v < bestv) { bestv = v; best = i; }
-			/* J15b: the profiler's colours never from the sky's entries (156-255): those turn
-			 * with the scrolling renderer, and the box and its letters became the same blue */
+			/* the profiler's colours are never taken from the sky's entries (156-255): the
+			 * scrolling renderer rotates those, which would change the box's colours */
 			if (i < 156 && v > lightv) { lightv = v; light = i; }
 			if (i < 156 && v < dark2v) { dark2v = v; dark2 = i; }
 		}
@@ -293,7 +302,7 @@ Uint32 SDL_MapRGB(const SDL_PixelFormat *f, Uint8 r, Uint8 g, Uint8 b)
 	return (Uint32)best;
 }
 
-/* J16: one row of a fill with aligned 32-bit writes (no library memset: it lives in the cart) */
+/* one row of a fill with aligned 32-bit writes (no library memset: it lives in the cart) */
 OJ_FAST static void fill_row(Uint8 *p, int n, Uint8 v)
 {
 	while (n > 0 && ((uintptr_t)p & 3)) { *p++ = v; n--; }
@@ -321,7 +330,7 @@ OJ_FAST static int fill_core(SDL_Surface *s, SDL_Rect *r, Uint32 colour)
 	return 0;
 }
 
-/* J9: copy n bytes with as many aligned 32-bit writes as possible. On the 32X the game draws
+/* copy n bytes with as many aligned 32-bit writes as possible. On the 32X the game draws
  * straight into the frame buffer, where every write is a bus access: four pixels per write
  * instead of one. The source may be unaligned (tiles in the cart, scrolled positions): its
  * bytes are put together (memcpy into a word = right byte order on any machine). */
@@ -386,7 +395,7 @@ OJ_FAST static int blit_core(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *d
 			if (identity) copy_run(dp, sp, w);
 			else for (int x = 0; x < w; ++x) dp[x] = map[sp[x]];
 		} else if (identity) {
-			/* J9: runs of visible pixels, each copied with 32-bit writes where possible */
+			/* runs of visible pixels, each copied with 32-bit writes where possible */
 			int x = 0;
 			while (x < w) {
 				while (x < w && sp[x] == key) x++;
@@ -401,7 +410,7 @@ OJ_FAST static int blit_core(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *d
 	return 0;
 }
 
-/* ---- J15: the scrolling renderer's screen mapping ----------------------------------------
+/* ---- the scrolling renderer's screen mapping ----------------------------------------
  * While a level is drawn with the line-table renderer, the screen is not one 320x200 block:
  * rows 0..viewH-1 (the level view) live in the RING - RING_W x RING_H pixels where world column
  * wx0 is ring column 0 and world row wy is ring row wy % RING_H - and the rows below (the status
@@ -416,10 +425,11 @@ struct ScrollMap {
 	SDL_Rect *rec; int recCap; int *recN; bool *recOverflow;
 };
 static ScrollMap smap;
-static unsigned plain_presents;   /* J18c: frames shown without the ring mapping */
+static unsigned plain_presents;   /* frames shown without the ring mapping */
 unsigned oj32x_plain_presents(void) { return plain_presents; }
-/* J16 OJ32X_PANEL_DIFF: the panel is drawn into this SDRAM copy; at present only the rows that
- * changed since this frame buffer last got them are copied into it (32-bit writes) */
+/* OJ32X_PANEL_DIFF: the status panel is drawn into this SDRAM copy; at present only the rows
+ * that changed since this frame buffer last got them are copied into it (32-bit writes;
+ * usually just the timer's row) */
 #ifdef OJ32X_PANEL_DIFF
 static Uint8 panel_shadow[PLAT_SCREEN_W * OJ32X_PANEL_H];
 static Uint32 panel_hash[2][OJ32X_PANEL_H];
@@ -490,7 +500,7 @@ Uint8 *oj32x_screen_row(int y)
 	return nullptr;
 }
 
-/* J15b: one pixel into the 32X frame buffer as a 16-bit read-modify-write (KOBO-BOOT rule 4:
+/* one pixel into the 32X frame buffer as a 16-bit read-modify-write (KOBO-BOOT rule 4:
  * write the frame buffer with 16-bit writes - single bytes did not always land) */
 void oj32x_put_pixel(Uint8 *p, Uint8 v)
 {
@@ -590,7 +600,7 @@ int SDL_UpperBlit(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rec
 
 SDL_Surface *SDL_SetVideoMode(int w, int h, int bpp, Uint32 flags)
 {
-	{	/* J19: the A/B swap as it was left */
+	{	/* the A/B swap as it was left */
 		static bool once;
 		if (!once) { once = true; if (plat_port_setting(1)) oj32x_ab_swap(true); }
 	}
@@ -601,7 +611,7 @@ SDL_Surface *SDL_SetVideoMode(int w, int h, int bpp, Uint32 flags)
 		last_error = msg;
 		return nullptr;
 	}
-	/* J5: on the 32X the screen is the frame buffer itself (plat_canvas) */
+	/* on the 32X the screen is the frame buffer itself (plat_canvas) */
 	if (!screen_surface) screen_surface = &new_surface(w, h, plat_canvas())->s;
 	return screen_surface;
 }
@@ -616,9 +626,9 @@ SDL_Rect **SDL_ListModes(SDL_PixelFormat *f, Uint32 flags)
 
 int SDL_Flip(SDL_Surface *screen)
 {
-	if (smap.on && screen == screen_surface) {   /* J15: the line-table renderer's frame */
+	if (smap.on && screen == screen_surface) {   /* the line-table renderer's frame */
 		oj32x_prof(6);
-		plat_wait_flip();                        /* J16: the previous swap must be done */
+		plat_wait_flip();                        /* the previous swap must be done */
 #ifdef OJ32X_PANEL_DIFF
 		{
 			const int b = plat_back_index() & 1;
@@ -639,16 +649,15 @@ int SDL_Flip(SDL_Surface *screen)
 		plat_present_scroll(phys555, smap.vY % OJ32X_RING_H, smap.vX - smap.wx0, smap.viewH);
 		oj32x_prof(5);
 		oj32x_prof_frame();
-		/* J18c: the mapping lasts one frame - from the level's scrollBegin to this present. A
-		 * screen that is not the level (pause sub-menus: save, load, set-up) then draws to the
-		 * plain screen, not into the ring - before, it drew into the ring and showed old level
-		 * pictures every other frame (the flashing). */
+		/* the mapping lasts one frame, from the level's scrollBegin to this present, so a
+		 * screen that is not the level (the pause menu's save, load and set-up) draws to the
+		 * plain screen, not into the ring */
 		smap.on = false;
 		return 0;
 	}
 	if (screen->pixels == plat_canvas() && screen->pixels) {
-		plain_presents++;   /* J18c */
-		oj32x_prof(6);                     /* J14: other */
+		plain_presents++;   /* the frame buffers no longer hold the level's rings */
+		oj32x_prof(6);                     /* other */
 		plat_present_canvas(phys555);
 		oj32x_prof(5);                     /* present: line table, waiting for the frame, flip */
 		oj32x_prof_frame();
@@ -656,12 +665,12 @@ int SDL_Flip(SDL_Surface *screen)
 	}
 	oj32x_prof(6);
 	plat_wait_flip();
-	plain_presents++;   /* J18c: the frame buffers no longer hold the level's rings */
+	plain_presents++;   /* the frame buffers no longer hold the level's rings */
 	plat_present(static_cast<const uint8_t *>(screen->pixels), screen->pitch, phys555);
 	oj32x_prof(5);
 	oj32x_prof_frame();
 #ifndef OJ32X_MARS
-	/* J5 test (PC): T32X_DOUBLE_BUFFER=1 swaps the screen between two buffers at every flip,
+	/* PC test: T32X_DOUBLE_BUFFER=1 swaps the screen between two buffers at every flip,
 	 * the second one starting as junk - like the 32X frame buffer the game now draws into.
 	 * Frames identical to a normal run = the game redraws everything it shows each frame. */
 	{
@@ -699,8 +708,9 @@ char *SDL_GetKeyName(SDLKey key)
 	}
 }
 
-/* Pad layouts (PORT32X). Play: C or A jump, B fire, X or Y change weapon, Start = the level
- * menu (OpenJazz's Escape), Z statistics. Menu: C, A or Start = Enter, B = back (Escape). */
+/* Pad layouts. Play: C or A jump, B fire, X or Y change weapon, Start = the level menu
+ * (OpenJazz's Escape), Z statistics (the frame counter). Menu: C, A or Start = Enter,
+ * B = back (Escape). The set-up's A/B swap exchanges A's and B's play keys. */
 struct PadKey { uint16_t bit; SDLKey play, menu; };
 static PadKey pad_keys[] = {
 	{PAD_UP,    SDLK_UP,     SDLK_UP},
@@ -709,18 +719,18 @@ static PadKey pad_keys[] = {
 	{PAD_RIGHT, SDLK_RIGHT,  SDLK_RIGHT},
 	{PAD_C,     SDLK_SPACE,  SDLK_RETURN},
 	{PAD_B,     SDLK_LALT,   SDLK_ESCAPE},
-	{PAD_A,     SDLK_SPACE,  SDLK_RETURN},   /* J9: A = C */
+	{PAD_A,     SDLK_SPACE,  SDLK_RETURN},   /* A = C */
 	{PAD_START, SDLK_ESCAPE, SDLK_RETURN},
-	{PAD_X,     SDLK_RCTRL,  SDLK_UNKNOWN},  /* J9: change weapon moved to X / Y (6-button pad) */
+	{PAD_X,     SDLK_RCTRL,  SDLK_UNKNOWN},  /* change weapon on X / Y (6-button pad) */
 	{PAD_Y,     SDLK_RCTRL,  SDLK_UNKNOWN},
-	{PAD_Z,     SDLK_F9,     SDLK_UNKNOWN},   /* Z: statistics screen */
+	{PAD_Z,     SDLK_F9,     SDLK_UNKNOWN},   /* Z: statistics (the frame counter) */
 	{PAD_MODE,  SDLK_UNKNOWN, SDLK_UNKNOWN},
 };
 #define NPAD (int)(sizeof pad_keys / sizeof pad_keys[0])
 
 static int pad_mode = OJ32X_PAD_MENU;
 static uint16_t pad_down;       /* buttons whose key is down */
-static uint16_t pad_now;        /* J13e: the pad as last read */
+static uint16_t pad_now;        /* the pad as last read */
 unsigned int oj32x_pad(void) { return pad_now; }
 static uint16_t pad_latched;    /* held across a layout change: ignored until released */
 static SDLKey key_down[NPAD];   /* the key each held button produced */
@@ -741,13 +751,13 @@ static void push_key(Uint8 type, SDLKey sym)
 	q_tail = next;
 }
 
-/* J13: the set-up's one button choice: A and B trade jump and fire (C always jumps) */
+/* the set-up's one button choice: A and B trade jump and fire (C always jumps) */
 static bool ab_swapped;
 bool oj32x_ab_swapped(void) { return ab_swapped; }
 void oj32x_ab_swap(bool on)
 {
 	ab_swapped = on;
-	plat_port_setting_set(1, on ? 1 : 0);   /* J19: kept across power-off */
+	plat_port_setting_set(1, on ? 1 : 0);   /* kept across power-off */
 	for (auto &k : pad_keys) {
 		if (k.bit == PAD_A) k.play = on ? SDLK_LALT : SDLK_SPACE;
 		if (k.bit == PAD_B) k.play = on ? SDLK_SPACE : SDLK_LALT;
@@ -771,8 +781,9 @@ void oj32x_pad_mode(int mode)
 static void poll_pad(void)
 {
 	uint16_t now = plat_read_pad();
-	pad_now = now;   /* J13e: for buttons the game has no key for (Y in the credits) */
-	{	/* J14b: Mode switches the slave SH2's drawing on/off (profiling the two renderers) */
+	pad_now = now;   /* for buttons the game has no key for (Y in the credits) */
+	{	/* Mode switches the slave SH2's drawing on/off (OJ32X_SLAVE_DRAWS builds, for
+		 * profiling; otherwise it has no effect) */
 		static bool modeWas;
 		const bool mode = (now & PAD_MODE) != 0;
 		if (mode && !modeWas) plat_slave_draws(!plat_slave_draws_on());
@@ -806,8 +817,10 @@ int SDL_PollEvent(SDL_Event *e)
 }
 
 /* ------------------------------------------------------------------ audio */
-/* J1: no sound yet - OpenJazz carries on silently when audio does not open.
- * The 32X version will mix on the slave SH2 (Tyrian's PWM mixer). */
+/* SDL audio does not open, so OpenJazz's own mixing (music modules and effects through
+ * libxmp) never runs; OpenJazz carries on without it. Its sound functions call the port
+ * instead (oj/src/io/sound.cpp): music as CD audio tracks, effects on the Sega CD's PCM
+ * chip - both play without SH2 time. */
 int  SDL_OpenAudio(SDL_AudioSpec *desired, SDL_AudioSpec *obtained)
 {
 	(void)desired; (void)obtained;
@@ -826,8 +839,9 @@ void SDL_MixAudio(Uint8 *dst, const Uint8 *src, Uint32 len, int volume)
 /* ------------------------------------------------------------------ misc */
 void oj32x_log(const char *msg) { plat_log(msg); }
 
-/* J10: a second surface on the same pixels with its own clip rectangle (band x,y,w,h inside
- * base's clip rectangle) - so the two SH2s can draw into two bands of one screen at once */
+/* a second surface on the same pixels with its own clip rectangle (band x,y,w,h inside
+ * base's clip rectangle) - so two bands of one screen can be drawn independently (by the two
+ * SH2s at once in OJ32X_SLAVE_DRAWS builds) */
 static Surf *views[2];
 
 SDL_Surface *oj32x_view(SDL_Surface *base, int index, int x, int y, int w, int h)
@@ -854,8 +868,9 @@ SDL_Surface *oj32x_view(SDL_Surface *base, int index, int x, int y, int w, int h
 	return &v->s;
 }
 
-/* J10: fn(arg, 0) and fn(arg, 1) - on the 32X at the same time on the master and the slave
- * SH2 (plat_parallel); on the PC one after the other (same pixels, the bands do not overlap) */
+/* fn(arg, 0) and fn(arg, 1) - at the same time on the master and the slave SH2 in
+ * OJ32X_SLAVE_DRAWS builds (plat_parallel), otherwise one after the other (the bands do not
+ * overlap) */
 void oj32x_parallel(void (*fn)(void *, int), void *arg)
 {
 	/* the views are made here, on the master: malloc must never run on both SH2s at once */
@@ -864,14 +879,15 @@ void oj32x_parallel(void (*fn)(void *, int), void *arg)
 	plat_parallel(fn, arg);
 }
 
-/* J5: the pack for a level file (LEVELn.www -> k = www * 10 + n, disc file OJ<k>.PAK). */
+/* The pack a level, planet or bonus file needs (disc file OJ<k>.PAK, see port/pack.h):
+ * world packs k = world * 10 (+ 100 for Holiday Hare '95), bonus packs k = 800 + map. */
 void oj32x_level_pack(const char *levelFile)
 {
 	static int current = -1;
 	const char *b = levelFile;
 	for (const char *p = levelFile; *p; ++p)
 		if (*p == '/' || *p == '\\') b = p + 1;
-	/* J12: one pack per WORLD (planet): both levels of a planet, its tiles, sprites and planet
+	/* one pack per WORLD (planet): both levels of a planet, its tiles, sprites and planet
 	 * screen - k = world * 10. A level of the same world as the pack already in the cart needs
 	 * no loading at all; the planet screen (PLANET.www) loads its world's pack first. */
 	int k;
@@ -880,7 +896,7 @@ void oj32x_level_pack(const char *levelFile)
 		return (ext[0] - '0') * 100 + (ext[1] - '0') * 10 + (ext[2] - '0');
 	};
 	if (strncasecmp(b, "BONUSMAP.", 9) == 0 && world_of(b + 9) >= 0) {
-		k = PACK_BONUS_K + world_of(b + 9);   /* J18: one pack per bonus map, OJ800-OJ829 */
+		k = PACK_BONUS_K + world_of(b + 9);   /* one pack per bonus map, OJ800-OJ829 */
 	} else if (strncasecmp(b, "PLANET.", 7) == 0 && world_of(b + 7) >= 0) {
 		k = world_of(b + 7) * 10;
 	} else if (strncasecmp(b, "LEVEL", 5) == 0 && isdigit((unsigned char)b[5]) && b[6] == '.' && world_of(b + 7) >= 0) {
@@ -888,7 +904,7 @@ void oj32x_level_pack(const char *levelFile)
 	} else {
 		return;
 	}
-	if (plat_game() == 1 && k != PACK_BONUS_K) k += 100;   /* J17: Holiday Hare '95's packs (OJ6xx) */
+	if (plat_game() == 1 && k != PACK_BONUS_K) k += 100;   /* Holiday Hare '95's packs (OJ6xx) */
 	if (k == current) return;
 	{
 		char msg[40];
@@ -909,10 +925,10 @@ void oj32x_level_pack(const char *levelFile)
 
 void oj32x_packs_ready(void) { plat_packs_ready(); }
 
-/* J14: frame profiler - oj32x_prof(slot) adds the time since the last mark to a slot; the
- * frame's marks add up to the whole frame. Every second the averages per frame are put
- * into a text line the level draws in its corner (OJ32X_PROFILE). */
-/* J14c: profiler overlay - its own 3x5 font (the error screens' one) drawn 2x, brightest palette
+/* Frame profiler: oj32x_prof(slot) adds the time since the last mark to a slot; a frame's
+ * marks add up to the whole frame. Every second the averages per frame become three text
+ * lines the level draws in a box in its corner (only in OJ32X_PROFILE builds). */
+/* profiler overlay - its own 3x5 font (the error screens' one) drawn 2x, brightest palette
  * entry on a box of the darkest, so it can be read on any level and any TV */
 #include "mars/font3x5.h"
 
@@ -922,7 +938,7 @@ void oj32x_prof_draw(SDL_Surface *s)
 	int width = 0;
 	for (int l = 0; l < 3; l++) { int n = (int)strlen(prof_text_line(l)); if (n > width) width = n; }
 	const int boxW = width * 8 + 4, boxH = 3 * 12 + 4;
-	/* J15: the box through SDL_FillRect (mapped and recorded with the scrolling renderer),
+	/* the box through SDL_FillRect (mapped and recorded with the scrolling renderer),
 	 * the letters through screen-row pointers */
 	SDL_Rect box = { 0, 0, (Uint16)boxW, (Uint16)boxH };
 	SDL_FillRect(s, &box, (Uint32)overlay_dark);
@@ -970,9 +986,8 @@ void oj32x_prof_frame(void)
 	const uint32_t f = prof_frames ? prof_frames : 1;
 	uint32_t total = 0;
 	for (int i = 0; i < 8; i++) total += prof_acc[i];
-	/* ms per frame, one decimal: logic, background, sprites, foreground, panel, present, other */
-	/* whole ms per frame, three short lines (the level font is wide): total and fps; logic,
-	 * background, sprites, foreground; panel, present, other */
+	/* whole ms per frame, three short lines: "1CPU|2CPU <fps>FPS T<total>"; logic,
+	 * background, sprites, foreground (L B S F); panel, present, other (H P O) */
 	#define MS(x) (unsigned)((x) / f / 1000)
 	snprintf(prof_lines[0], sizeof prof_lines[0], "%s %uFPS T%u",
 	         plat_slave_draws_on() ? "2CPU" : "1CPU",
@@ -991,7 +1006,7 @@ void oj32x_prof_frame(void)
 const char *oj32x_prof_text(int line) { return prof_lines[line < 0 || line > 2 ? 0 : line]; }
 static const char *prof_text_line(int line) { return oj32x_prof_text(line); }
 
-/* J13d: both 32X frame buffers' picture areas to colour 0 (PC: nothing) */
+/* both 32X frame buffers' picture areas to colour 0 (PC: nothing) */
 void oj32x_clear_screens(void) { plat_clear_screens(); }
 
 void oj32x_sfx(int id) { plat_sfx(id); }
@@ -1000,12 +1015,13 @@ bool oj32x_hh95_available(void) { return plat_hh95_available() != 0; }
 int oj32x_port_setting(int key) { return plat_port_setting(key); }
 void oj32x_port_setting_set(int key, int value) { plat_port_setting_set(key, value); }
 
-/* J11: a CD audio track directly (the credits' CD player); 0 = stop */
+/* a CD audio track directly (the credits' CD player); 0 = stop */
 void oj32x_music_track(int track) { plat_music(track); }
 
-/* J10: music as CD audio. The game's 35 music files in alphabetical order are disc tracks 2-36
- * (tools/music_tracks.txt - the tester provides the WAVs); NULL = stop. */
-static char music_last[16];   /* J13: the song asked for last, for volume 0 -> on */
+/* Music as CD audio: the game's music files in alphabetical order are disc tracks 2-38,
+ * Holiday Hare '95's own songs tracks 39-41 (tools/music_tracks.txt; the build renders the
+ * modules into the tracks); NULL = stop. */
+static char music_last[16];   /* the song asked for last, for volume 0 -> on */
 
 void oj32x_music_remember(const char *fileName)
 {
@@ -1066,7 +1082,7 @@ void oj32x_music(const char *fileName, bool restart)
 	if (!fileName) { current = -1; plat_music(0); return; }
 	const char *b = fileName;
 	for (const char *p = fileName; *p; ++p) if (*p == '/' || *p == '\\') b = p + 1;
-	/* J17: Holiday Hare '95's own menu, level-end and XM3 songs (same names as Jazz CD's,
+	/* Holiday Hare '95's own menu, level-end and XM3 songs (same names as Jazz CD's,
 	 * different music) are tracks 39-41 */
 	if (plat_game() == 1) {
 		static const char *const hh[] = { "MENUSNG", "ENDLEVEL", "XM3" };

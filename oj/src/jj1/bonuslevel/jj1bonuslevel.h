@@ -73,8 +73,13 @@ class JJ1BonusLevel : public Level {
 		Anim                     animSet[BANIMS]; ///< Animations
 		JJ1BonusEventType        eventSet[BEVENTS]; ///< Event types
 #ifdef OJ32X
-		// PORT32X (J18): the map's tiles and events straight from the cart pack (2 x 64 KB that
-		// SDRAM cannot hold), collected events in a bit table (8 KB)
+		// PORT32X: the 256 x 256 map is not copied into SDRAM (upstream's grid is 128 KB, more
+		// than the 32X has free). Its tile and event planes are read in place from the bonus
+		// level's cart pack, where the PC build stored them decoded; collected items are
+		// marked in an 8 KB bit table instead of being cleared from the map. tileAt() and
+		// eventAt() replace every read of grid[y][x], clearEvent() every write of 0 to an event.
+		// On the PC build, without a mounted pack, the planes are decoded into the heap
+		// (tilesMapped / eventsMapped = false) and freed with the level.
 		const unsigned char* mapTiles;
 		const unsigned char* mapEvents;
 		bool tilesMapped, eventsMapped;

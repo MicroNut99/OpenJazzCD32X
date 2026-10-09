@@ -1,13 +1,13 @@
 /*
- * OpenJazz CD32X - the RAM cart as read-only graphics memory (J3).
+ * OpenJazz CD32X - an allocator for the RAM cart, used by the PC build only.
  *
- * On the console the SH2 can READ the 4 MB RAM cart but not write it; writes go through
- * the 68000 (OpenLara lesson 1). So decoded graphics that never change after loading
- * (tile sets, sprites, fonts, menu and scene pictures) are put there once, and the
- * 256 KB SDRAM keeps only what changes. cart_write() is the only way in; the PC build
- * makes the cart read-only memory, so any other write crashes at once (a test).
+ * On the console the SH2 can read the 4 MB RAM cart but not write it (writes go through the
+ * 68000), so the 32X never allocates there: everything in the cart comes from the packs
+ * (pack.h). The PC build imitates the cart as read-only memory and can still place pictures
+ * that are missing from a pack in it; any write other than through cart_write() crashes at
+ * once - a test that the game never writes to cart data.
  *
- * The block table (who owns which part) lives in SDRAM: CART_BLOCKS entries.
+ * The block table (who owns which part) lives in normal memory: CART_BLOCKS entries.
  */
 #ifndef OJ32X_CART_H
 #define OJ32X_CART_H
@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #ifdef OJ32X_MARS
-#define CART_BLOCKS 16      /* J5: the 32X never allocates in the cart (the SH2 cannot write it) */
+#define CART_BLOCKS 16      /* the 32X never allocates in the cart (the SH2 cannot write it) */
 #else
 #define CART_BLOCKS 1024
 #endif

@@ -1,14 +1,20 @@
 /**
  * @file credits32x.cpp
  *
- * PORT32X (J11): the credits screen with a CD player, in the main menu's place of "Exit game"
- * (a console has nothing to exit to). The plasma background of the main menu, the credits in
- * the game's own font, and below them the CD player: the game's 35 songs (CD audio tracks 2-36,
- * alphabetical, tools/music_tracks.txt) with the names of their planets.
- *   Left / Right: choose a song (the selector only)   A, C or Start: play the chosen song
- *   (on the one that plays: stop / play)   no choice = no change   B: back
- *   Each track plays once, then the next, round and round (J13c/f). Y, Up or Down: credits
- *   text on / off (J13e/f).
+ * PORT32X: the credits screen with a CD player, opened by the main menu's last entry in
+ * place of "Exit game" (a console has nothing to exit to). A plasma background, the credits
+ * in the game's own font (two pages), and below them the CD player for the soundtrack: the
+ * game's songs as CD audio tracks 2-41 (tools/music_tracks.txt), named after the planets
+ * that play them.
+ *
+ * Controls:
+ *   Left / Right       move the selector (nothing else changes; after 5 s without a choice
+ *                      it returns to the playing track)
+ *   A, C or Start      play the selected track (on the playing track: stop / play)
+ *   Y, X, Z, Mode,     hide / show the credits text (Up / Down for 3-button pads)
+ *   Up or Down
+ *   B                  back to the main menu
+ * Each track plays once, then the next track on the disc, after the last the first again.
  */
 
 #ifdef OJ32X
@@ -31,8 +37,9 @@ namespace {
 
 	struct Song { const char* file; const char* name; };
 
-	// Disc tracks 2-36 in this order (alphabetical, as build.sh puts them on the disc). The
-	// names: which planet's levels play each song, read from the game's own level files.
+	// Disc tracks 2-41 in this order (tools/music_tracks.txt): the game's songs
+	// alphabetically, then Holiday Hare '95's own. The names say which planet's levels play
+	// each song (read from the game's level files).
 	const Song songs[] = {
 		{ "BONUS",    "BONUS STAGE" },
 		{ "BOSS",     "BOSS - GUARDIAN" },
@@ -76,7 +83,7 @@ namespace {
 		{ "H95XM3",   "HOLIDAY HARE 95 STAGE 3" }
 	};
 	const int nSongs = sizeof(songs) / sizeof(songs[0]);
-	const int firstSong = 29;   // track 31 = SONGCD5 Deckstar (J13c)
+	const int firstSong = 29;   // the player starts with track 31, SONGCD5 (Deckstar)
 
 	// Two pages, each shown for 8 seconds
 	const char* const page1[] = {
@@ -109,7 +116,7 @@ namespace {
 int runCredits32X () {
 
 	Plasma plasma;
-	// J11 test: T32X_CREDITS_FONT picks the font on the PC
+	// the font: the big font; on the PC T32X_CREDITS_FONT=0-4 picks another (for comparison)
 	Font* fonts[] = { fontmn2, fontbig, font2, fontmn1, fontiny };
 	const char* fe = getenv("T32X_CREDITS_FONT");
 	Font* font = fonts[fe ? atoi(fe) % 5 : 1];
@@ -120,7 +127,7 @@ int runCredits32X () {
 	bool showText = true, yWas = false;
 	char line[64];
 
-	// J13c: each track plays once, then the next one (the lengths come from the WAVs:
+	// each track plays once, then the next one (the lengths come from the WAVs:
 	// port/music_lengths.h, tools/music_lengths.py); unknown length = the track repeats
 	auto play = [&](int s) {
 		const unsigned int ms = music_length_ms[s + 2];
@@ -136,18 +143,18 @@ int runCredits32X () {
 
 		if (controls.release(C_ESCAPE)) break;
 
-		// J13e: Y shows / hides the credits text (the background and player stay)
+		// Y shows / hides the credits text (the background and player stay)
 		{
-			// J13g: Y, X, Z or Mode (the 6-button pad's extra buttons: 0x0F00)
+			// Y, X, Z or Mode (the 6-button pad's extra buttons: 0x0F00)
 			const bool y = (oj32x_pad() & 0x0F00) != 0;
 			if (y && !yWas) showText = !showText;
 			yWas = y;
-			// J13f: Up / Down do the same (a 3-button pad has no Y)
+			// Up / Down do the same (a 3-button pad has no Y)
 			if (controls.release(C_UP) || controls.release(C_DOWN)) showText = !showText;
 		}
 
-		// Left/Right only move the selector; A/C/Start plays the choice. J13c: no
-		// choice made = nothing changes - after 5 s the selector goes back to the playing track
+		// Left/Right only move the selector; A/C/Start plays the choice. Without a choice
+		// nothing changes, and after 5 s the selector goes back to the playing track.
 		if (controls.release(C_LEFT)) {
 			pick = (pick + nSongs - 1) % nSongs;
 			pickTime = globalTicks;
@@ -173,8 +180,8 @@ int runCredits32X () {
 		}
 		// the end of a track: the next one
 		if (playing && music_length_ms[song + 2] && (int)(globalTicks - ends) >= 0) {
-			// J13f: on to the next track that is on the disc (a song without a WAV has no
-			// length - XMAS2/3 until Holiday Hare '95 comes); after the last, the first again
+			// on to the next track that is on the disc - a song whose WAV was missing at build
+			// time has no length and is skipped; after the last, the first again
 			for (int n = 0; n < nSongs; n++) {
 				song = (song + 1) % nSongs;
 				if (music_length_ms[song + 2]) break;

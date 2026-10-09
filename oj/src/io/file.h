@@ -89,10 +89,11 @@ class File {
 		const unsigned char* packPicture (int width, int height, int length);
 		/// PORT32X: the picture at the current position in a cart pack, any size
 		const unsigned char* packPictureAny (int* width, int* height, uint32_t* end);
-		/// PORT32X (J13): an RLE block of <length> bytes - in place from a cart pack (mapped = true,
+		/// PORT32X: an RLE block of <length> bytes - in place from a cart pack (mapped = true,
 		/// never delete[] it) or decoded as loadRLE does (mapped = false); the PC build records it
 		unsigned char*     loadRLEPacked (int length, bool& mapped);
-		/// PORT32X: PC build - record the picture decoded from <start>..now (T32X_BAKE)
+		/// PORT32X: PC build - record the picture decoded from file bytes <start>..now for the
+		/// pack being baked (T32X_BAKE); does nothing on the 32X
 		void               bakePicture (int start, const unsigned char* pixels, int width, int height);
 #endif
 		unsigned char*     loadRLE     (int length, bool checkSize = true);

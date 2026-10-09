@@ -70,8 +70,9 @@ int JJ1Level::loadPanel () {
 	}
 
 #ifdef OJ32X
-	// PORT32X (J13): the panel's 46 KB comes decoded from the cart pack (no 46 KB block in
-	// SDRAM at every level start: on the console that block failed after a few levels)
+	// PORT32X: the panel's 46 KB come decoded from the cart pack. Decoding them needed a
+	// 46 KB block of SDRAM at every level start, and after a few levels the fragmented heap
+	// no longer had one (out of memory). Freed below only when decoded here.
 	bool panelMapped;
 	unsigned char* pixels = file->loadRLEPacked(46272, panelMapped);
 #else
@@ -81,7 +82,8 @@ int JJ1Level::loadPanel () {
 
 	// Create the panel background
 #ifdef OJ32X
-	// PORT32X: the panel is drawn into (ammo display) - it stays in SDRAM, not the cart
+	// PORT32X: the panel surface is drawn into (ammo display), so it is a copy in SDRAM;
+	// only the 32-line strip is copied, not the whole block
 	panel = video.createSurface(nullptr, SW, TTOI(1));
 	memcpy(panel->pixels, pixels, SW * TTOI(1));
 #else
@@ -366,8 +368,8 @@ int JJ1Level::loadTiles (char* fileName) {
 	file->skipRLE();
 
 #ifdef OJ32X
-	// PORT32X: the tile set decoded by the PC build (cart pack): the decoding held every tile
-	// twice in SDRAM (up to 490 KB). The tiles run to the end of the file.
+	// PORT32X: the tile set comes decoded from the cart pack and is used in place. Decoding
+	// it held every tile twice in SDRAM (up to 490 KB). The tiles run to the end of the file.
 	const int tilesStart = file->tell();
 	{
 		int pw, ph;
@@ -422,7 +424,8 @@ int JJ1Level::loadTiles (char* fileName) {
 	}
 
 #ifdef OJ32X
-	file->bakePicture(tilesStart, buffer, TTOI(1), TTOI(tiles));  // PC build, T32X_BAKE
+	// PORT32X: the PC build records the decoded tile set for the pack (T32X_BAKE)
+	file->bakePicture(tilesStart, buffer, TTOI(1), TTOI(tiles));
 #endif
 	tileSet = video.createSurface(buffer, TTOI(1), TTOI(tiles));
 	video.enableColorKey(tileSet, TKEY);
@@ -450,7 +453,9 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
 	unsigned char* buffer;
 
 #ifdef OJ32X
-	// PORT32X: this level's files and pictures come into the cart (loading screen on the 32X)
+	// PORT32X: bring this level's world pack (both levels of the planet, its tiles, sprites
+	// and planet screen) into the cart. Nothing is loaded when the pack is already there,
+	// e.g. for a planet's second level; otherwise the 32X shows a loading screen.
 	oj32x_level_pack(fileName);
 #endif
 
@@ -631,6 +636,8 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
 	delete[] ext;
 
 #ifdef OJ32X
+	// PORT32X: memory measuring points - logged (the 32X's last log lines; on the PC build
+	// tools/heap_peak.sh groups the heap by them)
 	oj32x_mem_mark("level: before tiles");
 #endif
 	int tiles = loadTiles(string);
@@ -678,7 +685,8 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
 	// Load tile and event references
 
 #ifdef OJ32X
-	// PORT32X: the decoded references from the cart pack (no 32 KB buffer in SDRAM)
+	// PORT32X: the decoded tile and event references in place from the cart pack (no 32 KB
+	// buffer in SDRAM); the grid is built from them as upstream does
 	const int gridStart = file->tell();
 	bool bakedGrid = false;
 	{
@@ -696,7 +704,7 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
 	buffer = file->loadRLE(LW * LH * 2);
 
 #ifdef OJ32X
-	nEventTimes = 0;  // PORT32X: event time table (see jj1level.h)
+	nEventTimes = 0;  // PORT32X: empty event time table (see jj1level.h)
 #endif
 	// Create grid from data
 	for (int x = 0; x < LW; x++) {
@@ -717,7 +725,7 @@ int JJ1Level::load (char* fileName, bool checkpoint) {
 
 #ifdef OJ32X
 	if (!bakedGrid) {
-		file->bakePicture(gridStart, buffer, LW * 2, LH);  // PC build, T32X_BAKE
+		file->bakePicture(gridStart, buffer, LW * 2, LH);  // PORT32X: PC build records it
 		delete[] buffer;
 	}
 #else

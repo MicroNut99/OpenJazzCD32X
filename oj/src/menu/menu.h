@@ -32,7 +32,7 @@
 // Constants
 
 #ifdef OJ32X_MARS
-#define ESCAPE_STRING "(b) back"  // PORT32X: the pad's B button
+#define ESCAPE_STRING "(b) back"  // PORT32X: the pad's B button goes back
 #else
 #define ESCAPE_STRING "(esc) quits"
 #endif

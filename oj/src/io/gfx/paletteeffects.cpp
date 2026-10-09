@@ -481,9 +481,11 @@ void SkyPaletteEffect::apply (SDL_Color* shownPalette, bool direct, int mspf, bo
 	count = (((position * speed) / y) >> 20) % 255;
 
 #ifdef OJ32X_SCROLL
-	// PORT32X (J15): the scrolling renderer numbers the sky's colours by ring row (two rows a
-	// colour, ring row = world row % 200). Turn the palette so that each ring row gets the colour
-	// its screen line had: ring band k is on screen line (2k - vY) mod 200.
+	// PORT32X: the scrolling renderer (OJ32X_SCROLL) keeps the sky in its frame-buffer ring and
+	// does not redraw it: sky pixel colours are numbered by ring row (two rows per palette
+	// entry, ring row = world row % 200). Instead of moving the pixels, the 100 sky entries are
+	// rotated so that each ring row gets the colour of the screen line it is shown on: ring
+	// band k is on screen line (2k - vY) mod 200.
 	int ringVY;
 	if (oj32x_scroll_active(&ringVY) && amount == 100) {
 		SDL_Color turned[100];

@@ -532,8 +532,9 @@ int GameMenu::selectEpisode (GameModeType mode, int episode) {
 	} else {
 
 #ifdef OJ32X_MARS
-		// PORT32X (J18d): this entry is Holiday Hare '95 on the 32X (its own world packs
-		// OJ600/OJ610, sound effects, music and save slots) - from world 50, level 1
+		// PORT32X: on the 32X the last entry is Holiday Hare '95 instead of "specific level".
+		// oj32x_set_game(1) switches to its own world packs (OJ600/OJ610), sound effects,
+		// music and save slots for the run; it starts at world 50, level 0, as the episode does.
 		oj32x_set_game(1);
 		const int ret = newGameDifficulty(mode, 0, 50);
 		oj32x_set_game(0);
@@ -586,7 +587,8 @@ int GameMenu::newGameEpisode (GameModeType mode) {
 	} else exists[10] = false;
 
 #ifdef OJ32X_MARS
-	exists[MAX_EPISODES] = oj32x_hh95_available();   // PORT32X (J18d): Holiday Hare '95
+	// PORT32X: the Holiday Hare '95 entry is available when its packs are on the disc
+	exists[MAX_EPISODES] = oj32x_hh95_available();
 #else
 	exists[MAX_EPISODES] = true; // always possible to load custom level
 #endif
@@ -652,7 +654,7 @@ int GameMenu::newGameEpisode (GameModeType mode) {
 
 #ifdef OJ32X_MARS
 		if (episode == 11 && episodes > 9) {
-			// Holiday Hare '95: the Holiday Hare picture
+			// PORT32X: Holiday Hare '95 shows the Holiday Hare episode's picture
 			SDL_BlitSurface(episodeScreens[9], NULL, canvas, &dst);
 		} else
 #endif
@@ -692,6 +694,7 @@ int GameMenu::newGameEpisode (GameModeType mode) {
 			case 11:
 				tag = " ";
 #ifdef OJ32X_MARS
+				// PORT32X: Holiday Hare '95 (see newGameEpisode)
 				title = "holiday hare 95";
 #else
 				title = "specific level";

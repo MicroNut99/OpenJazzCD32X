@@ -62,7 +62,7 @@ JJ1SceneFrame::JJ1SceneFrame(int newFrameType, unsigned char* newFrameData, int 
  */
 JJ1SceneFrame::~JJ1SceneFrame() {
 #ifdef OJ32X
-	// PORT32X: frame data mapped from a cart pack is not ours to free
+	// PORT32X: frame data used in place from a cart pack (File::mapBlock) is not ours to free
 	if (pack_contains(frameData)) return;
 #endif
 	delete[] frameData;

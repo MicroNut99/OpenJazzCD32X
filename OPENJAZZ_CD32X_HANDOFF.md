@@ -5,6 +5,12 @@ Project folder: `/mnt/s/KoboPort/sega-toolchain-12.1/sega/OpenJazzCD32X`
 Working method: as in *Handoff: How We Work and the Kobo CD32X Framework* (PC host build
 first, memory budget, then the 32X; one zip per round; this file is the memory).
 
+
+> **Note on the source comments (after J19b).** Code comments no longer carry round numbers
+> (J4c, J13e, OJ-J5 ...): each change is explained by what it does and why. This log keeps the
+> history. Markers: `PORT32X:` in OpenJazz's sources (`#ifdef OJ32X` blocks), `OJ32X:` in the
+> boot programs (`cd32x/`); the port layer (`port/`) is the port's own code.
+
 ## Target (proposed, waiting for the tester's decision)
 The OpenLara model: the disc boots, `cdloader_sh2.c` copies the engine into the RAM cart,
 each level is loaded from the disc into a cart slot, CD audio for music. A cartridge-only

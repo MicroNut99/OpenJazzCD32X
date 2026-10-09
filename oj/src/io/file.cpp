@@ -58,7 +58,8 @@ File::File (const char* name, int pathType, bool write) :
 	file(nullptr), filePath(nullptr), forWriting(write) {
 
 #ifdef OJ32X
-	// PORT32X: game files come from the data packs in the RAM cart when one holds them
+	// PORT32X: a file that is in one of the data packs in the RAM cart is opened there
+	// (fmemopen over the cart memory); only files no pack holds are opened normally.
 	oj32x_packs_ready();
 	packData = nullptr;
 	if (!write) {
@@ -66,8 +67,9 @@ File::File (const char* name, int pathType, bool write) :
 		uint32_t size;
 		bool fromPack = true;
 #ifndef OJ32X_MARS
-		// PORT32X (J19): PC bake - T32X_BAKE_UNPACKED=<A,B> reads these files from the data folder
-		// even when a mounted pack has a file of that name (Holiday Hare '95's MAINCHAR.000)
+		// PORT32X (PC build, baking): T32X_BAKE_UNPACKED=<A,B,...> opens these files from the
+		// data folder even when a mounted pack holds a file of the same name. Holiday Hare '95
+		// is baked against Jazz CD's common pack, and its MAINCHAR.000 differs from Jazz CD's.
 		{
 			const char* un = getenv("T32X_BAKE_UNPACKED");
 			if (un) {
@@ -87,7 +89,7 @@ File::File (const char* name, int pathType, bool write) :
 				packData = data;
 				filePath = createString("pack/", name);
 #ifdef OJ32X_MARS
-				{	// PORT32X: the 32X red screen shows the last log lines - which file was read
+				{	// PORT32X: the 32X error screens show the last log lines - name the file
 					char msg[32];
 					snprintf(msg, sizeof msg, "OPEN %s", name);
 					oj32x_log(msg);
@@ -173,7 +175,7 @@ bool File::open (const char* path, const char* name, bool write) {
 	if (file) {
 		LOG_DEBUG("Opened file: %s", filePath);
 #ifdef OJ32X
-		// PORT32X: the PC build records the file for the cart pack (T32X_BAKE)
+		// PORT32X: the PC build records every file it opens for the pack it bakes (T32X_BAKE)
 		if (!write) pack_bake_file(name, filePath);
 #endif
 
@@ -202,9 +204,10 @@ bool File::exists (const char * fileName, int pathType) {
 	bool exists = false;
 
 #ifdef OJ32X
-	// PORT32X: files in a cart pack exist
+	// PORT32X: a file exists if a pack holds it, or the common pack's catalogue lists it as
+	// being on the disc (files a later pack brings in, e.g. a level's)
 	oj32x_packs_ready();
-	if (pack_exists(fileName)) return true;  // in a pack, or listed as on the disc (J4d)
+	if (pack_exists(fileName)) return true;
 #endif
 
 	Path* path = gamePaths.paths;
@@ -471,6 +474,10 @@ unsigned char * File::mapBlock (int length) {
 
 
 #ifdef OJ32X
+// PORT32X: reading pictures and blocks that the PC build stored decoded in a cart pack
+// (descriptions in file.h). The 32X then uses them in place in the cart instead of
+// decoding them into its 256 KB of SDRAM.
+
 const unsigned char* File::packPicture (int width, int height, int length) {
 
 	if (!packData) return nullptr;
@@ -498,9 +505,9 @@ unsigned char* File::loadRLEPacked (int length, bool& mapped) {
 		}
 	}
 	unsigned char* pixels = loadRLE(length);
-	// a block as a picture: one line - or 256 wide when it is longer than a picture line can be
-	// (J19b: the bonus maps' 65,536-byte blocks were never baked, so the 32X decoded them into
-	// SDRAM and ran out of memory)
+	// Recorded for the pack as a picture of one line, or 256 pixels wide when the block is
+	// longer than a line may be (65,535). The bonus maps' 64 KB blocks need the second form;
+	// without it they were not in the packs and the 32X ran out of memory decoding them.
 	if (length <= 65535) bakePicture(start, pixels, length, 1);
 	else if (length % 256 == 0 && length / 256 <= 65535) bakePicture(start, pixels, 256, length / 256);
 	return pixels;
@@ -714,8 +721,8 @@ SDL_Surface* File::loadSurface (int width, int height, bool checkSize) {
 	unsigned char* pixels;
 
 #ifdef OJ32X
-	// PORT32X: a picture the pack already holds decoded is not decoded again (that took
-	// width x height bytes of SDRAM for a moment: 64 KB for a full screen)
+	// PORT32X: a picture the pack holds decoded is taken from there instead of being decoded
+	// again (decoding needs width x height bytes of SDRAM: 64 KB for a full screen)
 	const int start = tell();
 	if (packData) {
 		uint32_t end;
@@ -730,7 +737,8 @@ SDL_Surface* File::loadSurface (int width, int height, bool checkSize) {
 	pixels = loadRLE(width * height, checkSize);
 
 #ifdef OJ32X
-	pack_bake_file_picture(filePath, start, tell(), pixels, width, height);  // PC build, T32X_BAKE
+	// PORT32X: the PC build records the decoded picture for the pack (T32X_BAKE)
+	pack_bake_file_picture(filePath, start, tell(), pixels, width, height);
 #endif
 
 	surface = video.createSurface(pixels, width, height);

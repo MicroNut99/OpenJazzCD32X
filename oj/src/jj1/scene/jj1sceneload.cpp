@@ -408,8 +408,8 @@ void JJ1Scene::loadAni (JJ1SceneAnimation &scene, File *f, int dataIndex) {
 						{
 							LOG_ANIM("PL 1L Background Type: 0");
 #ifdef OJ32X
-							// PORT32X: the background decoded by the PC build (cart pack): skip the
-							// block instead of decoding it in 64 KB of SDRAM
+							// PORT32X: the background comes decoded from the cart pack: skip the
+							// block instead of decoding it into 64 KB of SDRAM
 							const uint8_t* baked = f->packPicture(SW, SH, size);
 							if (baked) {
 								scene.background = video.createSurface(baked, SW, SH);
@@ -424,7 +424,7 @@ void JJ1Scene::loadAni (JJ1SceneAnimation &scene, File *f, int dataIndex) {
 							loadCompactedMem(size, frameData, pixels);
 							delete[] frameData;
 #ifdef OJ32X
-							f->bakePicture(bgStart, pixels, SW, SH);  // PC build, T32X_BAKE
+							f->bakePicture(bgStart, pixels, SW, SH);  // PORT32X: PC build records it
 #endif
 							scene.background = video.createSurface(pixels, SW, SH);
 							delete[] pixels;
@@ -437,7 +437,7 @@ void JJ1Scene::loadAni (JJ1SceneAnimation &scene, File *f, int dataIndex) {
 					case EFullFrameAniHeader:
 						{
 							#ifdef OJ32X
-							unsigned char* blockData = f->mapBlock(size); // PORT32X: in place from a cart pack
+							unsigned char* blockData = f->mapBlock(size); // PORT32X: in place from the pack, no copy
 #else
 							unsigned char* blockData = f->loadBlock(size);
 #endif
@@ -459,7 +459,7 @@ void JJ1Scene::loadAni (JJ1SceneAnimation &scene, File *f, int dataIndex) {
 					case ERCAniHeader:
 						{
 							#ifdef OJ32X
-							unsigned char* blockData = f->mapBlock(size); // PORT32X: in place from a cart pack
+							unsigned char* blockData = f->mapBlock(size); // PORT32X: in place from the pack, no copy
 #else
 							unsigned char* blockData = f->loadBlock(size);
 #endif
@@ -470,7 +470,7 @@ void JJ1Scene::loadAni (JJ1SceneAnimation &scene, File *f, int dataIndex) {
 					case ECompactedAniHeader:
 						{
 							#ifdef OJ32X
-							unsigned char* blockData = f->mapBlock(size); // PORT32X: in place from a cart pack
+							unsigned char* blockData = f->mapBlock(size); // PORT32X: in place from the pack, no copy
 #else
 							unsigned char* blockData = f->loadBlock(size);
 #endif

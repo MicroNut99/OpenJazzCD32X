@@ -52,7 +52,8 @@ JJ1Planet::JJ1Planet (char * fileName, int previous) {
 	int count;
 
 #ifdef OJ32X
-	// PORT32X (J12): this planet's world pack (both levels + planet screen) comes into the cart
+	// PORT32X: bring this planet's world pack (planet screen, both levels) into the cart,
+	// behind a loading screen; the levels that follow find it already there
 	oj32x_level_pack(fileName);
 #endif
 
@@ -150,8 +151,9 @@ int JJ1Planet::play () {
 		video.clearScreen(0);
 
 #ifdef OJ32X_MARS
-		// PORT32X (J18d, the tester): the planet stays put at its full size - no growing in and
-		// no flying towards the screen; shown for as long as the original sequence lasts
+		// PORT32X: a choice of this port - the planet is shown still, at its full size, for as
+		// long as the original sequence lasts, instead of growing in and flying towards the
+		// screen
 		if (globalTicks - tickOffset < F4 + FQ)
 			sprite.drawScaled(canvasW >> 1, canvasH >> 1, F2);
 		else return E_NONE;

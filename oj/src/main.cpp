@@ -32,6 +32,7 @@
 #include "SDL_wrapper.h"
 #ifdef OJ32X
 #include "oj32x.h"
+// PORT32X: set by Level::loop for every frame played; the pad layout is chosen from it below
 bool oj32xPlayLayout = false;
 #endif
 #if OJ_SDL3
@@ -299,7 +300,9 @@ void startUp (const char *argv0, int pathCount, char *paths[]) {
 	}
 
 #ifdef OJ32X
-	bool panelMapped;  // PORT32X (J13): from the cart pack when it is there
+	// PORT32X: the panel block in place from the common pack when it is there (the two panel
+	// fonts are made from it below); freed only when it was decoded here
+	bool panelMapped;
 	pixels = file->loadRLEPacked(46272, panelMapped);
 #else
 	pixels = file->loadRLE(46272);
@@ -448,7 +451,8 @@ int play () {
 	// Load and play the startup cutscene
 
 #ifdef OJ32X
-	// PORT32X: the 32X skips the intro (J5); the PC build too with T32X_SKIP_INTRO=1
+	// PORT32X: the 32X skips the intro cutscene (no cutscenes, see Level::playScene); the PC
+	// build does too with T32X_SKIP_INTRO=1
 	if (!oj32x_skip_intro()) {
 #endif
 	try {
@@ -555,7 +559,8 @@ int loop (LoopType type, PaletteEffect* paletteEffects, bool effectsStopped) {
 
 	// Process system events
 #ifdef OJ32X
-	// PORT32X: pad layout for this frame (Level::loop asks for the play layout)
+	// PORT32X: the pad layout for this frame - the play layout when Level::loop asked for it
+	// (A/B/C as jump and fire), otherwise the menu layout (A/C/Start select, B back)
 	oj32x_pad_mode(oj32xPlayLayout ? OJ32X_PAD_PLAY : OJ32X_PAD_MENU);
 	oj32xPlayLayout = false;
 #endif

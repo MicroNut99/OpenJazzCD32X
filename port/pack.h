@@ -1,9 +1,13 @@
 /*
- * OpenJazz CD32X - data packs in the RAM cart (J4c).
+ * OpenJazz CD32X - data packs in the RAM cart.
  *
- * The SH2 cannot write the cart (OpenLara lesson 1), so everything the game needs there is
- * prepared on the PC and copied in from the disc with the proven commands 38 + 46 (a pack is
- * the disc file IMAGE<n>.RAW; main.c puts it at cart slot n * 128 KB).
+ * The SH2 cannot write the cart (the OpenLara addendum, 2.1), so everything the game needs
+ * there is prepared on the PC and copied in from the disc with commands 38 + 46. Packs:
+ *   - the common pack, disc file IMAGE8.RAW, at cart 0x100000 (menus, fonts, panel, demos,
+ *     and a catalogue of every game file), loaded at start-up;
+ *   - one world pack per planet, OJ<world * 10>.PAK (Holiday Hare '95: + 100), and one pack
+ *     per bonus level, OJ<800 + map>.PAK, loaded one at a time at cart 0x280000.
+ * Mounted packs are searched newest first, so a world pack's file wins over the common one.
  *
  * A pack holds:
  *   - game files (PANEL.000, MENU.000, STARTUP.0SC ...), read in place through fmemopen
@@ -41,18 +45,19 @@ extern "C" {
 
 #define PACK_MAX 4
 
-/* J5: level packs. Disc file OJ<k>.PAK (k = world * 10 + level, three digits) = command 38
- * number PACK_LEVEL_ID0 + k; copied to cart PACK_LEVEL_CART (slot 20). The common pack (cart
- * 0x100000) must therefore end before 0x280000 (1.5 MB) - build.sh checks both sizes. */
+/* World and bonus packs. Disc file OJ<k>.PAK (k three digits: world * 10 for a world pack,
+ * + 100 for Holiday Hare '95, 800 + map for a bonus pack) = command 38 file number
+ * PACK_LEVEL_ID0 + k; copied to cart PACK_LEVEL_CART (slot 20). The common pack (cart
+ * 0x100000) must therefore end before 0x280000 (1.5 MB) - the build checks both sizes. */
 #define PACK_LEVEL_ID0   200
 #define PACK_LEVEL_CART  0x280000u
 #define PACK_LEVEL_MAX   0x170000u   /* up to 0x3F0000, where saves begin */
-#define PACK_BONUS_K     800         /* J9: OJ800.PAK = the bonus levels (all BONUSMAP.* files) */
+#define PACK_BONUS_K     800         /* OJ<800 + n>.PAK = bonus level BONUSMAP.n */
 
 /* Makes a pack in memory (the cart) known to the game. false: not a pack. */
 bool pack_mount(const uint8_t *base);
 void pack_unmount_all(void);
-/* J5: mount at a given place (0 = the common pack, 1 = the current level's pack); NULL removes
+/* mount at a given place (0 = the common pack, 1 = the current world or bonus pack); NULL removes
  * the last one */
 bool pack_mount_at(int index, const uint8_t *base);
 int  pack_count(void);

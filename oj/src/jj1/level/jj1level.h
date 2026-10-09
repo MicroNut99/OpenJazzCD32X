@@ -147,8 +147,9 @@
 typedef struct {
 
 #ifdef OJ32X
-	// PORT32X: 3 bytes instead of 8 (48 KB instead of 128 KB for the grid): event (0-127)
-	// and bg (0/1) share a byte, the time lives in JJ1Level::eventTimes
+	// PORT32X: 3 bytes per cell instead of 8 (48 KB instead of 128 KB for the 256 x 64 grid,
+	// which must fit the 32X's 256 KB of SDRAM): event (0-127) and bg (0/1) share a byte, and
+	// the time moves to the small table JJ1Level::eventTimes.
 	unsigned char tile; ///< Indexes the tile set
 	unsigned char event : 7; ///< Indexes the event set
 	unsigned char bg : 1; ///< 0 = Effect background, 1 = Black background
@@ -229,8 +230,9 @@ class JJ1Level : public Level {
 		char          mask[240][64]; ///< Tile masks. At most 240 tiles, all with 8 * 8 masks
 		GridElement   grid[LH][LW]; ///< Level grid. All levels are the same size
 #ifdef OJ32X
-		/// PORT32X: event times live here instead of in every grid element (4 of the 8 bytes
-		/// of 16,384 elements = 64 KB); only cells with a time set take an entry
+		/// PORT32X: event times live here instead of in every grid element (they were 4 of its
+		/// 8 bytes: 64 KB). Only cells whose time is set take an entry; when the table is full
+		/// the oldest entry is dropped and a warning logged (never seen in testing).
 		struct EventTime { unsigned short cell; unsigned int time; };
 		EventTime     eventTimes[256];
 		int           nEventTimes;
@@ -272,11 +274,13 @@ class JJ1Level : public Level {
 		void draw ();
 #ifdef OJ32X
 	public:
-		/// PORT32X (J10): one band of the tile layers - the master and the slave SH2 each
-		/// draw half of the screen at the same time (port/plat_mars.c oj32x_parallel)
+		/// PORT32X: draw one horizontal band of the tile layers (the target's clip rectangle).
+		/// Used for the foreground with the scrolling renderer, and by the original renderer,
+		/// which can split the screen between both SH2s (oj32x_parallel; off by default,
+		/// OJ32X_SLAVE_DRAWS in port/plat_mars.c - measured: no gain, shared bus).
 		void drawBand (SDL_Surface* target, int vX, int vY, int viewH, bool foreground);
 #ifdef OJ32X_SCROLL
-		/// PORT32X (J15): the line-table scrolling renderer (jj1levelframe.cpp)
+		/// PORT32X: the line-table scrolling renderer (description in jj1levelframe.cpp)
 		void scrollBg (int rx, int wy, int w, int h);
 		void scrollBegin (int vX, int vY, int viewH);
 		void scrollOrb (int vX, int vY);

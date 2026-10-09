@@ -54,11 +54,12 @@ Plasma::Plasma(){
  */
 #ifdef OJ32X
 /*
- * PORT32X (J13c): the same picture, much faster. The colour of a pixel is
+ * PORT32X: the same picture, much faster. The colour of a pixel is
  *   ((row term + column term) >> 10) & 15
  * where the column term depends only on x - so it is worked out once per frame for the 320
  * columns, and each pixel is one add and one shift; four pixels go out in one 32-bit write.
- * The two halves of the screen are drawn by the two SH2s at the same time (oj32x_parallel).
+ * The screen is drawn in two halves through oj32x_parallel: both on the master SH2 by default,
+ * one on each SH2 in builds with OJ32X_SLAVE_DRAWS.
  */
 namespace {
 	struct PlasmaJob { unsigned char* px; int w, h, pitch, p0, p1; const unsigned int* col; };

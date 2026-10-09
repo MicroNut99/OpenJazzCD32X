@@ -148,7 +148,8 @@ Font::Font (const char* fileName) {
 		LOG_WARN("Could not pack font atlas!");
 
 #ifdef OJ32X
-	// PORT32X: the atlas is finished - move it to the RAM cart
+	// PORT32X: the finished atlas is swapped for the identical picture in the cart pack and
+	// the SDRAM copy freed (the PC build records it for the pack instead)
 	characterAtlas = oj32x_freeze(characterAtlas);
 #endif
 	// Delete single char surfaces
@@ -261,7 +262,8 @@ Font::Font (unsigned char* pixels, bool big) {
 		LOG_WARN("Could not pack font atlas!");
 
 #ifdef OJ32X
-	// PORT32X: the atlas is finished - move it to the RAM cart
+	// PORT32X: the finished atlas is swapped for the identical picture in the cart pack and
+	// the SDRAM copy freed (the PC build records it for the pack instead)
 	characterAtlas = oj32x_freeze(characterAtlas);
 #endif
 	// Delete single char surfaces
@@ -386,7 +388,8 @@ Font::Font (bool bonus) {
 		LOG_WARN("Could not pack font atlas!");
 
 #ifdef OJ32X
-	// PORT32X: the atlas is finished - move it to the RAM cart
+	// PORT32X: the finished atlas is swapped for the identical picture in the cart pack and
+	// the SDRAM copy freed (the PC build records it for the pack instead)
 	characterAtlas = oj32x_freeze(characterAtlas);
 #endif
 	// Delete single char surfaces

@@ -274,8 +274,9 @@ void Log::log(int lvl, const char *file, int line, const char *fmt, ...) {
 		(lvl == LL_INFO) ? ANDROID_LOG_INFO : ANDROID_LOG_DEBUG,
 		"OpenJazz", outbuffer);
 #elif defined(OJ32X_MARS)
-	// PORT32X: no console or files on the 32X - warnings and errors become the "last log"
-	// line of the platform's error screens; the HTML queue would only cost SDRAM
+	// PORT32X: the 32X has no console and no log file. Warnings and errors are kept as the
+	// "last log" lines shown on the platform's error screens; the HTML log queue is not kept
+	// (it would only cost SDRAM).
 	if (lvl < LL_WARN) return;
 	char outbuffer[96];
 	va_list args;

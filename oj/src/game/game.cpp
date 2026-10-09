@@ -205,7 +205,8 @@ int Game::playLevel (char* fileName, bool intro, bool checkpoint) {
 	} else if (levelType == LT_JJ1BONUS) {
 
 #if defined(OJ32X_MARS) && defined(OJ32X_NO_BONUS)
-		// PORT32X: bonus levels off (J9-J17); J18 reads their map from the cart instead
+		// PORT32X: build switch to leave the bonus levels out. Not set by default: bonus levels
+		// fit in memory because their map is read from the cart pack (jj1bonuslevel.h).
 		return E_NONE;
 #endif
 

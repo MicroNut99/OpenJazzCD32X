@@ -68,7 +68,9 @@ Level::Level (Game* owner) :
 	stage = LS_NORMAL;
 	sprites = tickOffset = steps = prevTicks = ticks = endTime = items = stats = 0;
 #ifdef OJ32X_MARS
-	if (oj32x_port_setting(0)) stats = S_SCREEN;   // PORT32X (J19): the FPS counter as last left
+	// PORT32X: the frame counter (Z) starts as it was last left - kept in the RAM cart's
+	// save area, on until the player switches it off
+	if (oj32x_port_setting(0)) stats = S_SCREEN;
 #endif
 	multiplayer = false;
 }
@@ -126,7 +128,8 @@ int Level::playScene (const char* file) {
 	int ret;
 
 #ifdef OJ32X_MARS
-	// PORT32X: no cutscenes on the 32X (J9)
+	// PORT32X: no cutscenes on the 32X. Their decoder is far too slow on the SH2 and the
+	// larger scenes do not fit the memory; the game goes straight on.
 	(void)file;
 	return E_NONE;
 #endif
@@ -345,8 +348,11 @@ int Level::select (bool& menu, int option) {
 				// Restore level palette
 				video.setPalette(palette);
 #ifdef OJ32X_MARS
-				video.setClipRect(canvas, nullptr);   // PORT32X (J18c): no menu picture in the
-				video.clearScreen(0);                 // level's colours for a frame
+				// PORT32X: clear the screen together with the palette change. Otherwise the
+				// next frame shows the menu's picture in the level's colours - unseen at
+				// 60 fps, a visible flash at the 32X's frame rate.
+				video.setClipRect(canvas, nullptr);
+				video.clearScreen(0);
 #endif
 
 			} else
@@ -370,8 +376,8 @@ int Level::select (bool& menu, int option) {
 				// Restore level palette
 				video.setPalette(palette);
 #ifdef OJ32X_MARS
-				video.setClipRect(canvas, nullptr);   // PORT32X (J18c): no menu picture in the
-				video.clearScreen(0);                 // level's colours for a frame
+				video.setClipRect(canvas, nullptr);   // PORT32X: as above
+				video.clearScreen(0);
 #endif
 
 			} else
@@ -395,8 +401,8 @@ int Level::select (bool& menu, int option) {
 				// Restore level palette
 				video.setPalette(palette);
 #ifdef OJ32X_MARS
-				video.setClipRect(canvas, nullptr);   // PORT32X (J18c): no menu picture in the
-				video.clearScreen(0);                 // level's colours for a frame
+				video.setClipRect(canvas, nullptr);   // PORT32X: as above
+				video.clearScreen(0);
 #endif
 
 			} else
@@ -419,7 +425,7 @@ int Level::select (bool& menu, int option) {
 			// Restore level palette
 			video.setPalette(palette);
 #ifdef OJ32X_MARS
-			video.setClipRect(canvas, nullptr);   // PORT32X (J18c)
+			video.setClipRect(canvas, nullptr);   // PORT32X: as above
 			video.clearScreen(0);
 #endif
 
@@ -457,7 +463,8 @@ int Level::loop (bool& menu, int& option, bool& message) {
 
 	// Main loop
 #ifdef OJ32X
-	// PORT32X: the pad's play layout while playing, the menu layout in the level menu
+	// PORT32X: the pad uses its play layout (A/B/C as jump and fire) while playing, and its
+	// menu layout while the level's pause menu is open
 	oj32xPlayLayout = !menu;
 #endif
 	if (::loop(NORMAL_LOOP, paletteEffects, paused) == E_QUIT) return E_QUIT;
@@ -477,7 +484,8 @@ int Level::loop (bool& menu, int& option, bool& message) {
 		if (!multiplayer) stats ^= S_SCREEN;
 		else stats = (stats + 1) & 3;
 #ifdef OJ32X_MARS
-		oj32x_port_setting_set(0, (stats & S_SCREEN) ? 1 : 0);   // PORT32X (J19): Z remembered
+		// PORT32X: remember the frame counter's state across power-off (RAM cart save area)
+		oj32x_port_setting_set(0, (stats & S_SCREEN) ? 1 : 0);
 #endif
 
 	}

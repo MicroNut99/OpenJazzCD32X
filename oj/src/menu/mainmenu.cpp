@@ -236,7 +236,8 @@ int MainMenu::select (int option) {
 		case 5: // Exit
 
 #ifdef OJ32X
-			// PORT32X (J11): no "Exit game" on a console - the credits + CD player instead
+			// PORT32X: a console has nothing to exit to - this entry opens the credits and
+			// the CD player (credits32x.cpp)
 			if (runCredits32X() == E_QUIT) return E_QUIT;
 			break;
 #else
@@ -289,7 +290,8 @@ int MainMenu::run () {
 		macroType[macro] = -1;
 
 #if defined(OJ32X_MARS) && !defined(OJ32X_DEMO)
-		// PORT32X (J14e): demos off on the 32X - build with -DOJ32X_DEMO for them
+		// PORT32X: no demos on the 32X (the recordings are not loaded, so the menu never
+		// starts one); a build with -DOJ32X_DEMO has them
 		if (false) {
 #else
 		if (File::exists(fileName, PATH_TYPE_GAME)) {
@@ -432,8 +434,8 @@ int MainMenu::run () {
 
 
 #ifdef OJ32X_MARS
-		// PORT32X: no plasma on the 32X (a sum of four cosines for each of the 64,000 pixels,
-		// every frame: it made the menu slow) - the plain background colour instead
+		// PORT32X: no plasma behind the main menu on the 32X: it made the menu slow. The plain
+		// background colour instead (the credits screen keeps a faster plasma, plasma.cpp).
 		video.clearScreen(28);
 #else
 		//as long as we're drawing plasma, we don't need to clear the screen.

@@ -1,5 +1,5 @@
 /*
- * OpenJazz CD32X - J4a boot test: the C++ features OpenJazz relies on, checked on the 32X
+ * OpenJazz CD32X - boot test: the C++ features OpenJazz relies on, checked on the 32X
  * before the game starts (port/plat_mars.c boot_test shows the results).
  */
 #include <new>
@@ -38,7 +38,7 @@ extern "C" int oj32x_test_throw(void)
 	}
 }
 
-/* ---- J7: what stopped the game, instead of a bare "exit code 1" ---------------------------
+/* ---- what stopped the game, instead of a bare "exit code 1" ---------------------------
  * abort() (exit code 1) comes from std::terminate: an exception nobody caught (OpenJazz only
  * catches int), e.g. std::bad_alloc when memory runs out. Now: running out of memory names the
  * size asked for, and any other uncaught exception names its type - both on the red screen. */

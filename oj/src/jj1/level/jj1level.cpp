@@ -128,10 +128,11 @@ void JJ1Level::deletePanel () {
 JJ1Level::~JJ1Level () {
 
 #ifdef OJ32X
-	// PORT32X (J13d): the level leaves its view clip rectangle on the screen; the menus' clear
-	// only fills inside it, so a strip of level graphics stayed at the right edge of every menu
+	// PORT32X: the level leaves its view clip rectangle set on the screen, and the menus'
+	// screen clear only fills inside it - a strip of level graphics stayed at the right edge
+	// of every menu. Reset the clip rectangle and clear both frame buffers on the way out.
 #ifdef OJ32X_SCROLL
-	oj32xScrollReset();   // J15: back to the plain screen
+	oj32xScrollReset();   // the scrolling renderer's mapping off: back to the plain screen
 #endif
 	video.setClipRect(canvas, nullptr);
 	video.clearScreen(0);
@@ -380,7 +381,8 @@ unsigned char JJ1Level::getEventHits (unsigned char gridX, unsigned char gridY) 
 unsigned int JJ1Level::getEventTime (unsigned char gridX, unsigned char gridY) {
 
 #ifdef OJ32X
-	// PORT32X: from the event time table (0 = no time, as a cleared grid had)
+	// PORT32X: event times live in a small table instead of the grid (see jj1level.h);
+	// a cell without an entry has time 0, as in upstream's cleared grid
 	const unsigned short cell = (gridY << 8) | gridX;
 	for (int i = 0; i < nEventTimes; i++)
 		if (eventTimes[i].cell == cell) return eventTimes[i].time;
@@ -502,7 +504,7 @@ int JJ1Level::hitEvent (unsigned char gridX, unsigned char gridY, int hits, JJ1L
 void JJ1Level::setEventTime (unsigned char gridX, unsigned char gridY, unsigned int time) {
 
 #ifdef OJ32X
-	// PORT32X: event time table; time 0 removes the entry
+	// PORT32X: event time table (see jj1level.h); time 0 removes the cell's entry
 	const unsigned short cell = (gridY << 8) | gridX;
 	for (int i = 0; i < nEventTimes; i++) {
 		if (eventTimes[i].cell == cell) {
@@ -858,7 +860,10 @@ int JJ1Level::play () {
 		// Process frame-by-frame activity
 
 #ifdef OJ32X
-		oj32x_prof(6);   // PORT32X (J14): profiler - everything since the last mark = "other"
+		// PORT32X: frame profiler marks (port/sdl_oj.cpp oj32x_prof: one timer read each;
+		// the figures are shown only in builds with OJ32X_PROFILE). Everything since the
+		// previous mark counts as "other"; the logic steps of this frame are counted.
+		oj32x_prof(6);
 		int profSteps = 0;
 #endif
 		while (getTimeChange() >= T_STEP) {

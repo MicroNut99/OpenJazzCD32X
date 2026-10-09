@@ -6,7 +6,7 @@ OpenJazz engine.
 ## What is in here / what is not
 - In: the OpenJazz engine with the port's changes (`oj/`, all changes marked `PORT32X`, also as
   `OPENJAZZ_PORT32X.patch`), the port layer (`port/`), the SH2 loader and Sub-CPU program (`cd32x/`,
-  OpenLara's, changes marked `OJ-…`), the build and pack tools (`tools/`, `build.sh`), the PC host
+  OpenLara's, changes marked `OJ32X`), the build and pack tools (`tools/`, `build.sh`), the PC host
   build and regression references (`host/`, `tests/`).
 - Not in: any game data. The build needs a copy of Jazz Jackrabbit (CD edition) in
   `JazzJackRabbitGame/`, optionally Holiday Hare '95 in `JAZZXMAS1995/`, and a 320x224 splash

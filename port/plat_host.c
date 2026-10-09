@@ -13,7 +13,7 @@
  *     1 ms per idle poll, so runs are fast and repeatable
  *
  * Environment:
- *   T32X_ROMFS          path of the image (OpenJazz J1: optional - the PC build
+ *   T32X_ROMFS          path of the image (OpenJazz optional - the PC build
  *                       reads the game folder directly until the ROM file system exists)
  *   T32X_ROMFS_OFFSET   byte offset of the romfs inside that file (default 0)
  *   T32X_FRAMES_DIR     where to write frames (default "frames")
@@ -78,7 +78,7 @@ static unsigned long env_ul(const char *name, unsigned long dflt)
 }
 
 static void audio_start(void);  /* sound, below */
-static void cart_load_pack(void);  /* J4c, below */
+static void cart_load_pack(void);  /* below */
 void plat_packs_ready(void);
 void __real_free(void *p);
 
@@ -87,7 +87,7 @@ void plat_init(void)
 	audio_start();
 	const char *path = getenv("T32X_ROMFS");
 	if (path == NULL)
-		goto no_romfs;  /* PORT32X (OpenJazz J1): no ROM file system yet */
+		goto no_romfs;  /* OpenJazz uses no ROM file system (a Tyrian leftover) */
 
 	{
 	FILE *f = fopen(path, "rb");
@@ -586,11 +586,11 @@ void plat_present_hud(const uint8_t *pixels, int pitch, const uint16_t *palette5
 	present_common(pixels, pitch, palette555, true);
 }
 
-/* OpenJazz J3: the cart data area, read-only except during plat_cart_write */
+/* OpenJazz the cart data area, read-only except during plat_cart_write */
 static uint8_t *cart_mem;
 static const uint32_t cart_len = PLAT_CART_DATA_END - PLAT_CART_DATA_OFFSET;
 
-static uint32_t cart_pack_len;   /* J4c: a pack (T32X_PACK) sits at the start of the data area */
+static uint32_t cart_pack_len;   /* a pack (T32X_PACK) sits at the start of the data area */
 
 static void cart_map(void)
 {
@@ -606,8 +606,8 @@ static void cart_map(void)
 uint8_t *plat_cart_data(uint32_t *size)
 {
 	cart_map();
-	cart_load_pack();   /* J5: the pack first - the allocator gets the space after it */
-	/* J5: the allocator stays below the level pack area (PACK_LEVEL_CART) */
+	cart_load_pack();   /* the pack first - the allocator gets the space after it */
+	/* the allocator stays below the world / bonus pack area (PACK_LEVEL_CART) */
 	*size = (PACK_LEVEL_CART - PLAT_CART_DATA_OFFSET) - cart_pack_len;
 	return cart_mem + cart_pack_len;
 }
@@ -648,9 +648,9 @@ int32_t plat_load_pack(int id, uint32_t cart_offset, uint32_t max_bytes)
 	return (int32_t)len;
 }
 
-/* J4c: T32X_PACK=<file>: the pack goes into the cart (like command 46 on the 32X) and is
+/* T32X_PACK=<file>: the pack goes into the cart (like command 46 on the 32X) and is
  * mounted; the cart allocator gets the space after it */
-/* J5: game files can be opened before plat_init (configuration, PANEL.000): the pack is
+/* game files can be opened before plat_init (configuration, PANEL.000): the pack is
  * mounted at the first look-up */
 void plat_packs_ready(void)
 {
@@ -738,7 +738,7 @@ void __real_free(void *p);
 typedef struct { size_t size; size_t pad; } HeapHeader;  /* keeps 16-byte alignment */
 static size_t heap_now, heap_peak, heap_blocks;
 
-/* OpenJazz J2: T32X_HEAP_LOG=<bytes> - remember who allocated every live block of at least
+/* OpenJazz T32X_HEAP_LOG=<bytes> - remember who allocated every live block of at least
  * that size (6 return addresses), and print the list as it stood at the heap's peak when the
  * program ends; tools/heap_peak.sh turns the addresses into function names. */
 #include <execinfo.h>
@@ -869,7 +869,7 @@ static void big_print(BigBlock *list, int count, size_t total_heap, const char *
 
 void plat_mem_mark(const char *label)
 {
-	/* J3: T32X_HEAP_SNAP=<text>: at the first mark whose label contains it, list the live
+	/* T32X_HEAP_SNAP=<text>: at the first mark whose label contains it, list the live
 	 * blocks (needs T32X_HEAP_LOG) instead of the ones at the peak */
 	static int snapped;
 	const char *snap = getenv("T32X_HEAP_SNAP");
@@ -897,7 +897,7 @@ __attribute__((constructor)) static void heap_report_init(void)
 	atexit(heap_report);
 }
 
-/* J5: the PC build keeps the screen in memory (plat_present) */
+/* the PC build keeps the screen in memory (plat_present) */
 uint8_t *plat_canvas(void) { return NULL; }
 void plat_present_canvas(const uint16_t *palette555) { (void)palette555; }
 
@@ -922,7 +922,7 @@ uint32_t plat_prof_us(void)
 void plat_slave_draws(int on) { (void)on; }
 int plat_slave_draws_on(void) { return 0; }
 
-/* J15: the scrolling renderer on the PC - two imitated 32X frame buffers; presenting builds the
+/* the scrolling renderer on the PC - two imitated 32X frame buffers; presenting builds the
  * 320x200 picture from the line-table rules, exactly as the 32X shows it, then the normal present */
 static uint8_t host_fb[2][0x20000];
 static int host_back;
