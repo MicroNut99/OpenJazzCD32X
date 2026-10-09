@@ -47,3 +47,4 @@ cd32x/sh2/cdloader.map
 music/
 host/psm2wav
 cd32x/subcpu/soundtrack_cd/
+__pycache__/
