@@ -334,6 +334,39 @@ OJ_FAST static int fill_core(SDL_Surface *s, SDL_Rect *r, Uint32 colour)
  * straight into the frame buffer, where every write is a bus access: four pixels per write
  * instead of one. The source may be unaligned (tiles in the cart, scrolled positions): its
  * bytes are put together (memcpy into a word = right byte order on any machine). */
+/* OJ32X_LONG_READS: read the source a 32-bit word at a time where the code read single
+ * bytes - in copy_run when source and destination are not equally aligned, and in the keyed
+ * blits when looking for the transparent colour. Fewer load instructions and no assembling
+ * of words from bytes; the cart's bus traffic itself (cache line fills) stays the same.
+ * long_reads switches it at run time (Mode button) to compare frame rates on one disc. */
+#ifdef OJ32X_LONG_READS
+static bool long_reads = true;
+#else
+static const bool long_reads = false;
+#endif
+bool oj32x_long_reads(void) { return long_reads; }
+void oj32x_long_reads_toggle(void)
+{
+#ifdef OJ32X_LONG_READS
+	long_reads = !long_reads;
+#endif
+}
+
+/* Helpers as macros, not inline functions: the OJ_FAST routines are compiled at -O2 and the
+ * rest of the file at -Os, and GCC may refuse to inline across that difference - a call per
+ * word into code in the cart would cost more than it saves.
+ * word_at: the aligned word at p, as stored in memory (p 4-byte aligned).
+ * merge_words: the 4 bytes starting k bytes into word a, continuing into the next word b (in
+ *   memory order, for either byte order; k = 1..3).
+ * has_key: one of v's bytes equals the key (kk = the key in all four bytes); exact. */
+#define word_at(p) (*reinterpret_cast<const Uint32 *>(p))
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#define merge_words(a, b, k) (((a) << (8 * (k))) | ((b) >> (32 - 8 * (k))))
+#else
+#define merge_words(a, b, k) (((a) >> (8 * (k))) | ((b) << (32 - 8 * (k))))
+#endif
+#define has_key(v, kk) (((((v) ^ (kk)) - 0x01010101u) & ~((v) ^ (kk)) & 0x80808080u) != 0)
+
 OJ_FAST static void copy_run(Uint8 *d, const Uint8 *s, int n)
 {
 	while (n > 0 && ((uintptr_t)d & 3)) { *d++ = *s++; n--; }
@@ -344,12 +377,48 @@ OJ_FAST static void copy_run(Uint8 *d, const Uint8 *s, int n)
 		for (; n >= 4; n -= 4) *dw++ = *sw++;
 		d = reinterpret_cast<Uint8 *>(dw);
 		s = reinterpret_cast<const Uint8 *>(sw);
+	} else if (long_reads && n >= 8) {
+		/* source k bytes past an aligned word: each output word is put together from two
+		 * aligned source words. While at least 8 bytes remain, both words lie inside the
+		 * run (the first one starts at most 3 bytes before s, inside s's own aligned word). */
+		const int k = (int)((uintptr_t)s & 3);
+		const Uint8 *sa = s - k;
+		Uint32 *dw = reinterpret_cast<Uint32 *>(d);
+		Uint32 a = word_at(sa);
+		for (; n >= 8; n -= 4) {
+			sa += 4;
+			const Uint32 b = word_at(sa);
+			*dw++ = merge_words(a, b, k);
+			a = b;
+		}
+		s = sa + k;
+		d = reinterpret_cast<Uint8 *>(dw);
+		for (; n >= 4; n -= 4) { Uint32 v; memcpy(&v, s, 4); *reinterpret_cast<Uint32 *>(d) = v; d += 4; s += 4; }
 	} else {
 		Uint32 *dw = reinterpret_cast<Uint32 *>(d);
 		for (; n >= 4; n -= 4) { Uint32 v; memcpy(&v, s, 4); *dw++ = v; s += 4; }
 		d = reinterpret_cast<Uint8 *>(dw);
 	}
 	while (n-- > 0) *d++ = *s++;
+}
+
+/* OJ32X_LONG_READS: the end of a run of key-coloured (skip_key) or visible (skip_visible)
+ * pixels from x on, testing four pixels per aligned word where possible */
+OJ_FAST static int skip_key(const Uint8 *sp, int x, int w, Uint8 key)
+{
+	while (x < w && ((uintptr_t)(sp + x) & 3)) { if (sp[x] != key) return x; x++; }
+	const Uint32 kk = key * 0x01010101u;
+	while (x + 4 <= w && word_at(sp + x) == kk) x += 4;
+	while (x < w && sp[x] == key) x++;
+	return x;
+}
+OJ_FAST static int skip_visible(const Uint8 *sp, int x, int w, Uint8 key)
+{
+	while (x < w && ((uintptr_t)(sp + x) & 3)) { if (sp[x] == key) return x; x++; }
+	const Uint32 kk = key * 0x01010101u;
+	while (x + 4 <= w) { const Uint32 v = word_at(sp + x); if (has_key(v, kk)) break; x += 4; }
+	while (x < w && sp[x] != key) x++;
+	return x;
 }
 
 OJ_FAST static int blit_core(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rect *dstrect)
@@ -397,11 +466,20 @@ OJ_FAST static int blit_core(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *d
 		} else if (identity) {
 			/* runs of visible pixels, each copied with 32-bit writes where possible */
 			int x = 0;
-			while (x < w) {
-				while (x < w && sp[x] == key) x++;
-				const int start = x;
-				while (x < w && sp[x] != key) x++;
-				if (x > start) copy_run(dp + start, sp + start, x - start);
+			if (long_reads) {
+				while (x < w) {
+					x = skip_key(sp, x, w, key);
+					const int start = x;
+					x = skip_visible(sp, x, w, key);
+					if (x > start) copy_run(dp + start, sp + start, x - start);
+				}
+			} else {
+				while (x < w) {
+					while (x < w && sp[x] == key) x++;
+					const int start = x;
+					while (x < w && sp[x] != key) x++;
+					if (x > start) copy_run(dp + start, sp + start, x - start);
+				}
 			}
 		} else {
 			for (int x = 0; x < w; ++x) { Uint8 v = sp[x]; if (v != key) dp[x] = map[v]; }
@@ -782,11 +860,15 @@ static void poll_pad(void)
 {
 	uint16_t now = plat_read_pad();
 	pad_now = now;   /* for buttons the game has no key for (Y in the credits) */
-	{	/* Mode switches the slave SH2's drawing on/off (OJ32X_SLAVE_DRAWS builds, for
-		 * profiling; otherwise it has no effect) */
+	{	/* Mode: in OJ32X_LONG_READS builds switches the 32-bit reads on/off (to compare frame
+		 * rates); otherwise the slave SH2's drawing (OJ32X_SLAVE_DRAWS builds, for profiling) */
 		static bool modeWas;
 		const bool mode = (now & PAD_MODE) != 0;
+#ifdef OJ32X_LONG_READS
+		if (mode && !modeWas) oj32x_long_reads_toggle();
+#else
 		if (mode && !modeWas) plat_slave_draws(!plat_slave_draws_on());
+#endif
 		modeWas = mode;
 	}
 	pad_latched &= now;

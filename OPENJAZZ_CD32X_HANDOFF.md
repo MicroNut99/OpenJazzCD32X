@@ -775,3 +775,14 @@ PC (scrolling build): the save screen no longer alternates between two pictures.
   packs made again (build.sh marker .bonus_v2): 23 MB. PC, 32X paths: bonus peak 135 KB incl. the
   PC's 64 KB screen (was 245).
 - The FPS counter (Z) starts on when nothing is saved yet (plat_port_setting default).
+
+## J20: 32-bit source reads (OJ32X_LONG_READS, branch long-reads)
+The blits read the source a 32-bit word at a time where they read bytes: copy_run when source
+and destination are not equally aligned (two aligned words merged per output word, both inside
+the run while 8 bytes remain), and the keyed blits when looking for the colour key (skip_key /
+skip_visible: 4 pixels per word, has-key test). The bus traffic for cart reads (cache line fills
+through the 32X's 16-bit cartridge port) is the same; the gain is fewer load instructions and
+no assembling of words from bytes. Mode switches it while playing; the frame counter's top line
+shows 32 or 8. Checked: unit test of every alignment / length in both byte orders (600,000 cases,
+ASan + UBSan), the game with and without in six levels (1,200 frames identical), ASan runs,
+regression 0 different.

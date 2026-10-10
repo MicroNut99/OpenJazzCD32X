@@ -238,9 +238,15 @@ void Level::drawOverlay (unsigned char bg, bool menu, int option,
 		else
 			video.drawRect(canvasW - 84, 11, 80, 25, bg);
 
+#ifdef OJ32X_LONG_READS
+		// PORT32X: the top line shows the blits' read width instead of the screen size:
+		// 32 = 32-bit source reads on, 8 = byte reads (the Mode button switches them)
+		panelBigFont->showNumber(oj32x_long_reads() ? 32 : 8, canvasW - 12, 14);
+#else
 		panelBigFont->showNumber(video.getWidth(), canvasW - 52, 14);
 		panelBigFont->showString("x", canvasW - 48, 14);
 		panelBigFont->showNumber(video.getHeight(), canvasW - 12, 14);
+#endif
 		panelBigFont->showString("fps", canvasW - 76, 26);
 		panelBigFont->showNumber((int)smoothfps, canvasW - 12, 26);
 

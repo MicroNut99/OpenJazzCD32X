@@ -91,6 +91,9 @@ bool oj32x_hh95_available(void);
 /* the port's own settings, kept in the RAM cart (0 = frame counter, 1 = A/B swap) */
 int oj32x_port_setting(int key);
 void oj32x_port_setting_set(int key, int value);
+/* OJ32X_LONG_READS: 32-bit source reads in the blits on (true) or off; Mode switches it */
+bool oj32x_long_reads(void);
+void oj32x_long_reads_toggle(void);
 /* A/B swap (set-up menu): A fires and B jumps instead of the other way round */
 bool oj32x_ab_swapped(void);
 void oj32x_ab_swap(bool on);

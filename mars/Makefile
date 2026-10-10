@@ -54,6 +54,8 @@ DEFS += -DOJ32X_SCROLL
 #   OJ32X_PANEL_DIFF  status panel drawn in SDRAM, only changed rows copied to the frame buffer
 #   OJ32X_FLIP_ASYNC  presenting only requests the swap; the logic runs while it waits
 DEFS += -DOJ32X_FAST_CODE -DOJ32X_PANEL_DIFF -DOJ32X_FLIP_ASYNC
+# 32-bit source reads in the blits (OJ32X_LONG_READS); Mode switches them while playing
+DEFS += -DOJ32X_LONG_READS
 CXXFLAGS := -std=gnu++14 $(OPT) $(DEFS) $(INCS) -fno-threadsafe-statics -Wall -Wno-unused-result -Wno-narrowing -MMD -MP
 CFLAGS   := -std=gnu11 $(OPT) $(DEFS) $(INCS) -w -MMD -MP
 

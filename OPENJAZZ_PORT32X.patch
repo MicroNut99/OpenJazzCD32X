@@ -1830,7 +1830,7 @@ index 306b9e9..692216a 100644
  						}
  						break;
 diff --git a/oj/src/level/level.cpp b/oj/src/level/level.cpp
-index 1ab7284..94759a6 100644
+index 1ab7284..25f4f07 100644
 --- a/oj/src/level/level.cpp
 +++ b/oj/src/level/level.cpp
 @@ -28,6 +28,9 @@
@@ -1869,7 +1869,23 @@ index 1ab7284..94759a6 100644
  	delete paletteEffects;
  	paletteEffects = NULL;
  
-@@ -332,6 +347,13 @@ int Level::select (bool& menu, int option) {
+@@ -223,9 +238,15 @@ void Level::drawOverlay (unsigned char bg, bool menu, int option,
+ 		else
+ 			video.drawRect(canvasW - 84, 11, 80, 25, bg);
+ 
++#ifdef OJ32X_LONG_READS
++		// PORT32X: the top line shows the blits' read width instead of the screen size:
++		// 32 = 32-bit source reads on, 8 = byte reads (the Mode button switches them)
++		panelBigFont->showNumber(oj32x_long_reads() ? 32 : 8, canvasW - 12, 14);
++#else
+ 		panelBigFont->showNumber(video.getWidth(), canvasW - 52, 14);
+ 		panelBigFont->showString("x", canvasW - 48, 14);
+ 		panelBigFont->showNumber(video.getHeight(), canvasW - 12, 14);
++#endif
+ 		panelBigFont->showString("fps", canvasW - 76, 26);
+ 		panelBigFont->showNumber((int)smoothfps, canvasW - 12, 26);
+ 
+@@ -332,6 +353,13 @@ int Level::select (bool& menu, int option) {
  
  				// Restore level palette
  				video.setPalette(palette);
@@ -1883,7 +1899,7 @@ index 1ab7284..94759a6 100644
  
  			} else
  				playSound(SE::OW);
-@@ -353,6 +375,10 @@ int Level::select (bool& menu, int option) {
+@@ -353,6 +381,10 @@ int Level::select (bool& menu, int option) {
  
  				// Restore level palette
  				video.setPalette(palette);
@@ -1894,7 +1910,7 @@ index 1ab7284..94759a6 100644
  
  			} else
  				playSound(SE::OW);
-@@ -374,6 +400,10 @@ int Level::select (bool& menu, int option) {
+@@ -374,6 +406,10 @@ int Level::select (bool& menu, int option) {
  
  				// Restore level palette
  				video.setPalette(palette);
@@ -1905,7 +1921,7 @@ index 1ab7284..94759a6 100644
  
  			} else
  				playSound(SE::OW);
-@@ -394,6 +424,10 @@ int Level::select (bool& menu, int option) {
+@@ -394,6 +430,10 @@ int Level::select (bool& menu, int option) {
  
  			// Restore level palette
  			video.setPalette(palette);
@@ -1916,7 +1932,7 @@ index 1ab7284..94759a6 100644
  
  			break;
  #endif
-@@ -428,6 +462,11 @@ int Level::loop (bool& menu, int& option, bool& message) {
+@@ -428,6 +468,11 @@ int Level::loop (bool& menu, int& option, bool& message) {
  
  
  	// Main loop
@@ -1928,7 +1944,7 @@ index 1ab7284..94759a6 100644
  	if (::loop(NORMAL_LOOP, paletteEffects, paused) == E_QUIT) return E_QUIT;
  
  
-@@ -444,6 +483,10 @@ int Level::loop (bool& menu, int& option, bool& message) {
+@@ -444,6 +489,10 @@ int Level::loop (bool& menu, int& option, bool& message) {
  
  		if (!multiplayer) stats ^= S_SCREEN;
  		else stats = (stats + 1) & 3;
