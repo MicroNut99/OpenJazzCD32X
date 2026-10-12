@@ -101,9 +101,52 @@ the frame counter (Z) and the A/B swap are remembered too.
 Each planet (two levels) is loaded once with a loading screen, about 30-45 seconds; its second
 level starts without loading. A bonus level is loaded on entry, and the next planet again after it.
 
+## Frame rate
+
+In levels the game runs at about **10–13 frames per second** (Turtle Terror level 1: 12–13 at the
+start, about 10 at the waterfalls). The bonus levels, with their 3D floor drawn pixel by pixel, are
+slower. The 32X shows a new picture at a screen refresh, 60 times a second, so a frame lasts a
+whole number of refreshes: 4 refreshes give 15 frames per second, 5 give 12, 6 give 10.
+
+**Z** (6-button pad) shows the frame counter in levels.
+
+What has been done to get there:
+- **Drawing straight into the frame buffer.** The game draws into the 32X's screen memory
+  instead of a copy of it, which saves copying 64 KB every frame.
+- **Faster pixel copies.** Sprites and tiles are copied as runs of visible pixels with 32-bit
+  writes, and fills use 32-bit writes. The scene decoder writes each pixel once; the original
+  wrote some pixels up to about 200 times.
+- **A scrolling screen that only draws what changed.** The 32X has no scroll registers, but the
+  start of each screen line can be set. The level's background stays in each frame buffer and is
+  moved with those line starts. Each frame draws only the rows that came into view, the cells that
+  changed, and the background under last frame's sprites. This brought Turtle Terror from about
+  11 to 12–13 frames per second.
+- **Fast code in fast memory.** The pixel routines are copied from the cart into the 32X's SDRAM,
+  its fastest memory, and compiled for speed. Code in the cart goes through a slow bus and a
+  small cache.
+- **The status panel drawn only when it changes.** The panel is drawn in SDRAM and only its
+  changed rows are copied to the screen.
+- **No waiting for the picture swap.** Showing a frame only requests the swap; the game logic for
+  the next frame runs while it waits.
+- **Even frame times.** Frames are paced to the median of the recent frame times, so the motion
+  stays even. Pacing to the slowest frames wasted a refresh on most frames.
+- **Less to draw.** The intro, cutscenes and demos are left out; the credits background is drawn
+  more cheaply.
+
+What did not help:
+- **Drawing on both SH2 processors.** Both processors wait on the same bus to the screen memory
+  and the cart, so splitting the drawing between them gave no gain. It is off.
+- **No pacing at all.** Faster on average, but the motion at speed looks choppier.
+
+Ideas not done yet: running the game logic on the second SH2 while the first draws (this helped
+the Hurrican CD32X port, where it removed tearing and freed time), preparing sprites and tiles as
+ready-made copy runs on the PC, skipping the sky under solid tiles, using the SH2's on-chip RAM
+for the innermost loops, and drawing the backgrounds on the Genesis layer behind the 32X picture.
+
 ## Known limitations
 
-- The game runs at about 10-13 frames per second in levels; scrolling is not smooth.
+- The game runs at about 10-13 frames per second in levels; scrolling is not smooth (see
+  *Frame rate*).
 - The intro and the cutscenes between episodes are not included.
 - No demo mode, no multiplayer.
 - Music and sound effects can only be switched on or off, not set to a volume.
