@@ -450,8 +450,7 @@ namespace {
 	void oj32xFrameJob (void* arg, int part) {
 		OJ32XFrameJob* j = static_cast<OJ32XFrameJob*>(arg);
 		if (part == 0) {
-			j->level->scrollBegin(j->vX, j->vY, j->viewH);
-			j->level->scrollOrb(j->vX, j->vY);
+			j->level->scrollBegin(j->vX, j->vY, j->viewH);   // the sun after the join (J23c)
 		} else {
 			j->steps->ret = j->level->frameSteps(&j->steps->profSteps);
 		}
@@ -591,6 +590,10 @@ void JJ1Level::draw () {
 	// Calculate change since last step
 	change = getTimeChange();
 
+#if defined(OJ32X) && defined(OJ32X_SCROLL)
+	// J23c: the view as it was - the view is worked out again after this frame's steps
+	const fixed oldViewX = viewX, oldViewY = viewY;
+#endif
 
 	// Calculate viewport
 	if (game && (stage == LS_END)) game->view(paused? 0: ((ticks - prevTicks) * 160));
@@ -635,7 +638,24 @@ void JJ1Level::draw () {
 		// below are drawn from the state after them, with the time change that is left
 		OJ32XFrameJob job = { this, oj32x_step_job, vX, vY, viewH };
 		plat_logic_parallel(oj32xFrameJob, &job);
+		// J23c: the camera from the state after the steps, as before J23 (J23 kept the one
+		// guessed before them - it jumped against the sprites: jerky); from the same old view,
+		// so its lag is applied once. The ring only needs the few rows / columns between the
+		// guess and this (scrollBegin again: the restores are done, its list is empty).
 		change = getTimeChange();
+		viewX = oldViewX; viewY = oldViewY;
+		if (game && (stage == LS_END)) game->view(paused? 0: ((ticks - prevTicks) * 160));
+		else localPlayer->getJJ1LevelPlayer()->view(ticks, paused? 0: (ticks - prevTicks), change);
+		if (FTOI(viewX) + canvasW >= TTOI(LW)) viewX = ITOF(TTOI(LW) - canvasW);
+		if (viewX < 0) viewX = 0;
+		if (FTOI(viewY) + viewH >= TTOI(LH)) viewY = ITOF(TTOI(LH) - viewH);
+		if (viewY < 0) viewY = 0;
+		if (FTOI(viewX) != vX || FTOI(viewY) != vY) {
+			vX = FTOI(viewX);
+			vY = FTOI(viewY);
+			scrollBegin(vX, vY, viewH);
+		}
+		scrollOrb(vX, vY);
 	} else {
 		scrollBegin(vX, vY, viewH);
 		scrollOrb(vX, vY);

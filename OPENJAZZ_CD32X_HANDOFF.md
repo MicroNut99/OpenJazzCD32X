@@ -817,3 +817,12 @@ sprites, foreground and panel are drawn from the new state, with the time change
   drawn (scrollOrb). The ring is not redrawn: its sky pixels just show the one colour. Levels
   without a sky do not change.
 - Neither switch is remembered (both on at every start). Built only, not tested on hardware.
+
+## J23c: the camera after the steps again
+J23/J23b on the console (four videos, every setting): 15-22 fps, up from J20's 10-13, but jerky
+in every setting - the camera was the one guessed before the steps (view() looking ahead by the
+whole frame's time), the sprites came from after them, so they jumped against each other.
+Now the view is worked out again after the join, from the same old view (its lag applied once)
+and with the time change that is left - as before J23; scrollBegin runs a second time only when
+it differs from the guess (only the rows / columns between the two), then the sun.
+Built only, not tested on hardware.
