@@ -30,6 +30,9 @@
 #include "level.h"
 #ifdef OJ32X
 #include "oj32x.h"
+extern "C" {
+#include "plat.h"
+}
 #endif
 
 #include "game/game.h"
@@ -49,7 +52,7 @@
  */
 Level::Level (Game* owner) :
 	menuOptions{"continue game", "save game", "load game", "setup options",
-		"quit game", "debug menus"} {
+		"quit game", "debug menus", "debug menus", "debug menus"} {
 
 	game = owner;
 
@@ -57,6 +60,14 @@ Level::Level (Game* owner) :
 	nMenuOptions = 6;
 #else
 	nMenuOptions = 5;
+#endif
+#if defined(OJ32X_MARS) && defined(OJ32X_SCROLL)
+	// PORT32X (J23b): the second SH2's game logic on / off, last in the pause menu (as the
+	// Hurrican CD32X port's 2ND CPU); the debug menus move one place down
+	menuOptions[nMenuOptions + 1] = menuOptions[5];
+	menuOptions[5] = plat_slave_logic_on() ? "second cpu on" : "second cpu off";
+	menuOptions[6] = oj32x_sky_on ? "background on" : "background off";   // J23b: the sky
+	nMenuOptions += 2;
 #endif
 
 	// Arbitrary initial value
@@ -421,8 +432,31 @@ int Level::select (bool& menu, int option) {
 			playConfirmSound();
 			return E_RETURN;
 
+#if defined(OJ32X_MARS) && defined(OJ32X_SCROLL)
+		case 5: // PORT32X (J23b): second SH2 on / off - the menu stays open
+
+			plat_slave_logic(!plat_slave_logic_on());
+			menuOptions[5] = plat_slave_logic_on() ? "second cpu on" : "second cpu off";
+			playConfirmSound();
+
+			break;
+
+		case 6: // PORT32X (J23b): the sky (gradient + sun / moon) on / off - off: one plain
+			// colour, no sun, no colour turning (oj32x_sky_on)
+
+			oj32x_sky_on = !oj32x_sky_on;
+			menuOptions[6] = oj32x_sky_on ? "background on" : "background off";
+			playConfirmSound();
+
+			break;
+#endif
+
 #if OJ_DEBUG
+#if defined(OJ32X_MARS) && defined(OJ32X_SCROLL)
+		case 7: // Debug menus
+#else
 		case 5: // Debug menus
+#endif
 
 			playConfirmSound();
 

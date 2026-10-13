@@ -489,6 +489,13 @@ void SkyPaletteEffect::apply (SDL_Color* shownPalette, bool direct, int mspf, bo
 	int ringVY;
 	if (oj32x_scroll_active(&ringVY) && amount == 100) {
 		SDL_Color turned[100];
+		if (!oj32x_sky_on) {
+			// J23b: background off - one plain colour of the sky for all its entries
+			for (int k = 0; k < 100; k++) turned[k] = skyPalette[127];
+			if (direct) video.changePalette(turned, first, amount);
+			else memcpy(shownPalette + first, turned, sizeof(SDL_Color) * amount);
+			return;
+		}
 		for (int k = 0; k < 100; k++) {
 			const int line = ((2 * k - ringVY) % 200 + 200) % 200;
 			turned[k] = skyPalette[(count + line / 2) % 255];

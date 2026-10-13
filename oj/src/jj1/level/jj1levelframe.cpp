@@ -419,7 +419,7 @@ void JJ1Level::scrollBegin (int vX, int vY, int viewH) {
 /** The sun / moon: fixed on the screen, behind the tiles - drawn on the sky's pixels only. */
 void JJ1Level::scrollOrb (int vX, int vY) {
 
-	if (!sky || !skyOrb) return;
+	if (!sky || !skyOrb || !oj32x_sky_on) return;   // J23b: no sun / moon with the background off
 	const int ox = ((canvasW * 4) / 5) - (vX & 3), oy = ((canvasH - 33) * 3) / 25;
 	const unsigned char* sp = static_cast<const unsigned char*>(tileSet->pixels) + TTOI(skyOrb + (vX & 3)) * tileSet->pitch;
 	const unsigned char key = video.getColorKey(tileSet);

@@ -107,6 +107,8 @@ void oj32x_music_remember(const char *fileName);
 
 /* run fn(arg, 0) and fn(arg, 1) - on both SH2s at once only in OJ32X_SLAVE_DRAWS builds */
 void oj32x_parallel(void (*fn)(void *, int), void *arg);
+/* J23b: the level sky (gradient + sun / moon) on or off - PAUSE: background on / off */
+extern int oj32x_sky_on;
 
 /* skip the intro cutscene (32X: always; PC build: T32X_SKIP_INTRO=1) */
 int oj32x_skip_intro(void);

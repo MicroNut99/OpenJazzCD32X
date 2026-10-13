@@ -864,8 +864,9 @@ static void poll_pad(void)
 		 * rates); otherwise the slave SH2's drawing (OJ32X_SLAVE_DRAWS builds, for profiling) */
 		static bool modeWas;
 		const bool mode = (now & PAD_MODE) != 0;
-		/* J23: Mode switches the second SH2's game logic (32-bit reads stay on) */
-		if (mode && !modeWas) plat_slave_logic(!plat_slave_logic_on());
+		/* J23b: Mode does nothing (the second SH2's game logic is switched in the pause
+		 * menu: "second cpu on / off"; the 32-bit reads stay on) */
+		(void)mode;
 		modeWas = mode;
 	}
 	pad_latched &= now;
@@ -950,6 +951,8 @@ SDL_Surface *oj32x_view(SDL_Surface *base, int index, int x, int y, int w, int h
 /* fn(arg, 0) and fn(arg, 1) - at the same time on the master and the slave SH2 in
  * OJ32X_SLAVE_DRAWS builds (plat_parallel), otherwise one after the other (the bands do not
  * overlap) */
+int oj32x_sky_on = 1;   /* J23b: see oj32x.h */
+
 void oj32x_parallel(void (*fn)(void *, int), void *arg)
 {
 	/* the views are made here, on the master: malloc must never run on both SH2s at once */

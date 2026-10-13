@@ -802,8 +802,18 @@ sprites, foreground and panel are drawn from the new state, with the time change
   sounds go to sfx_pending, boss music sends a command); the slave only reads what the
   background pass writes nowhere; tile changes made by the logic mid-pass are caught by the
   shadow table next frame.
-- Mode switches it while playing (it switched the 32-bit reads in J20; those stay on); the
-  frame counter's top line shows 2CPU / 1CPU.
+- J23b: switched in the pause menu, "second cpu on / off" (as the Hurrican port's 2ND CPU);
+  Mode does nothing now (it switched the 32-bit reads in J20; those stay on). The frame
+  counter's top line shows 2CPU / 1CPU.
 - step()'s result (the level ends) is now acted on after that frame is drawn.
 - Not tested on hardware when built (built and linked only; the PC host runs both parts one
   after the other). SDRAM heap 8 KB smaller (the slave's stack): 194,096 bytes.
+
+## J23b: pause menu - second cpu on / off, background on / off
+- The pause menu gets two items after "quit game" (level.cpp; the debug menus, in debug builds,
+  move to the end): "second cpu on / off" (J23's slave logic) and "background on / off".
+- Background off (oj32x_sky_on, port/sdl_oj.cpp): the sky's 100 palette entries all get one
+  colour of the sky (no colour turning per frame, paletteeffects.cpp), and the sun / moon is not
+  drawn (scrollOrb). The ring is not redrawn: its sky pixels just show the one colour. Levels
+  without a sky do not change.
+- Neither switch is remembered (both on at every start). Built only, not tested on hardware.

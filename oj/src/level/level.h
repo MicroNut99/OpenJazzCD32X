@@ -88,7 +88,7 @@ class Sprite;
 class Level {
 
 	private:
-		const char* menuOptions[6];
+		const char* menuOptions[8];   ///< PORT32X (J23b): + second cpu, background on / off
 		int         nMenuOptions;
 		SetupMenu   setupMenu; ///< Setup menu to run on the player's command
 		FileMenu    fileMenu; ///< Save and Load menus to run on the player's command
