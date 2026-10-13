@@ -826,3 +826,13 @@ Now the view is worked out again after the join, from the same old view (its lag
 and with the time change that is left - as before J23; scrollBegin runs a second time only when
 it differs from the guess (only the rows / columns between the two), then the sun.
 Built only, not tested on hardware.
+
+## J23d: an even camera
+J23c still jerky on the console (higher fps). Now, with the second SH2, the camera is worked
+out once, before the steps, from the state before them and without looking ahead (view(...,
+change 0)) - one camera for the whole frame, a frame behind, as the Hurrican port (smooth
+there). The sprites come from after the steps. With "second cpu off" the frame is exactly J20's
+(steps, then draw). Open: the white clouds show holes - probably cloud pixels that use the sky's
+palette entries (156-255), which the scrolling renderer turns per ring row (and background off
+makes one colour); the fix would be to move those pixels to other entries when the packs are
+made. Built only, not tested on hardware.

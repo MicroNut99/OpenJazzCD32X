@@ -39,6 +39,9 @@
 #include "jj1level.h"
 #ifdef OJ32X
 #include "oj32x.h"
+extern "C" {
+#include "plat.h"
+}
 #endif
 #include "jj1levelplayer.h"
 #include "jj1/jj1episodeutils.h"
@@ -871,11 +874,19 @@ int JJ1Level::play () {
 		// master brings the background up to date (frameSteps, oj32x_step_job); the view is
 		// worked out first, from the state before the steps (it already looks ahead by the
 		// time not yet stepped), the sprites after them
+		// J23d: with "second cpu off" exactly the J20 order (steps, then draw)
 		OJ32XStepJob stepJob = { this, 0, 0 };
-		oj32x_step_job = &stepJob;
-		oj32x_prof(0);
-		draw();
-		oj32x_step_job = nullptr;
+		if (plat_slave_logic_on()) {
+			oj32x_step_job = &stepJob;
+			oj32x_prof(0);
+			draw();
+			oj32x_step_job = nullptr;
+		} else {
+			stepJob.ret = frameSteps(&stepJob.profSteps);
+			if (stepJob.ret) return stepJob.ret;
+			oj32x_prof(0);
+			draw();
+		}
 		profSteps = stepJob.profSteps;
 		oj32x_prof_steps(profSteps);
 		if (stepJob.ret) return stepJob.ret;
