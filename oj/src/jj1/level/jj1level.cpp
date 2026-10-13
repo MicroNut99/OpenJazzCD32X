@@ -866,6 +866,20 @@ int JJ1Level::play () {
 		oj32x_prof(6);
 		int profSteps = 0;
 #endif
+#if defined(OJ32X) && defined(OJ32X_SCROLL)
+		// PORT32X (J23): this frame's logic steps run inside draw(), on the slave SH2 while the
+		// master brings the background up to date (frameSteps, oj32x_step_job); the view is
+		// worked out first, from the state before the steps (it already looks ahead by the
+		// time not yet stepped), the sprites after them
+		OJ32XStepJob stepJob = { this, 0, 0 };
+		oj32x_step_job = &stepJob;
+		oj32x_prof(0);
+		draw();
+		oj32x_step_job = nullptr;
+		profSteps = stepJob.profSteps;
+		oj32x_prof_steps(profSteps);
+		if (stepJob.ret) return stepJob.ret;
+#else
 		while (getTimeChange() >= T_STEP) {
 #ifdef OJ32X
 			profSteps++;
@@ -895,6 +909,7 @@ int JJ1Level::play () {
 		// Draw the graphics
 
 		draw();
+#endif
 
 
 		// If paused, draw "PAUSE"
@@ -1001,3 +1016,39 @@ bool JJ1Level::handleSave (int slot) {
 	auto save = std::make_unique<JJ1Save>(setup.characterName, worldNum, levelNum, getDifficulty());
 	return save->save(slot);
 }
+
+
+#if defined(OJ32X) && defined(OJ32X_SCROLL)
+OJ32XStepJob* oj32x_step_job = nullptr;
+
+/**
+ * PORT32X (J23): this frame's logic steps (the loop play() had), run by draw() on the slave
+ * SH2 beside the background drawing. Returns step()'s first non-zero result (the level ends),
+ * after which no more steps are run.
+ */
+int JJ1Level::frameSteps (int* profSteps) {
+
+	while (getTimeChange() >= T_STEP) {
+
+		(*profSteps)++;
+
+		bool playerWasAlive = (localPlayer->getJJ1LevelPlayer()->getEnergy() != 0);
+
+		// Apply controls to local player
+		for (int i = 0; i < PCONTROLS; i++)
+			localPlayer->setControl(i, controls.getState(i));
+
+		int ret = step();
+		steps++;
+
+		if (ret) return ret;
+
+		if (!multiplayer && playerWasAlive && (localPlayer->getJJ1LevelPlayer()->getEnergy() == 0))
+			flash(0, 0, 0, T_END << 1);
+
+	}
+
+	return 0;
+
+}
+#endif

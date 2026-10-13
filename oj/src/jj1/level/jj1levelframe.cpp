@@ -443,6 +443,22 @@ void JJ1Level::scrollOrb (int vX, int vY) {
 #endif
 
 #ifdef OJ32X
+#ifdef OJ32X_SCROLL
+namespace {
+	/// J23: part 0 (master) the background, part 1 (slave) this frame's logic steps
+	struct OJ32XFrameJob { JJ1Level* level; OJ32XStepJob* steps; int vX, vY, viewH; };
+	void oj32xFrameJob (void* arg, int part) {
+		OJ32XFrameJob* j = static_cast<OJ32XFrameJob*>(arg);
+		if (part == 0) {
+			j->level->scrollBegin(j->vX, j->vY, j->viewH);
+			j->level->scrollOrb(j->vX, j->vY);
+		} else {
+			j->steps->ret = j->level->frameSteps(&j->steps->profSteps);
+		}
+	}
+}
+#endif
+
 // PORT32X: the original renderer's tile passes as a job for oj32x_parallel: each SH2 draws one
 // half of the view through its own clip rectangle (only one SH2 unless OJ32X_SLAVE_DRAWS).
 namespace {
@@ -614,8 +630,16 @@ void JJ1Level::draw () {
 #ifdef OJ32X
 #ifdef OJ32X_SCROLL
 	// PORT32X: bring this frame buffer's ring up to date (see above), then the sun
-	scrollBegin(vX, vY, viewH);
-	scrollOrb(vX, vY);
+	if (oj32x_step_job) {
+		// J23: ... while the slave SH2 runs this frame's logic steps (play()); the sprites
+		// below are drawn from the state after them, with the time change that is left
+		OJ32XFrameJob job = { this, oj32x_step_job, vX, vY, viewH };
+		plat_logic_parallel(oj32xFrameJob, &job);
+		change = getTimeChange();
+	} else {
+		scrollBegin(vX, vY, viewH);
+		scrollOrb(vX, vY);
+	}
 #else
 	// PORT32X: the original renderer: sky and background tiles drawn as two bands
 	{

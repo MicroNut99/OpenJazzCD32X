@@ -919,6 +919,9 @@ uint32_t plat_prof_us(void)
 	clock_gettime(CLOCK_MONOTONIC, &t);
 	return (uint32_t)(t.tv_sec * 1000000u + t.tv_nsec / 1000u);
 }
+void plat_logic_parallel(void (*fn)(void *, int), void *arg) { fn(arg, 0); fn(arg, 1); }
+void plat_slave_logic(int on) { (void)on; }
+int plat_slave_logic_on(void) { return 0; }
 void plat_slave_draws(int on) { (void)on; }
 int plat_slave_draws_on(void) { return 0; }
 

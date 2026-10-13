@@ -176,6 +176,65 @@ void secondary(void)
 	}
 }
 
+/* J23 - OJ32X_SLAVE_LOGIC: the slave SH2 runs the game logic (the level's steps) while the
+ * master brings the screen's background up to date (as the Hurrican CD32X port, which gained
+ * most of its frame rate this way). The logic hardly touches the frame buffer, so the two do
+ * not fight over that bus as the two drawing SH2s did (OJ32X_SLAVE_DRAWS). The slave runs it
+ * on a stack of its own (8 KB: its start-up stack is 2 KB), and the master purges its cache
+ * after the join, so it sees what the slave wrote (the SH2 caches write through, but the
+ * master may still hold old copies). Mode switches it while playing (frame counter: 2CPU /
+ * 1CPU). */
+#ifndef OJ32X_SLAVE_LOGIC
+#define OJ32X_SLAVE_LOGIC 1
+#endif
+static int slave_logic_now = 1;
+void plat_slave_logic(int on) { slave_logic_now = on; }
+int plat_slave_logic_on(void) { return OJ32X_SLAVE_LOGIC && slave_logic_now; }
+static uint32_t slave_stack[2048] __attribute__((aligned(16)));   /* 8 KB */
+static void (*volatile logic_fn)(void *, int);
+static void *volatile logic_arg;
+void call_on_stack(void (*fn)(void), void *top);
+__asm__(
+	"	.text\n"
+	"	.align 2\n"
+	"	.global _call_on_stack\n"
+	"_call_on_stack:\n"           /* r4 = fn, r5 = the new stack's top */
+	"	mov.l	r14,@-r15\n"
+	"	sts.l	pr,@-r15\n"
+	"	mov	r15,r14\n"
+	"	mov	r5,r15\n"
+	"	jsr	@r4\n"
+	"	nop\n"
+	"	mov	r14,r15\n"
+	"	lds.l	@r15+,pr\n"
+	"	rts\n"
+	"	mov.l	@r15+,r14\n");
+static void logic_on_slave(void) { logic_fn(logic_arg, 1); }
+static void logic_trampoline(void *arg, int part)
+{
+	(void)arg; (void)part;
+	call_on_stack(logic_on_slave, slave_stack + 2048);
+}
+
+void plat_logic_parallel(void (*fn)(void *, int), void *arg)
+{
+	if (!plat_slave_logic_on())
+	{
+		fn(arg, 0);
+		fn(arg, 1);
+		return;
+	}
+	logic_fn = fn;
+	logic_arg = arg;
+	JOB->fn = logic_trampoline;
+	JOB->arg = 0;
+	JOB->done = 0;
+	JOB->go = 1;
+	fn(arg, 0);
+	while (!JOB->done) { }
+	*(volatile uint8_t *)0xFFFFFE92 = 0x11;   /* purge the master's cache: the slave's writes */
+}
+
 void plat_parallel(void (*fn)(void *, int), void *arg)
 {
 	if (!OJ32X_SLAVE_DRAWS || !slave_draws_now)

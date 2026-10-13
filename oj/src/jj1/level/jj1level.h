@@ -284,6 +284,8 @@ class JJ1Level : public Level {
 		void scrollBg (int rx, int wy, int w, int h);
 		void scrollBegin (int vX, int vY, int viewH);
 		void scrollOrb (int vX, int vY);
+		/// PORT32X (J23): this frame's logic steps, run on the slave SH2 by draw()
+		int frameSteps (int* profSteps);
 #endif
 	private:
 #endif
@@ -342,6 +344,16 @@ class JJ1DemoLevel : public JJ1Level {
 // Variables
 
 EXTERN JJ1Level* level; ///< JJ1 level
+
+#if defined(OJ32X) && defined(OJ32X_SCROLL)
+/// PORT32X (J23): the logic steps play() hands to draw() - run beside the background drawing
+struct OJ32XStepJob {
+	JJ1Level* level;  ///< the level
+	int ret;          ///< frameSteps' result (non-zero: the level ends)
+	int profSteps;    ///< steps run (frame profiler)
+};
+extern OJ32XStepJob* oj32x_step_job;
+#endif
 
 #endif
 

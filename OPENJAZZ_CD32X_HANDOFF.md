@@ -786,3 +786,24 @@ no assembling of words from bytes. Mode switches it while playing; the frame cou
 shows 32 or 8. Checked: unit test of every alignment / length in both byte orders (600,000 cases,
 ASan + UBSan), the game with and without in six levels (1,200 frames identical), ASan runs,
 regression 0 different.
+
+## J23: the game logic on the slave SH2 (OJ32X_SLAVE_LOGIC, port/plat_mars.c)
+As in the Hurrican CD32X port: each level frame works out the view first (from the state
+before this frame's steps - JJ1LevelPlayer::view already looks ahead by the time not yet
+stepped), then the master brings the ring up to date (scrollBegin + scrollOrb) while the slave
+runs the frame's logic steps (JJ1Level::frameSteps, the loop play() had); after the join the
+sprites, foreground and panel are drawn from the new state, with the time change that is left.
+- plat_logic_parallel: part 0 on the master, part 1 on the slave on an 8 KB stack of its own
+  (call_on_stack; the slave's start-up stack is 2 KB); the master purges its cache after the
+  join. The slave purges its own at the job's start (as before).
+- Unlike the two drawing SH2s (J10, no gain: both on the frame buffer's bus), the logic works
+  in SDRAM and the cache, so the two should not wait on each other much.
+- Safe because: the background pass does not malloc or use COMM (the logic may: new events,
+  sounds go to sfx_pending, boss music sends a command); the slave only reads what the
+  background pass writes nowhere; tile changes made by the logic mid-pass are caught by the
+  shadow table next frame.
+- Mode switches it while playing (it switched the 32-bit reads in J20; those stay on); the
+  frame counter's top line shows 2CPU / 1CPU.
+- step()'s result (the level ends) is now acted on after that frame is drawn.
+- Not tested on hardware when built (built and linked only; the PC host runs both parts one
+  after the other). SDRAM heap 8 KB smaller (the slave's stack): 194,096 bytes.

@@ -864,11 +864,8 @@ static void poll_pad(void)
 		 * rates); otherwise the slave SH2's drawing (OJ32X_SLAVE_DRAWS builds, for profiling) */
 		static bool modeWas;
 		const bool mode = (now & PAD_MODE) != 0;
-#ifdef OJ32X_LONG_READS
-		if (mode && !modeWas) oj32x_long_reads_toggle();
-#else
-		if (mode && !modeWas) plat_slave_draws(!plat_slave_draws_on());
-#endif
+		/* J23: Mode switches the second SH2's game logic (32-bit reads stay on) */
+		if (mode && !modeWas) plat_slave_logic(!plat_slave_logic_on());
 		modeWas = mode;
 	}
 	pad_latched &= now;
@@ -1072,7 +1069,7 @@ void oj32x_prof_frame(void)
 	 * background, sprites, foreground (L B S F); panel, present, other (H P O) */
 	#define MS(x) (unsigned)((x) / f / 1000)
 	snprintf(prof_lines[0], sizeof prof_lines[0], "%s %uFPS T%u",
-	         plat_slave_draws_on() ? "2CPU" : "1CPU",
+	         (plat_slave_draws_on() || plat_slave_logic_on()) ? "2CPU" : "1CPU",
 	         (unsigned)(prof_frames * 1000000u / (now - prof_start)), MS(total));
 	snprintf(prof_lines[1], sizeof prof_lines[1], "L%u B%u S%u F%u",
 	         MS(prof_acc[0]), MS(prof_acc[1]), MS(prof_acc[2]), MS(prof_acc[3]));

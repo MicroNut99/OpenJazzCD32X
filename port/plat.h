@@ -197,6 +197,12 @@ void plat_music(int track);
  * the last vblank, about 0.18 ms steps; wraps after ~71 minutes) */
 uint32_t plat_prof_us(void);
 /* slave SH2 drawing on/off at run time, for OJ32X_SLAVE_DRAWS builds (PC: always off) */
+/* J23: fn(arg, 0) on the master and fn(arg, 1) on the slave SH2 (on an 8 KB stack of its own)
+ * at the same time - the level's logic beside the background drawing; one after the other
+ * when switched off (plat_slave_logic, the Mode button) or on the PC */
+void plat_logic_parallel(void (*fn)(void *, int), void *arg);
+void plat_slave_logic(int on);
+int plat_slave_logic_on(void);
 void plat_slave_draws(int on);
 int plat_slave_draws_on(void);
 const uint8_t *plat_cart_ptr(uint32_t cart_offset);
